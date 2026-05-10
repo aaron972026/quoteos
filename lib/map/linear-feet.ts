@@ -51,6 +51,7 @@ export function cornerCount(
 }
 
 /** Check if a polygon self-intersects — used for "geometry that crosses itself" guard from spec §11 */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function isSelfIntersecting(_feature: Feature<LineString | Polygon>): boolean {
   // TODO: pull in @turf/boolean-intersects against each segment pair.
   // Phase 1.5 — for now we trust mapbox-gl-draw's UX to discourage crossings.

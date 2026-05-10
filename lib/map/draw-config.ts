@@ -94,7 +94,10 @@ export const fenceDrawStyles: object[] = [
 ];
 
 // Map style — satellite per spec §6
-export const SATELLITE_STYLE = "mapbox://styles/mapbox/satellite-streets-v12";
+// satellite-v9 is raster-only imagery (no street/POI vector overlays). The
+// streets-v12 variant ~triples tile fetches and is much slower over a typical
+// home wifi. Imagery alone is enough for this UX.
+export const SATELLITE_STYLE = "mapbox://styles/mapbox/satellite-v9";
 
 export const MAP_DEFAULTS = {
   zoom: 19,

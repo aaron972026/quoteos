@@ -69,6 +69,20 @@ export default function FenceMap({
     }
     mapboxgl.accessToken = token;
 
+    // Diagnostic: log container dimensions before init. If width or height is
+    // 0 at this point, Mapbox renders to a zero-pixel canvas and silently
+    // skips tile fetches — which is exactly the symptom of a "loaded but
+    // blank" map.
+    const rect = containerRef.current.getBoundingClientRect();
+    console.info(
+      `[FenceMap] container size at init: ${rect.width.toFixed(0)} × ${rect.height.toFixed(0)}`
+    );
+    if (rect.width < 10 || rect.height < 10) {
+      console.warn(
+        "[FenceMap] container is near-zero — map will be blank. Parent layout may not have settled."
+      );
+    }
+
     let map: mapboxgl.Map;
     try {
       map = new mapboxgl.Map({
@@ -80,10 +94,19 @@ export default function FenceMap({
         maxZoom: MAP_DEFAULTS.maxZoom,
         pitch: MAP_DEFAULTS.pitch,
         bearing: MAP_DEFAULTS.bearing,
+        maxPitch: 0,
         pitchWithRotate: MAP_DEFAULTS.pitchWithRotate,
         dragRotate: MAP_DEFAULTS.dragRotate,
         attributionControl: false,
+        antialias: false,           // perf: software AA off
+        fadeDuration: 0,             // no tile cross-fade animation
+        preserveDrawingBuffer: false,
       });
+      // Cap DPR — on retina/4K displays Mapbox renders at 2x by default which
+      // quadruples tile fetches and pixel work. Visually indistinguishable on
+      // satellite imagery, much faster.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (map as any).setMaxPixelRatio?.(1.5);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Mapbox failed to initialize";
       console.error("[FenceMap] init failed:", err);
@@ -97,12 +120,23 @@ export default function FenceMap({
       console.error("[FenceMap] map error:", e);
       setErrorMsg(m);
     });
-
-    // Force resize after first paint — covers the case where the container's
-    // computed height was still settling when init ran.
     map.on("load", () => {
+      console.info("[FenceMap] style loaded");
       setTimeout(() => map.resize(), 50);
     });
+    map.on("style.load", () => {
+      console.info("[FenceMap] style.load fired");
+    });
+
+    // ResizeObserver — keep the map sized to its container even if the parent
+    // flex layout settles after init. Cheap; drives map.resize() on any change.
+    const ro = new ResizeObserver(() => {
+      const r = containerRef.current?.getBoundingClientRect();
+      if (r && r.width > 0 && r.height > 0) {
+        map.resize();
+      }
+    });
+    if (containerRef.current) ro.observe(containerRef.current);
 
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
     map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-left");
@@ -148,6 +182,7 @@ export default function FenceMap({
 
     return () => {
       try {
+        ro.disconnect();
         map.remove();
       } catch {
         // ignore
@@ -182,10 +217,14 @@ export default function FenceMap({
   }));
 
   return (
-    <div className="relative h-full w-full">
+    <div
+      className="relative w-full"
+      style={{ height: "100%", minHeight: 500 }}
+    >
       <div
         ref={containerRef}
         className="absolute inset-0 bg-navy/5"
+        style={{ minHeight: 500 }}
         role="application"
         aria-label="Fence drawing map"
       />

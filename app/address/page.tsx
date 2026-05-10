@@ -72,6 +72,16 @@ export default function AddressPage() {
 
         if (!r.ok) {
           const body = await r.json().catch(() => ({}));
+          // Surface the first Zod validation issue if present
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const issues = (body?.error?.details ?? []) as Array<any>;
+          if (issues.length > 0) {
+            const first = issues[0];
+            const path = Array.isArray(first?.path) ? first.path.join(".") : "";
+            throw new Error(
+              `${first?.message ?? "Validation failed"}${path ? ` (field: ${path})` : ""}`
+            );
+          }
           throw new Error(body?.error?.message ?? "Could not save your address");
         }
 

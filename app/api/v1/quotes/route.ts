@@ -14,13 +14,14 @@ import { LIMITS, checkLimit } from "@/lib/api/rate-limit";
 import { getCurrentSessionId } from "@/lib/api/session-helper";
 
 const Body = z.object({
-  address_line: z.string().min(3).max(256),
+  address_line: z.string().min(1).max(256),
   city: z.string().max(64).optional(),
-  state: z.string().length(2).optional(),
+  // State accepted as either short ("OK") or long ("Oklahoma") — we normalize later
+  state: z.string().max(32).optional(),
   zip: z.string().regex(/^\d{5}$/),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
-  parcel_id: z.string().max(64).optional(),
+  parcel_id: z.string().max(128).optional(),
 });
 
 export async function POST(req: NextRequest) {

@@ -92,7 +92,7 @@ export function ScopeSummary({
   return (
     <div className="rounded-xl border border-navy/10 bg-white p-4">
       <h3 className="text-sm font-semibold uppercase tracking-wider text-navy/60">
-        What's included
+        What&rsquo;s included
       </h3>
       <dl className="mt-3 space-y-2.5">
         {scopeRows.map((row, i) => (

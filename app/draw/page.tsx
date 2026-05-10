@@ -166,8 +166,13 @@ function DrawPageInner() {
         )}
       </header>
 
-      {/* Map area — flexes to fill */}
-      <div className="relative flex-1 min-h-[420px]">
+      {/* Map area — flexes to fill, with explicit fallback height so the
+          inner Mapbox canvas can never see 0px even if the flex layout is
+          still settling at mount. */}
+      <div
+        className="relative flex-1"
+        style={{ height: "60vh", minHeight: 420 }}
+      >
         <FenceMap
           handleRef={mapRef}
           centerLat={lat}

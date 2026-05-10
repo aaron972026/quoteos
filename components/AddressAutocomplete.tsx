@@ -78,6 +78,7 @@ export function AddressAutocomplete({
       return;
     }
     if (!containerRef.current) return;
+    const container = containerRef.current; // captured for cleanup
 
     let element: HTMLElement | null = null;
     let cancelled = false;
@@ -186,8 +187,8 @@ export function AddressAutocomplete({
 
     return () => {
       cancelled = true;
-      if (element && containerRef.current?.contains(element)) {
-        containerRef.current.removeChild(element);
+      if (element && container.contains(element)) {
+        container.removeChild(element);
       }
     };
   }, [apiKey, onSelect, placeholder, autoFocus]);
