@@ -4,6 +4,8 @@ import { db } from "@/lib/db/client";
 import { quotes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { STRIPE_EVENTS, getStripe } from "@/lib/integrations/stripe";
+import { pushGhl } from "@/lib/integrations/ghl";
+import { FINANCING } from "@/lib/pricing/data";
 
 // Webhook needs raw body for signature verification + node runtime (Stripe SDK is not edge-compatible).
 export const runtime = "nodejs";
@@ -65,7 +67,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   const [existing] = await db
-    .select({ id: quotes.id, status: quotes.status })
+    .select({
+      id: quotes.id,
+      status: quotes.status,
+      addressLine: quotes.addressLine,
+      selectedTierCents: quotes.selectedTierCents,
+    })
     .from(quotes)
     .where(eq(quotes.id, quoteId))
     .limit(1);
@@ -108,5 +115,18 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   console.info(
     `[stripe-webhook] quote=${quoteId} -> deposit_paid (session=${session.id})`
   );
+
+  // Fire-and-forget GHL push — spec §9 trigger 3 (hot lead — deposit paid)
+  pushGhl({
+    event: "deposit_paid",
+    quote_id: quoteId,
+    customer_email: customerEmail,
+    address_line: existing.addressLine ?? null,
+    selected_tier_cents: existing.selectedTierCents ?? null,
+    deposit_cents: FINANCING.DEPOSIT_CENTS,
+    stripe_payment_intent: paymentIntentId,
+    stage: "Hot Lead — Deposit Paid",
+  });
+
   return NextResponse.json({ received: true, processed: true });
 }

@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/respond";
 import { LIMITS, checkLimit } from "@/lib/api/rate-limit";
 import { getCurrentSessionId } from "@/lib/api/session-helper";
+import { pushGhl } from "@/lib/integrations/ghl";
 import { FINANCING } from "@/lib/pricing/data";
 
 const Body = z.object({
@@ -71,6 +72,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       updatedAt: new Date(),
     })
     .where(eq(quotes.id, params.id));
+
+  // Fire-and-forget GHL push — spec §9 trigger 2 (quote_viewed)
+  pushGhl({
+    event: "quote_finalized",
+    quote_id: params.id,
+    customer_email: row.customerEmail,
+    customer_phone: row.customerPhone,
+    address_line: row.addressLine,
+    zip: row.zip,
+    linear_feet: row.linearFeet != null ? Number(row.linearFeet) : null,
+    sku_code: row.skuCode,
+    selected_tier: tier,
+    tier_good_cents: row.tierGoodCents,
+    tier_better_cents: row.tierBetterCents,
+    tier_best_cents: row.tierBestCents,
+    selected_tier_cents: tierTotalCents,
+    price_valid_until: row.priceValidUntil?.toISOString() ?? null,
+  });
 
   // ── Stripe Checkout Session ────────────────────────────────────
   const stripeSecret = process.env.STRIPE_SECRET_KEY;

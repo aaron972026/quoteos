@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/respond";
 import { LIMITS, checkLimit } from "@/lib/api/rate-limit";
 import { getCurrentSessionId } from "@/lib/api/session-helper";
+import { pushGhl } from "@/lib/integrations/ghl";
 
 const Body = z.object({
   address_line: z.string().min(1).max(256),
@@ -53,6 +54,19 @@ export async function POST(req: NextRequest) {
         parcelId: data.parcel_id ?? null,
       })
       .returning({ id: quotes.id });
+
+    // Fire-and-forget GHL push — spec §9 trigger 1 (anonymous lead)
+    pushGhl({
+      event: "quote_started",
+      quote_id: row.id,
+      session_id: sid,
+      address_line: data.address_line,
+      city: data.city ?? null,
+      state: data.state ?? "OK",
+      zip: data.zip,
+      lat: data.lat,
+      lng: data.lng,
+    });
 
     return ok({ id: row.id }, { status: 201 });
   } catch (err) {
