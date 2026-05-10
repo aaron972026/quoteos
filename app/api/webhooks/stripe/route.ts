@@ -5,7 +5,9 @@ import { quotes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { STRIPE_EVENTS, getStripe } from "@/lib/integrations/stripe";
 import { pushGhl } from "@/lib/integrations/ghl";
+import { pushHcpJob } from "@/lib/integrations/hcp";
 import { FINANCING } from "@/lib/pricing/data";
+import type { Feature, LineString, Polygon } from "geojson";
 
 // Webhook needs raw body for signature verification + node runtime (Stripe SDK is not edge-compatible).
 export const runtime = "nodejs";
@@ -67,12 +69,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   const [existing] = await db
-    .select({
-      id: quotes.id,
-      status: quotes.status,
-      addressLine: quotes.addressLine,
-      selectedTierCents: quotes.selectedTierCents,
-    })
+    .select()
     .from(quotes)
     .where(eq(quotes.id, quoteId))
     .limit(1);
@@ -126,6 +123,42 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     deposit_cents: FINANCING.DEPOSIT_CENTS,
     stripe_payment_intent: paymentIntentId,
     stage: "Hot Lead — Deposit Paid",
+  });
+
+  // Fire-and-forget HCP/Make.com — spec §9 (HCP job spawn after deposit)
+  pushHcpJob({
+    quote_id: quoteId,
+    quote_number: existing.quoteNumber,
+    stripe_payment_intent: paymentIntentId,
+    deposit_cents: FINANCING.DEPOSIT_CENTS,
+    selected_tier_cents: existing.selectedTierCents,
+    customer_name:
+      existing.customerName ?? session.customer_details?.name ?? null,
+    customer_email: customerEmail,
+    customer_phone:
+      existing.customerPhone ?? session.customer_details?.phone ?? null,
+    address_line: existing.addressLine,
+    city: existing.city,
+    state: existing.state,
+    zip: existing.zip,
+    lat: existing.lat != null ? Number(existing.lat) : null,
+    lng: existing.lng != null ? Number(existing.lng) : null,
+    sku_code: existing.skuCode,
+    tier: existing.tier,
+    linear_feet:
+      existing.linearFeet != null ? Number(existing.linearFeet) : null,
+    corner_count: existing.cornerCount,
+    height_upgrade: !!existing.heightUpgrade,
+    french_gothic: !!existing.frenchGothic,
+    stain_seal: !!existing.stainSeal,
+    demo_required: !!existing.demoRequired,
+    demo_type: existing.demoType,
+    gates: existing.gates ?? [],
+    geometry: existing.geometry as
+      | Feature<LineString | Polygon>
+      | LineString
+      | Polygon
+      | null,
   });
 
   return NextResponse.json({ received: true, processed: true });
