@@ -16,6 +16,7 @@ import { ProgressDots } from "@/components/ProgressDots";
 import { TierComparison } from "@/components/quote/TierComparison";
 import { ScopeSummary } from "@/components/quote/ScopeSummary";
 import { QuoteCountdown } from "@/components/quote/QuoteCountdown";
+import { EmailSheet } from "@/components/quote/EmailSheet";
 import { TrustStrip } from "@/components/TrustStrip";
 
 type Tier = "good" | "better" | "best";
@@ -75,6 +76,7 @@ export default function QuotePage({ params }: { params: { id: string } }) {
   const [error, setError] = useState<string | null>(null);
   const [tier, setTier] = useState<Tier>("better");
   const [isLocking, startLockIn] = useTransition();
+  const [emailSheetOpen, setEmailSheetOpen] = useState(false);
 
   // ── Initial data load ────────────────────────────────────────────
   useEffect(() => {
@@ -271,8 +273,7 @@ export default function QuotePage({ params }: { params: { id: string } }) {
             variant="outline"
             size="lg"
             className="w-full"
-            disabled
-            title="Email PDF — coming next"
+            onClick={() => setEmailSheetOpen(true)}
           >
             <Mail size={18} /> Email me this quote
           </Button>
@@ -302,6 +303,12 @@ export default function QuotePage({ params }: { params: { id: string } }) {
           <TrustStrip compact />
         </div>
       </main>
+
+      <EmailSheet
+        quoteId={params.id}
+        open={emailSheetOpen}
+        onClose={() => setEmailSheetOpen(false)}
+      />
     </div>
   );
 }
