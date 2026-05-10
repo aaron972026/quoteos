@@ -108,3 +108,11 @@ export const MAP_DEFAULTS = {
   pitch: 0,
   bearing: 0,
 };
+
+// CSS class applied to the HTML element used as a Mapbox Marker for gates.
+// Style lives in app/globals.css so it survives marker re-rendering.
+export const GATE_MARKER_CLASS = "qos-gate-marker";
+
+// Maximum distance (km) between a tap and the line for "snap" to succeed.
+// ~0.005 km = 5 m ≈ 16 ft — generous at zoom 19 but rejects clearly-off taps.
+export const GATE_SNAP_MAX_KM = 0.005;

@@ -17,10 +17,13 @@ import { ProgressDots } from "@/components/ProgressDots";
 import { DrawingHud } from "@/components/map/DrawingHud";
 import { SlopeSelfReport } from "@/components/map/SlopeSelfReport";
 import { DemoToggle } from "@/components/map/DemoToggle";
+import { GatePlacer } from "@/components/map/GatePlacer";
 import type {
   FenceGeometryStats,
   FenceMapHandle,
+  PlacedGate,
 } from "@/components/map/FenceMap";
+import type { GateType } from "@/lib/pricing/types";
 
 // Mapbox accesses window at module load — must be client-only
 const FenceMap = dynamic(() => import("@/components/map/FenceMap"), {
@@ -56,6 +59,9 @@ function DrawPageInner() {
   const [slopeCode, setSlopeCode] = useState<0 | 2>(0);
   const [demoRequired, setDemoRequired] = useState(false);
   const [drawMode, setDrawMode] = useState<"line" | "polygon">("line");
+  const [gates, setGates] = useState<PlacedGate[]>([]);
+  const [gateMode, setGateMode] = useState(false);
+  const [pendingGatePoint, setPendingGatePoint] = useState<{ lat: number; lng: number } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const mapRef = useRef<FenceMapHandle>(null);
@@ -93,7 +99,17 @@ function DrawPageInner() {
 
   function handleReset() {
     setStats({ feature: null, linear_feet: 0, corner_count: 0, closed: false });
+    setGates([]);
+    setGateMode(false);
+    setPendingGatePoint(null);
     mapRef.current?.reset();
+  }
+
+  function handlePickGateSize(type: GateType) {
+    if (!pendingGatePoint) return;
+    setGates((prev) => [...prev, { type, count: 1, position: pendingGatePoint }]);
+    setPendingGatePoint(null);
+    setGateMode(false);
   }
 
   function handleContinue() {
@@ -117,6 +133,7 @@ function DrawPageInner() {
             slope_self_reported: true,
             demo_required: demoRequired,
             demo_type: demoRequired ? "CEDAR" : "NONE", // refined in Screen 4
+            gates,
           }),
         });
         if (!r.ok) {
@@ -178,6 +195,9 @@ function DrawPageInner() {
           centerLat={lat}
           centerLng={lng}
           onChange={setStats}
+          gates={gates}
+          gatePlacementMode={gateMode}
+          onGatePointPicked={setPendingGatePoint}
         />
 
         {/* HUD overlay (top center) */}
@@ -236,6 +256,22 @@ function DrawPageInner() {
           >
             <RotateCcw size={16} /> Reset
           </button>
+        </div>
+
+        <div className="mb-4">
+          <GatePlacer
+            lineExists={stats.linear_feet > 0}
+            placementMode={gateMode}
+            pendingPoint={pendingGatePoint}
+            gateCount={gates.length}
+            onEnter={() => setGateMode(true)}
+            onCancelMode={() => {
+              setGateMode(false);
+              setPendingGatePoint(null);
+            }}
+            onPickSize={handlePickGateSize}
+            onCancelSize={() => setPendingGatePoint(null)}
+          />
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

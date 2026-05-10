@@ -24,6 +24,24 @@ body {
   }
 }
 
+/* Gate markers on the fence map — circular badge with width label */
+.qos-gate-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  background: #F4A623;
+  color: #1F3A5F;
+  font-weight: 700;
+  font-size: 12px;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  box-shadow: 0 2px 6px rgba(31, 58, 95, 0.35), 0 0 0 3px rgba(255, 255, 255, 0.95);
+  cursor: default;
+  user-select: none;
+}
+
 /* Style the Google Places web component to match our Input primitive */
 .qos-address-autocomplete gmp-place-autocomplete {
   width: 100%;

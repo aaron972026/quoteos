@@ -13,12 +13,23 @@ import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import type { Feature, LineString, Polygon } from "geojson";
+import nearestPointOnLine from "@turf/nearest-point-on-line";
+import { lineString as turfLineString, point as turfPoint } from "@turf/helpers";
 import {
+  GATE_MARKER_CLASS,
+  GATE_SNAP_MAX_KM,
   MAP_DEFAULTS,
   SATELLITE_STYLE,
   fenceDrawStyles,
 } from "@/lib/map/draw-config";
 import { cornerCount, geometryLF } from "@/lib/map/linear-feet";
+import type { GateType } from "@/lib/pricing/types";
+
+export interface PlacedGate {
+  type: GateType;
+  count: number;
+  position: { lat: number; lng: number };
+}
 
 export interface FenceGeometryStats {
   feature: Feature<LineString | Polygon> | null;
@@ -42,6 +53,26 @@ interface Props {
   handleRef?:
     | RefObject<FenceMapHandle | null>
     | MutableRefObject<FenceMapHandle | null>;
+  // Gate placement (Phase 1)
+  gates?: PlacedGate[];
+  gatePlacementMode?: boolean;
+  onGatePointPicked?: (point: { lat: number; lng: number }) => void;
+}
+
+const GATE_WIDTH_LABEL: Record<GateType, string> = {
+  "SW-4": "4'",
+  "SW-5": "5'",
+  "DD-10": "10'",
+  "DD-12": "12'",
+  "DD-14": "14'",
+};
+
+function makeGateMarkerEl(type: GateType): HTMLDivElement {
+  const el = document.createElement("div");
+  el.className = GATE_MARKER_CLASS;
+  el.textContent = GATE_WIDTH_LABEL[type];
+  el.setAttribute("aria-label", `Gate: ${GATE_WIDTH_LABEL[type]} ${type}`);
+  return el;
 }
 
 export default function FenceMap({
@@ -49,12 +80,18 @@ export default function FenceMap({
   centerLng,
   onChange,
   handleRef,
+  gates,
+  gatePlacementMode,
+  onGatePointPicked,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const drawRef = useRef<MapboxDraw | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onGatePointPickedRef = useRef(onGatePointPicked);
+  onGatePointPickedRef.current = onGatePointPicked;
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -194,6 +231,75 @@ export default function FenceMap({
     // pan would lose the in-progress geometry. Quote address is fixed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Sync gate markers to the gates prop ─────────────────────────
+  useEffect(() => {
+    if (!mapRef.current) return;
+    // Wipe existing markers; cheap for the small N (max ~5–10 gates per quote)
+    for (const m of markersRef.current) m.remove();
+    markersRef.current = [];
+    if (!gates) return;
+    for (const g of gates) {
+      const el = makeGateMarkerEl(g.type);
+      const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
+        .setLngLat([g.position.lng, g.position.lat])
+        .addTo(mapRef.current);
+      markersRef.current.push(marker);
+    }
+  }, [gates]);
+
+  // ── Gate placement mode: switch draw to simple_select, intercept clicks ──
+  useEffect(() => {
+    const map = mapRef.current;
+    const draw = drawRef.current;
+    if (!map || !draw) return;
+
+    if (!gatePlacementMode) {
+      // Returning to drawing — restore line mode unless polygon is in progress
+      const fc = draw.getAll();
+      const last = fc.features[fc.features.length - 1];
+      if (!last || last.geometry.type === "LineString") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (draw as any).changeMode("draw_line_string");
+      }
+      return;
+    }
+
+    // Entering placement mode — stop drawing so taps don't add vertices
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (draw as any).changeMode("simple_select");
+
+    const handleClick = (e: mapboxgl.MapMouseEvent) => {
+      const fc = draw.getAll();
+      const feature = fc.features[fc.features.length - 1] as
+        | Feature<LineString | Polygon>
+        | undefined;
+      if (!feature) return;
+      const coords =
+        feature.geometry.type === "Polygon"
+          ? feature.geometry.coordinates[0]
+          : feature.geometry.coordinates;
+      if (coords.length < 2) return;
+
+      const line = turfLineString(coords as [number, number][]);
+      const clicked = turfPoint([e.lngLat.lng, e.lngLat.lat]);
+      const snapped = nearestPointOnLine(line, clicked, { units: "kilometers" });
+      const dist = snapped.properties.dist as number;
+      if (dist > GATE_SNAP_MAX_KM) {
+        console.info(
+          `[FenceMap] gate tap rejected — ${dist.toFixed(4)}km from line (max ${GATE_SNAP_MAX_KM})`
+        );
+        return;
+      }
+      const [lng, lat] = snapped.geometry.coordinates as [number, number];
+      onGatePointPickedRef.current?.({ lat, lng });
+    };
+
+    map.on("click", handleClick);
+    return () => {
+      map.off("click", handleClick);
+    };
+  }, [gatePlacementMode]);
 
   useImperativeHandle(handleRef, () => ({
     reset() {
