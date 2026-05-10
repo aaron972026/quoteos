@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #1F3A5F;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-feature-settings: "ss01", "cv11";
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+}
