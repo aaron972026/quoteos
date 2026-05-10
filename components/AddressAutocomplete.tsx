@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Input } from "@/components/ui/input";
 
 export interface AddressResult {
   address_line: string;
@@ -21,21 +20,25 @@ interface Props {
 
 declare global {
   interface Window {
-    google?: typeof google;
     __qos_gmaps_loading?: Promise<void>;
   }
 }
 
+// Loads google.maps with the Places library. Idempotent.
 function loadGoogleMaps(apiKey: string): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
-  if (window.google?.maps?.places) return Promise.resolve();
+  // Already loaded — the new component lives at google.maps.places.PlaceAutocompleteElement
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((window as any).google?.maps?.places?.PlaceAutocompleteElement) {
+    return Promise.resolve();
+  }
   if (window.__qos_gmaps_loading) return window.__qos_gmaps_loading;
 
   window.__qos_gmaps_loading = new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
       apiKey
-    )}&libraries=places&v=weekly`;
+    )}&libraries=places&v=weekly&loading=async`;
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
@@ -45,15 +48,27 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   return window.__qos_gmaps_loading;
 }
 
-function pickComponent(
-  components: google.maps.GeocoderAddressComponent[] | undefined,
-  type: string
-): string | undefined {
-  return components?.find((c) => c.types.includes(type))?.short_name;
+// New API address-component shape: { types, longText, shortText }
+interface NewAddressComponent {
+  types: string[];
+  longText: string | null;
+  shortText: string | null;
 }
 
-export function AddressAutocomplete({ onSelect, placeholder = "Enter your address…", autoFocus }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
+function pickComponent(
+  components: NewAddressComponent[] | undefined,
+  type: string,
+  field: "longText" | "shortText" = "shortText"
+): string | undefined {
+  return components?.find((c) => c.types.includes(type))?.[field] ?? undefined;
+}
+
+export function AddressAutocomplete({
+  onSelect,
+  placeholder = "Enter your address…",
+  autoFocus,
+}: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY;
   const [warning, setWarning] = useState<string | null>(null);
 
@@ -62,68 +77,124 @@ export function AddressAutocomplete({ onSelect, placeholder = "Enter your addres
       setWarning("Address autocomplete is unavailable (missing API key).");
       return;
     }
-    if (!inputRef.current) return;
+    if (!containerRef.current) return;
 
-    let autocomplete: google.maps.places.Autocomplete | null = null;
-    let listener: google.maps.MapsEventListener | null = null;
+    let element: HTMLElement | null = null;
     let cancelled = false;
 
     loadGoogleMaps(apiKey)
       .then(() => {
-        if (cancelled || !inputRef.current || !window.google?.maps?.places) return;
-        autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
-          componentRestrictions: { country: "us" },
-          fields: ["address_components", "formatted_address", "geometry", "place_id"],
-          types: ["address"],
+        if (cancelled || !containerRef.current) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const PAE = (window as any).google?.maps?.places
+          ?.PlaceAutocompleteElement as
+          | (new (opts?: Record<string, unknown>) => HTMLElement)
+          | undefined;
+        if (!PAE) {
+          setWarning(
+            "Couldn't load address suggestions. Please type your full address."
+          );
+          return;
+        }
+
+        element = new PAE({
+          includedRegionCodes: ["us"],
         });
-        listener = autocomplete.addListener("place_changed", () => {
-          const place = autocomplete!.getPlace();
-          if (!place.geometry?.location) return;
-          const components = place.address_components;
+        // The web component renders its own <input>; pass through our placeholder
+        element.setAttribute("placeholder", placeholder);
+        Object.assign(element.style, { width: "100%", display: "block" });
 
-          const street_number = pickComponent(components, "street_number");
-          const route = pickComponent(components, "route");
-          const city =
-            pickComponent(components, "locality") ||
-            pickComponent(components, "sublocality") ||
-            pickComponent(components, "administrative_area_level_2");
-          const state = pickComponent(components, "administrative_area_level_1");
-          const zip = pickComponent(components, "postal_code");
+        containerRef.current.appendChild(element);
 
-          const street = [street_number, route].filter(Boolean).join(" ");
-          const address_line = street || place.formatted_address || "";
+        if (autoFocus) {
+          setTimeout(() => {
+            const input =
+              element?.querySelector("input") ??
+              element?.shadowRoot?.querySelector("input");
+            (input as HTMLInputElement | null)?.focus();
+          }, 150);
+        }
 
-          onSelect({
-            address_line,
-            city,
-            state,
-            zip,
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
-            place_id: place.place_id,
-          });
+        element.addEventListener("gmp-select", async (ev: Event) => {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const placePrediction = (ev as any).placePrediction;
+            const place = placePrediction.toPlace();
+            await place.fetchFields({
+              fields: [
+                "formattedAddress",
+                "addressComponents",
+                "location",
+                "displayName",
+                "id",
+              ],
+            });
+            const components = place.addressComponents as
+              | NewAddressComponent[]
+              | undefined;
+            const street_number = pickComponent(components, "street_number");
+            const route = pickComponent(components, "route", "longText");
+            const city =
+              pickComponent(components, "locality", "longText") ||
+              pickComponent(components, "sublocality", "longText") ||
+              pickComponent(
+                components,
+                "administrative_area_level_2",
+                "longText"
+              );
+            const state = pickComponent(
+              components,
+              "administrative_area_level_1",
+              "shortText"
+            );
+            const zip = pickComponent(components, "postal_code");
+
+            const street = [street_number, route].filter(Boolean).join(" ");
+            const address_line =
+              street || (place.formattedAddress as string | undefined) || "";
+
+            const loc = place.location;
+            const lat =
+              typeof loc?.lat === "function" ? loc.lat() : (loc?.lat as number);
+            const lng =
+              typeof loc?.lng === "function" ? loc.lng() : (loc?.lng as number);
+
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+              throw new Error("Place is missing coordinates");
+            }
+
+            onSelect({
+              address_line,
+              city,
+              state,
+              zip,
+              lat,
+              lng,
+              place_id: place.id as string | undefined,
+            });
+          } catch (e) {
+            console.error("Place selection failed", e);
+          }
         });
       })
-      .catch(() => {
-        setWarning("Couldn't load address suggestions. Please type your full address.");
+      .catch((err) => {
+        console.error("Google Maps failed to load", err);
+        setWarning(
+          "Couldn't load address suggestions. Please type your full address."
+        );
       });
 
     return () => {
       cancelled = true;
-      if (listener) listener.remove();
+      if (element && containerRef.current?.contains(element)) {
+        containerRef.current.removeChild(element);
+      }
     };
-  }, [apiKey, onSelect]);
+  }, [apiKey, onSelect, placeholder, autoFocus]);
 
   return (
     <div>
-      <Input
-        ref={inputRef}
-        type="text"
-        autoComplete="street-address"
-        placeholder={placeholder}
-        autoFocus={autoFocus}
-        className="text-lg"
-      />
+      <div ref={containerRef} className="qos-address-autocomplete" />
       {warning && <p className="mt-2 text-xs text-navy/50">{warning}</p>}
     </div>
   );

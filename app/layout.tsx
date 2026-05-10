@@ -34,7 +34,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="min-h-dvh bg-white font-sans text-navy antialiased">
+      <body
+        className="min-h-dvh bg-white font-sans text-navy antialiased"
+        suppressHydrationWarning
+      >
         {children}
       </body>
     </html>
