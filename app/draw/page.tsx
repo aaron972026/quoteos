@@ -169,7 +169,7 @@ function DrawPageInner() {
       {/* Map area — flexes to fill */}
       <div className="relative flex-1 min-h-[420px]">
         <FenceMap
-          ref={mapRef}
+          handleRef={mapRef}
           centerLat={lat}
           centerLng={lng}
           onChange={setStats}
