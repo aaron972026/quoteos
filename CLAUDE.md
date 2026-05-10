@@ -53,12 +53,12 @@ Stop immediately, surface the trigger, and wait for human input when **any** of 
 
 **3.2 Uncertainty.** Confidence in correctness drops below ~80%, OR you are about to make an assumption that is not already listed in INTAKE. Name the assumption; ask.
 
-**3.3 Cost / size.** A single slice is exceeding **any** of:
-- 5 files modified
-- 200 lines of net change
-- 3 new dependencies
-- 2 verification failures in a row without a clear theory
-- ~30% of remaining context window consumed by a single subtask
+**3.3 Cost / size.** Pause and check in when a slice gets unexpectedly big — the spirit is "is this still one coherent change?", not arbitrary counts. Hard-stop only when:
+- 10+ files modified (signals scope creep or wrong abstraction)
+- 500+ lines of net change
+- 3+ new dependencies in one slice (every dep is a one-way door — see §5.1)
+- 2 verification failures in a row without a clear theory of the bug
+- ~50% of remaining context window consumed by a single subtask
 
 When a hard-stop fires, output exactly:
 
