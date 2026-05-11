@@ -93,13 +93,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // ── Stripe Checkout Session ────────────────────────────────────
   const stripeSecret = process.env.STRIPE_SECRET_KEY;
-  if (!stripeSecret) {
+  // Reject obviously-placeholder values too — the literal "sk_test_xxx" is
+  // valid string but Stripe will throw at the API boundary with a confusing
+  // 500. Real Stripe keys are >40 chars and contain alphanumerics, not "xxx".
+  const looksReal =
+    !!stripeSecret &&
+    /^sk_(test|live)_[A-Za-z0-9]{20,}/.test(stripeSecret);
+  if (!looksReal) {
     return new Response(
       JSON.stringify({
         error: {
           code: "STRIPE_NOT_CONFIGURED",
           message:
-            "STRIPE_SECRET_KEY is not set. Add it to .env.local and restart the dev server.",
+            "STRIPE_SECRET_KEY is missing or still the placeholder from .env.example. Get a real test key from https://dashboard.stripe.com/test/apikeys and restart the dev server.",
         },
       }),
       { status: 503, headers: { "Content-Type": "application/json" } }

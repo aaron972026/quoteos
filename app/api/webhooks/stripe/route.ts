@@ -15,8 +15,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) {
-    console.error("[stripe-webhook] STRIPE_WEBHOOK_SECRET is not set");
+  // Also reject the .env.example placeholder ("whsec_xxx") so a forgotten
+  // env doesn't masquerade as a signature mismatch.
+  const looksReal = !!secret && /^whsec_[A-Za-z0-9]{20,}/.test(secret);
+  if (!looksReal) {
+    console.error(
+      "[stripe-webhook] STRIPE_WEBHOOK_SECRET is missing or placeholder"
+    );
     return new NextResponse("Webhook not configured", { status: 503 });
   }
 
