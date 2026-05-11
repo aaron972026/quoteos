@@ -17,6 +17,7 @@ import { TierComparison } from "@/components/quote/TierComparison";
 import { ScopeSummary } from "@/components/quote/ScopeSummary";
 import { QuoteCountdown } from "@/components/quote/QuoteCountdown";
 import { EmailSheet } from "@/components/quote/EmailSheet";
+import { WisetackWidget } from "@/components/quote/WisetackWidget";
 import { TrustStrip } from "@/components/TrustStrip";
 
 type Tier = "good" | "better" | "best";
@@ -286,17 +287,12 @@ export default function QuotePage({ params }: { params: { id: string } }) {
           </a>
         </div>
 
-        <div className="mt-8 rounded-lg border border-navy/10 bg-navy/5 p-4 text-sm">
-          <div className="font-semibold text-navy">
-            Spread out payments with Wisetack
-          </div>
-          <div className="mt-1 text-xs text-navy/60">
-            Pre-qualify in 30 seconds. Soft credit pull — no impact to your
-            score.
-          </div>
-          <div className="mt-3 text-xs italic text-navy/50">
-            Wisetack widget loads here once configured (WISETACK_MERCHANT_ID).
-          </div>
+        <div className="mt-8">
+          <WisetackWidget
+            tierTotalCents={pricing.tiers[tier].total_cents}
+            monthly24moCents={pricing.tiers[tier].monthly_24mo_cents}
+            quoteId={params.id}
+          />
         </div>
 
         <div className="mt-10 border-t border-navy/10 pt-6">
