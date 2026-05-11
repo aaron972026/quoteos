@@ -116,14 +116,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return serverError("Could not render PDF");
   }
 
-  // Send via Resend (returns 503 with a clear message if API key missing)
-  if (!process.env.RESEND_API_KEY) {
+  // Send via Resend (returns 503 with a clear message if API key missing
+  // or still the .env.example placeholder "re_xxx").
+  const resendKey = process.env.RESEND_API_KEY;
+  const resendConfigured =
+    !!resendKey && /^re_[A-Za-z0-9_]{20,}/.test(resendKey);
+  if (!resendConfigured) {
     return new Response(
       JSON.stringify({
         error: {
           code: "RESEND_NOT_CONFIGURED",
           message:
-            "RESEND_API_KEY is not set. Add it to .env.local and restart the dev server.",
+            "RESEND_API_KEY is missing or still the placeholder from .env.example. Create a real key at https://resend.com/api-keys and restart the dev server.",
         },
       }),
       { status: 503, headers: { "Content-Type": "application/json" } }

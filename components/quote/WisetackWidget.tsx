@@ -5,12 +5,8 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 import { formatCents } from "@/lib/utils";
 
 interface Props {
-  /** Tier total in cents — the principal Wisetack would finance. */
-  tierTotalCents: number | null;
   /** Pre-computed monthly payment (24mo @ 9.99%) from the pricing engine. */
   monthly24moCents: number | null;
-  /** Quote id, used as the external_id query param so Wisetack can echo it back. */
-  quoteId: string;
 }
 
 /**
@@ -29,28 +25,17 @@ interface Props {
  * the URL alone is sufficient because Wisetack's prequal links already
  * encode merchant context.
  */
-export function WisetackWidget({
-  tierTotalCents,
-  monthly24moCents,
-  quoteId,
-}: Props) {
+export function WisetackWidget({ monthly24moCents }: Props) {
   const prequalBase = process.env.NEXT_PUBLIC_WISETACK_PREQUAL_URL;
   const configured = !!prequalBase && /^https?:\/\//i.test(prequalBase);
 
-  let prequalUrl: string | null = null;
-  if (configured && prequalBase) {
-    const sep = prequalBase.includes("?") ? "&" : "?";
-    const extras = new URLSearchParams({
-      external_id: quoteId,
-    });
-    if (tierTotalCents != null) {
-      extras.set("amount", String(tierTotalCents));
-    }
-    if (typeof window !== "undefined") {
-      extras.set("return_url", `${window.location.origin}/quote/${quoteId}?wt=return`);
-    }
-    prequalUrl = `${prequalBase}${sep}${extras.toString()}`;
-  }
+  // Use the Wisetack URL verbatim. Wisetack pre-qual links are hash-based
+  // SPA routes (e.g. https://wisetack.us/#/<slug>/prequalify); appending
+  // query params after the hash breaks the router on their end (you get
+  // bounced to the marketing site). The merchant slug in the URL is the
+  // only context Wisetack needs — amount/external_id can't be passed
+  // through this URL pattern at all.
+  const prequalUrl = configured ? prequalBase! : null;
 
   return (
     <div className="rounded-xl border border-navy/10 bg-gradient-to-br from-white to-accent/5 p-5">

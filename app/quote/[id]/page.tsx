@@ -289,9 +289,7 @@ export default function QuotePage({ params }: { params: { id: string } }) {
 
         <div className="mt-8">
           <WisetackWidget
-            tierTotalCents={pricing.tiers[tier].total_cents}
             monthly24moCents={pricing.tiers[tier].monthly_24mo_cents}
-            quoteId={params.id}
           />
         </div>
 
