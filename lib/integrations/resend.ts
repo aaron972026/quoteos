@@ -15,5 +15,5 @@ export function getResend(): Resend {
 
 /** From-address; defaults to a generic dev value so tooling doesn't crash. */
 export function fromAddress(): string {
-  return process.env.RESEND_FROM_EMAIL ?? "FencePros <quotes@fenceprostulsa.com>";
+  return process.env.RESEND_FROM_EMAIL ?? "FencePros <quotes@tulsafencepro.com>";
 }
