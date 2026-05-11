@@ -58,15 +58,36 @@ export interface DepositPaidEvent {
   stage: "Hot Lead — Deposit Paid";
 }
 
+export type AbandonedInterval = "15m" | "1h" | "24h";
+
+export interface AbandonedEvent {
+  event: "abandoned_15m" | "abandoned_1h" | "abandoned_24h";
+  interval: AbandonedInterval;
+  quote_id: string;
+  customer_email: string | null;
+  customer_phone: string | null;
+  address_line: string | null;
+  zip: string | null;
+  linear_feet: number | null;
+  sku_code: string | null;
+  selected_tier_cents: number | null;
+  tier_better_cents: number | null;
+  quote_link: string; // recovery URL we want GHL to send
+}
+
 export type GhlEvent =
   | QuoteStartedEvent
   | QuoteFinalizedEvent
-  | DepositPaidEvent;
+  | DepositPaidEvent
+  | AbandonedEvent;
 
 const TAGS_BY_EVENT: Record<GhlEvent["event"], string[]> = {
   quote_started: [...BASE_TAGS, "quote-started"],
   quote_finalized: [...BASE_TAGS, "quote-viewed"],
   deposit_paid: [...BASE_TAGS, "quote-deposited"],
+  abandoned_15m: [...BASE_TAGS, "abandoned-15m"],
+  abandoned_1h: [...BASE_TAGS, "abandoned-1h"],
+  abandoned_24h: [...BASE_TAGS, "abandoned-24h"],
 };
 
 /**
