@@ -5,6 +5,10 @@
 :root {
   --background: #ffffff;
   --foreground: #1F3A5F;
+  /* Lock to light UA form styling regardless of system dark-mode preference.
+     Without this, browsers in dark mode render <input> with a dark background
+     by default — visible on the Google Places web component's internal input. */
+  color-scheme: light;
 }
 
 html {

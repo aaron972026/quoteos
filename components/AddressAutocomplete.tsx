@@ -20,32 +20,68 @@ interface Props {
 
 declare global {
   interface Window {
-    __qos_gmaps_loading?: Promise<void>;
+    __qos_gmaps_booted?: boolean;
   }
 }
 
-// Loads google.maps with the Places library. Idempotent.
-function loadGoogleMaps(apiKey: string): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
-  // Already loaded — the new component lives at google.maps.places.PlaceAutocompleteElement
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if ((window as any).google?.maps?.places?.PlaceAutocompleteElement) {
-    return Promise.resolve();
-  }
-  if (window.__qos_gmaps_loading) return window.__qos_gmaps_loading;
+/**
+ * Boot Google's "Dynamic Library Loading" snippet. Idempotent — re-running
+ * is a no-op. Must be used (not the legacy `?libraries=places` query) because
+ * PlaceAutocompleteElement is only available via the importLibrary mechanism.
+ *
+ * This is the official snippet from
+ * https://developers.google.com/maps/documentation/javascript/load-maps-js-api#dynamic-library-import
+ * inlined as a TS function. The minification of names (g, h, a, …) follows
+ * the public docs verbatim so it's easy to diff against future updates.
+ */
+function bootGoogleMaps(apiKey: string): void {
+  if (typeof window === "undefined") return;
+  if (window.__qos_gmaps_booted) return;
+  window.__qos_gmaps_booted = true;
 
-  window.__qos_gmaps_loading = new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
-      apiKey
-    )}&libraries=places&v=weekly&loading=async`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load Google Maps"));
-    document.head.appendChild(script);
-  });
-  return window.__qos_gmaps_loading;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ((g: any) => {
+    let h: Promise<void> | undefined;
+    let a: HTMLScriptElement;
+    let k: string;
+    const p = "The Google Maps JavaScript API";
+    const c = "google";
+    const l = "importLibrary";
+    const q = "__ib__";
+    const m = document;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const b: any = window;
+    b[c] = b[c] || {};
+    const d = b[c].maps || (b[c].maps = {});
+    const r = new Set<string>();
+    const e = new URLSearchParams();
+    const u = () =>
+      h ||
+      // eslint-disable-next-line no-async-promise-executor
+      (h = new Promise<void>(async (f, n) => {
+        a = m.createElement("script");
+        e.set("libraries", Array.from(r).join(","));
+        for (k in g) {
+          e.set(
+            k.replace(/[A-Z]/g, (t) => "_" + t[0].toLowerCase()),
+            String(g[k])
+          );
+        }
+        e.set("callback", c + ".maps." + q);
+        a.src = "https://maps.googleapis.com/maps/api/js?" + e.toString();
+        d[q] = f;
+        a.onerror = () => {
+          h = undefined;
+          n(new Error(p + " could not load."));
+        };
+        a.nonce = m.querySelector("script[nonce]")?.getAttribute("nonce") ?? "";
+        m.head.append(a);
+      }));
+    if (!d[l]) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      d[l] = (f: string, ...n: any[]) => r.add(f) && u().then(() => d[l](f, ...n));
+    }
+  })({ key: apiKey, v: "weekly" });
 }
 
 // New API address-component shape: { types, longText, shortText }
@@ -78,19 +114,33 @@ export function AddressAutocomplete({
       return;
     }
     if (!containerRef.current) return;
-    const container = containerRef.current; // captured for cleanup
+    const container = containerRef.current;
 
     let element: HTMLElement | null = null;
     let cancelled = false;
 
-    loadGoogleMaps(apiKey)
-      .then(() => {
+    bootGoogleMaps(apiKey);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const importPlaces = (window as any).google?.maps?.importLibrary?.(
+      "places"
+    ) as Promise<{
+      PlaceAutocompleteElement?: new (
+        opts?: Record<string, unknown>
+      ) => HTMLElement;
+    }> | undefined;
+
+    if (!importPlaces) {
+      setWarning(
+        "Couldn't load address suggestions. Please type your full address."
+      );
+      return;
+    }
+
+    importPlaces
+      .then((places) => {
         if (cancelled || !containerRef.current) return;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const PAE = (window as any).google?.maps?.places
-          ?.PlaceAutocompleteElement as
-          | (new (opts?: Record<string, unknown>) => HTMLElement)
-          | undefined;
+        const PAE = places?.PlaceAutocompleteElement;
         if (!PAE) {
           setWarning(
             "Couldn't load address suggestions. Please type your full address."
@@ -101,7 +151,6 @@ export function AddressAutocomplete({
         element = new PAE({
           includedRegionCodes: ["us"],
         });
-        // The web component renders its own <input>; pass through our placeholder
         element.setAttribute("placeholder", placeholder);
         Object.assign(element.style, { width: "100%", display: "block" });
 

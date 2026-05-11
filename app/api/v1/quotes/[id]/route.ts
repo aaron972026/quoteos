@@ -78,9 +78,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!parsed.success) return fromZod(parsed.error);
     const d = parsed.data;
 
-    // Confirm ownership
+    // Confirm ownership + load the existing row in full. We need it both to
+    // gate locked statuses AND to merge with the PATCH body so we can compute
+    // pricing using whatever fields are now available — Screen 4 only sends
+    // sku/tier/addons in the body, but linear_feet/corner_count/slope_code/
+    // demo_type were saved on Screen 3 and are already on the row.
     const [existing] = await db
-      .select({ id: quotes.id, status: quotes.status })
+      .select()
       .from(quotes)
       .where(and(eq(quotes.id, params.id), eq(quotes.sessionId, sid)))
       .limit(1);
@@ -89,27 +93,47 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return badRequest("LOCKED", "Quote is locked and cannot be modified");
     }
 
+    // Merge body with existing row so pricing computes from the full picture
+    const merged = {
+      sku_code: d.sku_code ?? existing.skuCode,
+      linear_feet:
+        d.linear_feet ??
+        (existing.linearFeet != null ? Number(existing.linearFeet) : null),
+      corner_count: d.corner_count ?? existing.cornerCount,
+      slope_code: d.slope_code ?? existing.slopeCode,
+      demo_type: d.demo_type ?? existing.demoType,
+      height_upgrade: d.height_upgrade ?? !!existing.heightUpgrade,
+      french_gothic: d.french_gothic ?? !!existing.frenchGothic,
+      stain_seal: d.stain_seal ?? !!existing.stainSeal,
+      gates:
+        d.gates ??
+        (existing.gates as
+          | Array<{ type: "SW-4" | "SW-5" | "DD-10" | "DD-12" | "DD-14"; count: number }>
+          | null) ??
+        [],
+    };
+
     // If we have enough info, compute pricing snapshot inline
     let pricingPatch: Partial<typeof quotes.$inferInsert> = {};
     const hasPricingInputs =
-      d.sku_code &&
-      d.linear_feet != null &&
-      d.corner_count != null &&
-      d.slope_code != null &&
-      d.demo_type;
+      merged.sku_code &&
+      merged.linear_feet != null &&
+      merged.corner_count != null &&
+      merged.slope_code != null &&
+      merged.demo_type;
 
     if (hasPricingInputs) {
       try {
         const priced = calculatePrice({
-          sku_code: d.sku_code!,
-          linear_feet: d.linear_feet!,
-          corner_count: d.corner_count!,
-          slope_code: d.slope_code!,
-          demo_type: d.demo_type!,
-          gates: (d.gates ?? []).map((g) => ({ type: g.type, count: g.count })),
-          height_upgrade: d.height_upgrade,
-          french_gothic: d.french_gothic,
-          stain_seal: d.stain_seal,
+          sku_code: merged.sku_code!,
+          linear_feet: merged.linear_feet!,
+          corner_count: merged.corner_count!,
+          slope_code: merged.slope_code!,
+          demo_type: merged.demo_type!,
+          gates: merged.gates.map((g) => ({ type: g.type, count: g.count })),
+          height_upgrade: merged.height_upgrade,
+          french_gothic: merged.french_gothic,
+          stain_seal: merged.stain_seal,
         });
         pricingPatch = {
           subtotalCents: priced.subtotal_cents,
