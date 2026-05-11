@@ -16,38 +16,40 @@ interface Props {
 /**
  * Public-facing Wisetack pre-qualification section.
  *
- * For real production integration the merchant configures:
- *   NEXT_PUBLIC_WISETACK_MERCHANT_ID — required to actually link out
- *   NEXT_PUBLIC_WISETACK_CHECKOUT_URL — base URL of the hosted
- *     pre-qual page (defaults to app.wisetack.com/prequalify)
+ * Configuration: NEXT_PUBLIC_WISETACK_PREQUAL_URL — the merchant-specific
+ * pre-qualify link Wisetack provides during onboarding. Looks like:
+ *   https://app.wisetack.com/financing/prequalify/<your-slug>
  *
- * Without those env vars, the widget renders the value-prop copy + a
- * "configure to enable" disabled CTA. Same code path, no surprises.
+ * Some merchant pages also accept `amount` and `external_id` query params;
+ * we append them defensively (Wisetack ignores unknown params if not
+ * supported on that page). The return_url is built client-side so it
+ * picks up the actual deployment hostname.
+ *
+ * The legacy NEXT_PUBLIC_WISETACK_MERCHANT_ID env is no longer required;
+ * the URL alone is sufficient because Wisetack's prequal links already
+ * encode merchant context.
  */
 export function WisetackWidget({
   tierTotalCents,
   monthly24moCents,
   quoteId,
 }: Props) {
-  const merchantId = process.env.NEXT_PUBLIC_WISETACK_MERCHANT_ID;
-  const baseUrl =
-    process.env.NEXT_PUBLIC_WISETACK_CHECKOUT_URL ??
-    "https://app.wisetack.com/prequalify";
-
-  const configured = !!merchantId;
+  const prequalBase = process.env.NEXT_PUBLIC_WISETACK_PREQUAL_URL;
+  const configured = !!prequalBase && /^https?:\/\//i.test(prequalBase);
 
   let prequalUrl: string | null = null;
-  if (configured && tierTotalCents != null) {
-    const params = new URLSearchParams({
-      merchantId: merchantId!,
-      amount: String(tierTotalCents), // Wisetack wants cents
+  if (configured && prequalBase) {
+    const sep = prequalBase.includes("?") ? "&" : "?";
+    const extras = new URLSearchParams({
       external_id: quoteId,
-      return_url:
-        typeof window !== "undefined"
-          ? `${window.location.origin}/quote/${quoteId}?wt=return`
-          : `/quote/${quoteId}?wt=return`,
     });
-    prequalUrl = `${baseUrl}?${params.toString()}`;
+    if (tierTotalCents != null) {
+      extras.set("amount", String(tierTotalCents));
+    }
+    if (typeof window !== "undefined") {
+      extras.set("return_url", `${window.location.origin}/quote/${quoteId}?wt=return`);
+    }
+    prequalUrl = `${prequalBase}${sep}${extras.toString()}`;
   }
 
   return (
@@ -87,6 +89,8 @@ export function WisetackWidget({
       {configured && prequalUrl ? (
         <Link
           href={prequalUrl}
+          target="_blank"
+          rel="noopener noreferrer"
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-navy py-3 text-sm font-semibold text-white hover:bg-navy-600"
         >
           Pre-qualify with Wisetack <ArrowRight size={16} />
@@ -103,9 +107,9 @@ export function WisetackWidget({
           <p className="mt-2 text-[11px] italic text-navy/50">
             Wisetack not yet configured — set{" "}
             <code className="rounded bg-navy/5 px-1 font-mono">
-              NEXT_PUBLIC_WISETACK_MERCHANT_ID
+              NEXT_PUBLIC_WISETACK_PREQUAL_URL
             </code>{" "}
-            in .env.local to enable.
+            in .env.local to your Wisetack-provided pre-qualify link.
           </p>
         </div>
       )}
