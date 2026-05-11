@@ -1,8 +1,10 @@
 import { cn } from "@/lib/utils";
 
+// Steps match the actual routes/screens. The original spec listed a
+// separate "Confirm" step, but address pick + confirm collapsed into a
+// single /address screen, so the progress bar shows 4 dots, not 5.
 const STEPS = [
   { key: "address", label: "Address" },
-  { key: "confirm", label: "Confirm" },
   { key: "draw", label: "Draw" },
   { key: "configure", label: "Style" },
   { key: "quote", label: "Quote" },

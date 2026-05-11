@@ -46,26 +46,45 @@ body {
   user-select: none;
 }
 
-/* Style the Google Places web component to match our Input primitive */
+/* Style the Google Places web component to match our Input primitive.
+   Google's PlaceAutocompleteElement uses shadow DOM and its own theming.
+   We need to fight on three fronts because depending on browser + Google
+   version, ANY of these can be the one that actually paints the input:
+     - ::part(input) for shadow-DOM-exposed parts
+     - direct child <input> selectors for light DOM
+     - the host element itself for the dropdown panel container
+   color-scheme: light is repeated on the component too so it doesn't pick
+   up the user-agent's dark form styling. */
 .qos-address-autocomplete gmp-place-autocomplete {
   width: 100%;
   display: block;
+  color-scheme: light;
+  background: white;
 }
-.qos-address-autocomplete gmp-place-autocomplete::part(input) {
+.qos-address-autocomplete gmp-place-autocomplete::part(input),
+.qos-address-autocomplete gmp-place-autocomplete::part(prediction-item),
+.qos-address-autocomplete gmp-place-autocomplete input {
+  background-color: white !important;
+  background-image: none !important;
+  color: #1F3A5F !important;
+  color-scheme: light !important;
+  font-family: var(--font-inter), system-ui, sans-serif !important;
+}
+.qos-address-autocomplete gmp-place-autocomplete::part(input),
+.qos-address-autocomplete gmp-place-autocomplete input {
   height: 3.5rem;
   width: 100%;
   border-radius: 0.5rem;
   border: 1px solid rgb(31 58 95 / 0.2);
-  background: white;
   padding: 0.75rem 1rem;
   font-size: 1.125rem;
-  color: #1F3A5F;
-  font-family: var(--font-inter), system-ui, sans-serif;
 }
-.qos-address-autocomplete gmp-place-autocomplete::part(input)::placeholder {
-  color: rgb(31 58 95 / 0.4);
+.qos-address-autocomplete gmp-place-autocomplete::part(input)::placeholder,
+.qos-address-autocomplete gmp-place-autocomplete input::placeholder {
+  color: rgb(31 58 95 / 0.4) !important;
 }
-.qos-address-autocomplete gmp-place-autocomplete::part(input):focus {
+.qos-address-autocomplete gmp-place-autocomplete::part(input):focus,
+.qos-address-autocomplete gmp-place-autocomplete input:focus {
   outline: 2px solid #F4A623;
   outline-offset: 2px;
 }

@@ -134,7 +134,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const tierLabel =
       (row.tier ?? "better").charAt(0).toUpperCase() + (row.tier ?? "better").slice(1);
     const subject = `Your FencePros quote — ${familyName} ${tierLabel}`;
-    await getResend().emails.send({
+    // Resend's emails.send returns { data, error } and does NOT always throw
+    // on API rejection (unverified sender, blocked recipient, etc). Treat a
+    // non-null `error` as failure so the route doesn't say "sent" for a
+    // message that never left Resend.
+    const result = await getResend().emails.send({
       from: fromAddress(),
       to: email,
       subject,
@@ -153,8 +157,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         },
       ],
     });
+    if (result.error) {
+      console.error("[email-quote] Resend rejected", {
+        to: email,
+        from: fromAddress(),
+        error: result.error,
+      });
+      return serverError(
+        `Email send failed: ${result.error.message ?? result.error.name ?? "unknown reason"}`
+      );
+    }
+    console.info("[email-quote] sent", { id: result.data?.id, to: email });
   } catch (err) {
-    console.error("[email-quote] Resend send failed", err);
+    console.error("[email-quote] Resend send threw", err);
     return serverError("Could not send email");
   }
 
