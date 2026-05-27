@@ -47,7 +47,6 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
   max-width: 100%;
   font-family: var(--font-display), "Oswald", "Arial Narrow", sans-serif;
   font-weight: 600;
@@ -60,6 +59,15 @@ body {
 .dashes .d.short { width: 8px; }
 .dashes .d.long { width: 28px; }
 .dashes.tight .d.long { width: 20px; }
+
+/* Mobile: drop the decorative dashes and fall back to plain inline so the
+   eyebrow text can wrap naturally inside its parent. They're purely
+   decorative — the brass uppercase letterspacing still reads as an eyebrow
+   without them. Threshold matches Tailwind's `sm:` breakpoint. */
+@media (max-width: 639px) {
+  .dashes { display: inline; }
+  .dashes .d { display: none; }
+}
 
 /* Brand utility: brass pickets motif — small pentagon-topped bars used as
    footer flourish and tier-quality indicator. */
