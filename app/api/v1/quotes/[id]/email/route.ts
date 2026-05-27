@@ -15,7 +15,8 @@ import {
 import { LIMITS, checkLimit } from "@/lib/api/rate-limit";
 import { getCurrentSessionId } from "@/lib/api/session-helper";
 import { calculatePrice } from "@/lib/pricing/engine";
-import { PricingError } from "@/lib/pricing/types";
+import { loadPricingConfig } from "@/lib/pricing/load-config";
+import { PricingError, type GateType } from "@/lib/pricing/types";
 import { renderQuotePdf } from "@/lib/pdf/render-quote-pdf";
 import { fromAddress, getResend } from "@/lib/integrations/resend";
 
@@ -54,21 +55,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // consistent with whatever the engine currently computes for this input.
   let priced;
   try {
-    priced = calculatePrice({
-      sku_code: row.skuCode,
-      linear_feet: Number(row.linearFeet ?? 0),
-      corner_count: row.cornerCount ?? 0,
-      slope_code: row.slopeCode ?? 0,
-      demo_type: row.demoType ?? "NONE",
-      gates:
-        (row.gates as Array<{ type: string; count: number }> | null)?.map((g) => ({
-          type: g.type as "SW-4" | "SW-5" | "DD-10" | "DD-12" | "DD-14",
-          count: g.count,
-        })) ?? [],
-      height_upgrade: !!row.heightUpgrade,
-      french_gothic: !!row.frenchGothic,
-      stain_seal: !!row.stainSeal,
-    });
+    const config = await loadPricingConfig();
+    priced = calculatePrice(
+      {
+        sku_code: row.skuCode,
+        linear_feet: Number(row.linearFeet ?? 0),
+        corner_count: row.cornerCount ?? 0,
+        slope_code: row.slopeCode ?? 0,
+        demo_type: row.demoType ?? "NONE",
+        gates:
+          (row.gates as Array<{ type: string; count: number }> | null)?.map((g) => ({
+            type: g.type as GateType,
+            count: g.count,
+          })) ?? [],
+        stain_seal: !!row.stainSeal,
+        city: row.city ?? "Tulsa",
+      },
+      config
+    );
   } catch (err) {
     if (err instanceof PricingError) return badRequest(err.code, err.message);
     throw err;
@@ -93,22 +97,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       zip: row.zip,
       linearFeet: Number(row.linearFeet ?? 0),
       cornerCount: row.cornerCount ?? 0,
+      skuCode: row.skuCode,
       familyName,
-      selectedTier: row.tier ?? "better",
       demoRequired: !!row.demoRequired,
       heightUpgrade: !!row.heightUpgrade,
       frenchGothic: !!row.frenchGothic,
       stainSeal: !!row.stainSeal,
-      tiers: priced.tiers,
-      breakdown: {
-        base_fence: priced.breakdown.base_fence,
-        height_upgrade: priced.breakdown.height_upgrade,
-        french_gothic: priced.breakdown.french_gothic,
-        stain: priced.breakdown.stain,
-        demo: priced.breakdown.demo,
-        corners: priced.breakdown.corners,
-        gates: priced.breakdown.gates,
-      },
+      finalPriceCents: priced.final_price_cents,
+      displayRangeLowCents: priced.display_range_low_cents,
+      displayRangeHighCents: priced.display_range_high_cents,
+      breakdown: priced.breakdown,
       validUntil: priced.valid_until,
     });
   } catch (err) {
@@ -135,9 +133,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   try {
-    const tierLabel =
-      (row.tier ?? "better").charAt(0).toUpperCase() + (row.tier ?? "better").slice(1);
-    const subject = `Your FencePros quote — ${familyName} ${tierLabel}`;
+    const subject = `Your FencePros quote — ${familyName} (${row.skuCode})`;
     // Resend's emails.send returns { data, error } and does NOT always throw
     // on API rejection (unverified sender, blocked recipient, etc). Treat a
     // non-null `error` as failure so the route doesn't say "sent" for a
@@ -149,7 +145,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       text: [
         `Thanks for the time you spent on the quote tool.`,
         ``,
-        `Attached is a PDF of your ${familyName} ${tierLabel} quote.`,
+        `Attached is a PDF of your ${familyName} quote.`,
         `Price is held for 7 days. Lock it in with a $99 refundable deposit anytime.`,
         ``,
         `— FencePros Tulsa`,

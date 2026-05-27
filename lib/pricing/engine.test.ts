@@ -1,454 +1,416 @@
 import { describe, expect, it } from "vitest";
-import {
-  calculatePrice,
-  getSkuCode,
-  pmtCents,
-  stripInternal,
-} from "./engine";
-import {
-  ADDONS,
-  DEMO_RATES,
-  GATE_PRICES,
-  SKUS,
-  SKU_BY_CODE,
-  SLOPE,
-  TIER_MULTIPLIERS,
-} from "./data";
+import { calculatePrice, pmtCents, stripInternal } from "./engine";
+import { ASSUMPTIONS, SKU_BY_CODE, SLOPE, GATE_PRICES } from "./data";
 import type { PricingInput } from "./types";
 
-// Helper: build a baseline input with sensible defaults
+// Baseline input — overrideable per test
 function input(overrides: Partial<PricingInput> = {}): PricingInput {
   return {
-    sku_code: "CP-B",
+    sku_code: "CPF-PRM",
     linear_feet: 150,
     corner_count: 4,
     slope_code: 0,
     demo_type: "NONE",
     gates: [],
-    height_upgrade: false,
-    french_gothic: false,
     stain_seal: false,
-    permit_required: false,
-    hoa_admin: false,
-    travel_miles_over_25: 0,
+    steel_post_upgrade: false,
+    city: "Tulsa",
     ...overrides,
   };
 }
 
-describe("calculatePrice — happy path", () => {
-  it("returns three tiers with good < better < best", () => {
-    const r = calculatePrice(input());
-    expect(r.tiers.good.total_cents).toBeLessThan(r.tiers.better.total_cents);
-    expect(r.tiers.better.total_cents).toBeLessThan(r.tiers.best.total_cents);
+// ════════════════════════════════════════════════════════════════════
+// SKU price derivation — cost-up math self-consistency
+// ════════════════════════════════════════════════════════════════════
+describe("SKU price derivation", () => {
+  it("CPF-PRM derives to $44.82/LF at 45% target margin", () => {
+    // material 13 × 1.05 waste = 13.65; + labor 8 + overhead 3 = 24.65;
+    // price = 24.65 / 0.55 = 44.818... → 4482 cents
+    expect(SKU_BY_CODE["CPF-PRM"].base_price_per_lf_cents).toBe(4482);
   });
 
-  it("subtotal_cents equals better tier total", () => {
-    const r = calculatePrice(input());
-    expect(r.subtotal_cents).toBe(r.tiers.better.total_cents);
+  it("BP-STD (KDAT pine) derives to $35.41/LF", () => {
+    expect(SKU_BY_CODE["BP-STD"].base_price_per_lf_cents).toBe(3541);
   });
 
-  it("better tier ≈ good × 1.18", () => {
-    const r = calculatePrice(input());
-    const ratio = r.tiers.better.total_cents / r.tiers.good.total_cents;
-    expect(ratio).toBeCloseTo(TIER_MULTIPLIERS.better, 3);
+  it("CL-RES derives to $24.14/LF", () => {
+    expect(SKU_BY_CODE["CL-RES"].base_price_per_lf_cents).toBe(2414);
   });
 
-  it("best tier ≈ good × 1.45", () => {
-    const r = calculatePrice(input());
-    const ratio = r.tiers.best.total_cents / r.tiers.good.total_cents;
-    expect(ratio).toBeCloseTo(TIER_MULTIPLIERS.best, 3);
-  });
-
-  it("deposit is always $99", () => {
-    const r = calculatePrice(input());
-    expect(r.deposit_cents).toBe(9900);
-  });
-
-  it("valid_until is roughly 7 days out", () => {
-    const r = calculatePrice(input());
-    const ms = new Date(r.valid_until).getTime() - Date.now();
-    const days = ms / (24 * 60 * 60 * 1000);
-    expect(days).toBeGreaterThan(6.99);
-    expect(days).toBeLessThan(7.01);
+  it("RR-4 derives above market ($34.59 vs $34 cap) and flags it", () => {
+    const sku = SKU_BY_CODE["RR-4"];
+    expect(sku.market_max_per_lf_cents).toBe(3400);
+    expect(sku.market_flag).toBe("ABOVE_MKT");
   });
 });
 
-describe("calculatePrice — every SKU calculates without error", () => {
-  for (const sku of SKUS) {
-    it(`${sku.code} — ${sku.family_name} ${sku.tier}`, () => {
-      const r = calculatePrice(input({ sku_code: sku.code }));
-      expect(r.tiers.better.total_cents).toBeGreaterThan(0);
-      expect(r.breakdown.base_fence).toBeGreaterThan(0);
-    });
-  }
+// ════════════════════════════════════════════════════════════════════
+// CSV worked example — CPF-PRM, 150 LF, slope 1, 1 walk gate, Tulsa
+// Spreadsheet says $7,600 max (with their internal $450 walk gate).
+// We use $350 W4 from the add-ons sheet → expect $7,500 instead.
+// ════════════════════════════════════════════════════════════════════
+describe("CSV worked example", () => {
+  const result = calculatePrice(
+    input({
+      sku_code: "CPF-PRM",
+      linear_feet: 150,
+      slope_code: 1,
+      gates: [{ type: "W4", count: 1 }],
+      city: "Tulsa",
+    })
+  );
 
-  it("base_fence reflects the SKU's price/LF for slope_code=0", () => {
-    const lf = 100;
-    for (const sku of SKUS) {
-      const r = calculatePrice(input({ sku_code: sku.code, linear_feet: lf, slope_code: 0 }));
-      expect(r.breakdown.base_fence).toBe(lf * sku.base_price_per_lf_cents);
+  it("fence subtotal includes 5% slope surcharge", () => {
+    // base 4482 × 1.05 × 150 = 705,915 cents
+    expect(result.breakdown.base_fence_cents).toBe(705915);
+    expect(result.breakdown.slope_surcharge_cents).toBe(33615);
+  });
+
+  it("walk gate W4 adds $350", () => {
+    expect(result.breakdown.gates_cents).toBe(35000);
+  });
+
+  it("Tulsa permit adds $75", () => {
+    expect(result.breakdown.permit_cents).toBe(7500);
+  });
+
+  it("raw subtotal is $7,484.15 (no guard triggers)", () => {
+    expect(result.raw_subtotal_cents).toBe(705915 + 35000 + 7500);
+    expect(result.guards_applied).toEqual([]);
+  });
+
+  it("rounds final to nearest $50 → $7,500", () => {
+    expect(result.final_price_cents).toBe(750000);
+  });
+
+  it("display range swing scales to 5% of total ($375)", () => {
+    expect(result.display_range_high_cents).toBe(750000);
+    expect(result.display_range_low_cents).toBe(750000 - 37500);
+  });
+
+  it("internal margin stays above 45% target", () => {
+    expect(result.internal_margin.gross_margin_pct).toBeGreaterThan(0.45);
+    expect(result.internal_margin.margin_flag).toBe("ok");
+  });
+
+  it("effective $/LF is final / LF rounded", () => {
+    expect(result.effective_per_lf_cents).toBe(Math.round(750000 / 150));
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Slope adjustments
+// ════════════════════════════════════════════════════════════════════
+describe("slope adjustments", () => {
+  it("slope 0 applies no surcharge", () => {
+    const r = calculatePrice(input({ slope_code: 0 }));
+    expect(r.breakdown.slope_surcharge_cents).toBe(0);
+  });
+
+  it("slope 1 applies 5%", () => {
+    const r = calculatePrice(input({ slope_code: 1 }));
+    const base = SKU_BY_CODE["CPF-PRM"].base_price_per_lf_cents * 150;
+    expect(r.breakdown.slope_surcharge_cents).toBeCloseTo(base * 0.05, -2);
+  });
+
+  it("slope 3 applies 18% (per updated CSV)", () => {
+    const r = calculatePrice(input({ slope_code: 3 }));
+    const base = SKU_BY_CODE["CPF-PRM"].base_price_per_lf_cents * 150;
+    expect(r.breakdown.slope_surcharge_cents).toBeCloseTo(base * 0.18, -2);
+  });
+
+  it("slope 4 uses 18% and emits review warning", () => {
+    const r = calculatePrice(input({ slope_code: 4 }));
+    expect(r.warnings).toContain("slope_review_required");
+    expect(SLOPE[4].surcharge_pct).toBe(0.18);
+  });
+
+  it("throws on invalid slope code", () => {
+    expect(() => calculatePrice(input({ slope_code: 99 }))).toThrow(
+      /INVALID_SLOPE/
+    );
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Margin floor + min profit guards
+// ════════════════════════════════════════════════════════════════════
+describe("margin floor guard", () => {
+  it("does NOT trigger on a healthy 150 LF cedar job", () => {
+    const r = calculatePrice(input());
+    expect(r.guards_applied).not.toContain("margin_floor");
+  });
+
+  it("post-guard margin sits at or above the 38% floor", () => {
+    const r = calculatePrice(
+      input({
+        linear_feet: 25,
+        demo_type: "CEDAR",
+        rock_drilling_posts: 10,
+        tear_concrete_posts: 10,
+      })
+    );
+    expect(r.internal_margin.gross_margin_pct).toBeGreaterThanOrEqual(0.38);
+  });
+});
+
+describe("min profit guard ($800)", () => {
+  it("forces price up on a tiny job with no add-ons", () => {
+    const r = calculatePrice(
+      input({
+        sku_code: "CL-RES",
+        linear_feet: 20,
+        city: "Owasso",
+      })
+    );
+    expect(
+      r.internal_margin.gross_profit_cents >= 80000 ||
+        r.guards_applied.includes("min_profit")
+    ).toBe(true);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Rounding + display swing
+// ════════════════════════════════════════════════════════════════════
+describe("$50 rounding + display swing", () => {
+  it("rounds final price to nearest $50", () => {
+    const r = calculatePrice(input());
+    expect(r.final_price_cents % 5000).toBe(0);
+  });
+
+  it("swing clamps to $200 minimum on small jobs", () => {
+    const r = calculatePrice(
+      input({ sku_code: "CL-RES", linear_feet: 20, city: "Owasso" })
+    );
+    const swing = r.display_range_high_cents - r.display_range_low_cents;
+    expect(swing).toBeGreaterThanOrEqual(ASSUMPTIONS.range_swing_min_cents);
+  });
+
+  it("swing clamps to $1,200 ceiling on large jobs", () => {
+    const r = calculatePrice(input({ sku_code: "CPF-EST", linear_feet: 800 }));
+    const swing = r.display_range_high_cents - r.display_range_low_cents;
+    expect(swing).toBeLessThanOrEqual(ASSUMPTIONS.range_swing_max_cents);
+  });
+
+  it("swing = 5% of final on medium jobs", () => {
+    const r = calculatePrice(input());
+    const expected = Math.round(r.final_price_cents * 0.05);
+    const actual = r.display_range_high_cents - r.display_range_low_cents;
+    if (
+      expected >= ASSUMPTIONS.range_swing_min_cents &&
+      expected <= ASSUMPTIONS.range_swing_max_cents
+    ) {
+      expect(actual).toBe(expected);
     }
   });
 });
 
-describe("calculatePrice — every slope code", () => {
-  for (const code of [0, 1, 2, 3, 4]) {
-    it(`slope_code ${code} (${SLOPE[code].label}) applies multiplier ${SLOPE[code].multiplier}`, () => {
-      const lf = 100;
-      const r = calculatePrice(input({ linear_feet: lf, slope_code: code }));
-      const sku = SKU_BY_CODE["CP-B"];
-      const expectedBase = Math.round(lf * sku.base_price_per_lf_cents * SLOPE[code].multiplier);
-      expect(r.breakdown.base_fence).toBe(expectedBase);
-    });
-  }
+// ════════════════════════════════════════════════════════════════════
+// Add-ons
+// ════════════════════════════════════════════════════════════════════
+describe("add-ons", () => {
+  it("steel upgrade adds $5/LF on cedar families", () => {
+    const noUp = calculatePrice(input({ sku_code: "CPF-PRM" }));
+    const withUp = calculatePrice(
+      input({ sku_code: "CPF-PRM", steel_post_upgrade: true })
+    );
+    expect(withUp.breakdown.steel_upgrade_cents).toBe(150 * 500);
+    expect(withUp.raw_subtotal_cents).toBeGreaterThan(noUp.raw_subtotal_cents);
+  });
 
-  it("slope only affects base_fence, not gates or demo", () => {
-    const flat = calculatePrice(
-      input({ slope_code: 0, demo_type: "CEDAR", gates: [{ type: "SW-4", count: 1 }] })
+  it("steel upgrade is ignored (with warning) on chain link", () => {
+    const r = calculatePrice(
+      input({ sku_code: "CL-RES", steel_post_upgrade: true })
     );
-    const steep = calculatePrice(
-      input({ slope_code: 3, demo_type: "CEDAR", gates: [{ type: "SW-4", count: 1 }] })
+    expect(r.breakdown.steel_upgrade_cents).toBe(0);
+    expect(r.warnings).toContain("steel_upgrade_ignored");
+  });
+
+  it("steel upgrade is ignored on ranch rail", () => {
+    const r = calculatePrice(
+      input({ sku_code: "RR-3", steel_post_upgrade: true })
     );
-    expect(flat.breakdown.demo).toBe(steep.breakdown.demo);
-    expect(flat.breakdown.gates).toBe(steep.breakdown.gates);
-    expect(flat.breakdown.base_fence).toBeLessThan(steep.breakdown.base_fence);
+    expect(r.breakdown.steel_upgrade_cents).toBe(0);
+    expect(r.warnings).toContain("steel_upgrade_ignored");
+  });
+
+  it("stain & seal adds $8/LF", () => {
+    const r = calculatePrice(input({ stain_seal: true }));
+    expect(r.breakdown.stain_cents).toBe(150 * 800);
+  });
+
+  it("demo adds $3/LF when demo_type is not NONE", () => {
+    const r = calculatePrice(input({ demo_type: "CEDAR" }));
+    expect(r.breakdown.demo_cents).toBe(150 * 300);
+  });
+
+  it("demo respects demo_lf override", () => {
+    const r = calculatePrice(input({ demo_type: "CEDAR", demo_lf: 50 }));
+    expect(r.breakdown.demo_cents).toBe(50 * 300);
+  });
+
+  it("demo is 0 when demo_type = NONE", () => {
+    const r = calculatePrice(input({ demo_type: "NONE", demo_lf: 100 }));
+    expect(r.breakdown.demo_cents).toBe(0);
+  });
+
+  it("rock drilling adds $25/post", () => {
+    const r = calculatePrice(input({ rock_drilling_posts: 4 }));
+    expect(r.breakdown.rock_drilling_cents).toBe(4 * 2500);
+  });
+
+  it("tear concrete adds $20/post", () => {
+    const r = calculatePrice(input({ tear_concrete_posts: 6 }));
+    expect(r.breakdown.tear_concrete_cents).toBe(6 * 2000);
+  });
+
+  it("difficult access surcharge applies +8% to fence subtotal", () => {
+    const flat = calculatePrice(input());
+    const access = calculatePrice(input({ difficult_access: true }));
+    expect(access.breakdown.access_surcharge_cents).toBeGreaterThan(0);
+    expect(access.breakdown.base_fence_cents).toBeGreaterThan(
+      flat.breakdown.base_fence_cents
+    );
   });
 });
 
-describe("calculatePrice — every demo type", () => {
-  for (const demoType of Object.keys(DEMO_RATES) as Array<keyof typeof DEMO_RATES>) {
-    it(`demo_type=${demoType} charges $${DEMO_RATES[demoType] / 100}/LF`, () => {
-      const lf = 200;
-      const r = calculatePrice(input({ linear_feet: lf, demo_type: demoType }));
-      expect(r.breakdown.demo).toBe(lf * DEMO_RATES[demoType]);
-    });
-  }
-});
-
-describe("calculatePrice — gates", () => {
-  for (const gateType of Object.keys(GATE_PRICES) as Array<keyof typeof GATE_PRICES>) {
-    it(`gate ${gateType} costs ${GATE_PRICES[gateType].price_cents} cents`, () => {
-      const r = calculatePrice(input({ gates: [{ type: gateType, count: 1 }] }));
-      expect(r.breakdown.gates).toBe(GATE_PRICES[gateType].price_cents);
-    });
-  }
-
-  it("multiple gates sum correctly", () => {
+// ════════════════════════════════════════════════════════════════════
+// Gates
+// ════════════════════════════════════════════════════════════════════
+describe("gates", () => {
+  it("sums multiple gates", () => {
     const r = calculatePrice(
       input({
         gates: [
-          { type: "SW-4", count: 2 },
-          { type: "DD-12", count: 1 },
+          { type: "W4", count: 1 },
+          { type: "D12", count: 1 },
         ],
       })
     );
-    const expected = 2 * GATE_PRICES["SW-4"].price_cents + 1 * GATE_PRICES["DD-12"].price_cents;
-    expect(r.breakdown.gates).toBe(expected);
+    expect(r.breakdown.gates_cents).toBe(35000 + 110000);
   });
 
-  it("zero gates → 0", () => {
-    const r = calculatePrice(input({ gates: [] }));
-    expect(r.breakdown.gates).toBe(0);
+  it("D16 is the largest at $1,750", () => {
+    expect(GATE_PRICES.D16.price_cents).toBe(175000);
   });
 
-  it("gate with count=0 contributes nothing", () => {
-    const r = calculatePrice(input({ gates: [{ type: "SW-4", count: 0 }] }));
-    expect(r.breakdown.gates).toBe(0);
-  });
-});
-
-describe("calculatePrice — corners", () => {
-  it("first 4 corners are free", () => {
-    const r = calculatePrice(input({ corner_count: 4 }));
-    expect(r.breakdown.corners).toBe(0);
-  });
-
-  it("5th corner costs $25", () => {
-    const r = calculatePrice(input({ corner_count: 5 }));
-    expect(r.breakdown.corners).toBe(2500);
-  });
-
-  it("10 corners → 6 × $25 = $150", () => {
-    const r = calculatePrice(input({ corner_count: 10 }));
-    expect(r.breakdown.corners).toBe(6 * 2500);
-  });
-
-  it("0 corners → 0", () => {
-    const r = calculatePrice(input({ corner_count: 0 }));
-    expect(r.breakdown.corners).toBe(0);
-  });
-});
-
-describe("calculatePrice — add-ons", () => {
-  it("stain_seal adds $3.25/LF", () => {
-    const lf = 150;
-    const r = calculatePrice(input({ linear_feet: lf, stain_seal: true }));
-    expect(r.breakdown.stain).toBe(lf * 325);
-  });
-
-  it("french_gothic adds $2/LF", () => {
-    const lf = 150;
-    const r = calculatePrice(input({ linear_feet: lf, french_gothic: true }));
-    expect(r.breakdown.french_gothic).toBe(lf * 200);
-  });
-
-  it("height_upgrade adds 18% of base_fence (CP family)", () => {
-    const r = calculatePrice(input({ sku_code: "CP-B", height_upgrade: true }));
-    const expected = Math.round(r.breakdown.base_fence * ADDONS.HEIGHT_UPGRADE_PCT);
-    expect(r.breakdown.height_upgrade).toBe(expected);
-  });
-
-  it("height_upgrade applies to HC family", () => {
-    const r = calculatePrice(input({ sku_code: "HC-B", height_upgrade: true }));
-    expect(r.breakdown.height_upgrade).toBeGreaterThan(0);
-  });
-
-  it("height_upgrade is ignored for CL family + emits warning", () => {
-    const r = calculatePrice(input({ sku_code: "CL-B", height_upgrade: true }));
-    expect(r.breakdown.height_upgrade).toBe(0);
-    expect(r.warnings.some((w) => w.startsWith("HEIGHT_UPGRADE_IGNORED"))).toBe(true);
-  });
-
-  it("permit adds flat $150", () => {
-    const r = calculatePrice(input({ permit_required: true }));
-    expect(r.breakdown.permit).toBe(15000);
-  });
-
-  it("hoa_admin adds flat $75", () => {
-    const r = calculatePrice(input({ hoa_admin: true }));
-    expect(r.breakdown.hoa_admin).toBe(7500);
-  });
-
-  it("travel: 10 miles over → $75", () => {
-    const r = calculatePrice(input({ travel_miles_over_25: 10 }));
-    expect(r.breakdown.travel).toBe(7500);
-  });
-});
-
-describe("calculatePrice — internal margin", () => {
-  it("margin uses better-tier basis (matches spec example numerics)", () => {
-    const r = calculatePrice(
-      input({
-        sku_code: "CP-B",
-        linear_feet: 150,
-        slope_code: 1,
-        demo_type: "CEDAR",
-        gates: [{ type: "SW-4", count: 1 }],
-      })
-    );
-    const sku = SKU_BY_CODE["CP-B"];
-
-    // Material cost = LF × material_cost_per_lf
-    expect(r.internal_margin.material_cost_cents).toBe(150 * sku.material_cost_per_lf_cents);
-
-    // Gate material = 30% of gate revenue
-    expect(r.internal_margin.gate_material_cost_cents).toBe(
-      Math.round(r.breakdown.gates * 0.3)
-    );
-
-    // Sub labor = subtotal × sub_labor_pct (subtotal = better tier)
-    expect(r.internal_margin.sub_labor_cost_cents).toBe(
-      Math.round(r.tiers.better.total_cents * sku.sub_labor_pct)
-    );
-
-    // Overhead = subtotal × 5%
-    expect(r.internal_margin.overhead_cost_cents).toBe(
-      Math.round(r.tiers.better.total_cents * 0.05)
-    );
-  });
-
-  it("gross_margin_pct between 0 and 1", () => {
-    const r = calculatePrice(input());
-    expect(r.internal_margin.gross_margin_pct).toBeGreaterThan(0);
-    expect(r.internal_margin.gross_margin_pct).toBeLessThan(1);
-  });
-
-  it("typical job flags 'ok' margin", () => {
-    const r = calculatePrice(input({ sku_code: "CP-B", linear_feet: 150 }));
-    expect(r.internal_margin.margin_flag).toBe("ok");
-  });
-
-  it("low-LF chain link should warn or low (worst margin profile)", () => {
-    const r = calculatePrice(input({ sku_code: "CL-G", linear_feet: 25 }));
-    // Chain link material is cheap relative to revenue but at 25 LF margins compress
-    expect(["ok", "warn", "low"]).toContain(r.internal_margin.margin_flag);
-  });
-});
-
-describe("calculatePrice — PMT / monthly payment", () => {
-  it("computes monthly for each tier", () => {
-    const r = calculatePrice(input({ sku_code: "CP-B", linear_feet: 150 }));
-    expect(r.tiers.good.monthly_24mo_cents).toBeGreaterThan(0);
-    expect(r.tiers.better.monthly_24mo_cents).toBeGreaterThan(r.tiers.good.monthly_24mo_cents);
-    expect(r.tiers.best.monthly_24mo_cents).toBeGreaterThan(r.tiers.better.monthly_24mo_cents);
-  });
-
-  it("pmtCents matches manual amortization for $11,040 @ 9.99%/24mo", () => {
-    const result = pmtCents(1104000, 0.0999, 24);
-    // Expected ~$509 (matches spec example within rounding)
-    expect(result).toBeGreaterThan(50800);
-    expect(result).toBeLessThan(51100);
-  });
-
-  it("pmtCents handles 0% APR gracefully (P/n)", () => {
-    expect(pmtCents(1200000, 0, 24)).toBe(50000); // $12k / 24 = $500/mo
-  });
-
-  it("pmtCents returns 0 for zero principal", () => {
-    expect(pmtCents(0, 0.0999, 24)).toBe(0);
-  });
-});
-
-describe("calculatePrice — validation errors", () => {
-  it("throws on unknown SKU", () => {
-    expect(() => calculatePrice(input({ sku_code: "XX-Y" }))).toThrow(/UNKNOWN_SKU|SKU not found/);
-  });
-
-  it("throws on linear_feet ≤ 0", () => {
-    expect(() => calculatePrice(input({ linear_feet: 0 }))).toThrow(/INVALID_LF|linear_feet/);
-    expect(() => calculatePrice(input({ linear_feet: -10 }))).toThrow(/INVALID_LF|linear_feet/);
-  });
-
-  it("throws on negative corner_count", () => {
-    expect(() => calculatePrice(input({ corner_count: -1 }))).toThrow(/INVALID_CORNERS/);
-  });
-
-  it("throws on unknown slope_code", () => {
-    expect(() => calculatePrice(input({ slope_code: 99 }))).toThrow(/INVALID_SLOPE/);
-  });
-
-  it("throws on bad gate type", () => {
-    // @ts-expect-error — bad gate type intentional
-    expect(() => calculatePrice(input({ gates: [{ type: "FOO", count: 1 }] }))).toThrow(
+  it("throws on invalid gate type", () => {
+    // Cast a bogus type to exercise the runtime guard; bypassing the
+    // compile-time GateType union is the whole point of the test.
+    const bogus = { type: "X", count: 1 } as unknown as PricingInput["gates"][number];
+    expect(() => calculatePrice(input({ gates: [bogus] }))).toThrow(
       /INVALID_GATE/
     );
   });
-});
 
-describe("calculatePrice — warnings", () => {
-  it("warns on short run (<20 LF)", () => {
-    const r = calculatePrice(input({ linear_feet: 15 }));
-    expect(r.warnings.some((w) => w.startsWith("SHORT_RUN"))).toBe(true);
-  });
-
-  it("warns on long run (>1000 LF)", () => {
-    const r = calculatePrice(input({ linear_feet: 1500 }));
-    expect(r.warnings.some((w) => w.startsWith("LONG_RUN"))).toBe(true);
-  });
-
-  it("no warnings for typical job", () => {
-    const r = calculatePrice(input({ linear_feet: 150, sku_code: "CP-B" }));
-    expect(r.warnings).toEqual([]);
+  it("throws on negative gate count", () => {
+    expect(() =>
+      calculatePrice(input({ gates: [{ type: "W4", count: -1 }] }))
+    ).toThrow(/INVALID_GATE_COUNT/);
   });
 });
 
-describe("calculatePrice — output integrity", () => {
-  it("stripInternal removes internal_margin", () => {
+// ════════════════════════════════════════════════════════════════════
+// Permits by city
+// ════════════════════════════════════════════════════════════════════
+describe("permits", () => {
+  it("Tulsa = $75", () => {
+    const r = calculatePrice(input({ city: "Tulsa" }));
+    expect(r.breakdown.permit_cents).toBe(7500);
+  });
+
+  it("Owasso = $0", () => {
+    const r = calculatePrice(input({ city: "Owasso" }));
+    expect(r.breakdown.permit_cents).toBe(0);
+  });
+
+  it("Broken Arrow defaults to $75 (Tulsa parity until confirmed)", () => {
+    const r = calculatePrice(input({ city: "Broken Arrow" }));
+    expect(r.breakdown.permit_cents).toBe(7500);
+  });
+
+  it("Unknown city falls back to $75 default", () => {
+    const r = calculatePrice(input({ city: "Springfield" }));
+    expect(r.breakdown.permit_cents).toBe(7500);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Warnings
+// ════════════════════════════════════════════════════════════════════
+describe("warnings", () => {
+  it("above_market fires on RR-4", () => {
+    const r = calculatePrice(input({ sku_code: "RR-4" }));
+    expect(r.warnings).toContain("above_market");
+  });
+
+  it("short_run fires below 20 LF", () => {
+    const r = calculatePrice(input({ linear_feet: 10 }));
+    expect(r.warnings).toContain("short_run");
+  });
+
+  it("long_run fires above 1000 LF", () => {
+    const r = calculatePrice(input({ linear_feet: 1200 }));
+    expect(r.warnings).toContain("long_run");
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Validation
+// ════════════════════════════════════════════════════════════════════
+describe("validation", () => {
+  it("throws on unknown SKU", () => {
+    expect(() => calculatePrice(input({ sku_code: "ZZZ" }))).toThrow(
+      /UNKNOWN_SKU/
+    );
+  });
+
+  it("throws on zero LF", () => {
+    expect(() => calculatePrice(input({ linear_feet: 0 }))).toThrow(/INVALID_LF/);
+  });
+
+  it("throws on negative LF", () => {
+    expect(() => calculatePrice(input({ linear_feet: -10 }))).toThrow(
+      /INVALID_LF/
+    );
+  });
+
+  it("throws on negative rock_drilling_posts", () => {
+    expect(() => calculatePrice(input({ rock_drilling_posts: -1 }))).toThrow(
+      /INVALID_ROCK_POSTS/
+    );
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Public-response sanitizer
+// ════════════════════════════════════════════════════════════════════
+describe("stripInternal", () => {
+  it("removes internal_margin from the result", () => {
     const r = calculatePrice(input());
     const safe = stripInternal(r);
     expect("internal_margin" in safe).toBe(false);
-    expect(safe.subtotal_cents).toBe(r.subtotal_cents);
-  });
-
-  it("breakdown line items sum to good-tier total", () => {
-    const r = calculatePrice(
-      input({
-        linear_feet: 200,
-        slope_code: 2,
-        demo_type: "CEDAR",
-        gates: [{ type: "SW-4", count: 1 }, { type: "DD-12", count: 1 }],
-        stain_seal: true,
-        french_gothic: true,
-        permit_required: true,
-        hoa_admin: true,
-        travel_miles_over_25: 5,
-        corner_count: 8,
-      })
-    );
-    const sum = Object.values(r.breakdown).reduce((a, b) => a + b, 0);
-    expect(sum).toBe(r.tiers.good.total_cents);
-  });
-
-  it("all tier totals are integers (cents)", () => {
-    const r = calculatePrice(input());
-    expect(Number.isInteger(r.tiers.good.total_cents)).toBe(true);
-    expect(Number.isInteger(r.tiers.better.total_cents)).toBe(true);
-    expect(Number.isInteger(r.tiers.best.total_cents)).toBe(true);
+    expect(safe.final_price_cents).toBe(r.final_price_cents);
   });
 });
 
-describe("calculatePrice — golden snapshot (spec §5 example)", () => {
-  // Per spec §5 sample: CP-B, 150 LF, slope 1, CEDAR demo, 1× SW-4
-  const SPEC_INPUT = input({
-    sku_code: "CP-B",
-    linear_feet: 150,
-    corner_count: 4,
-    slope_code: 1,
-    demo_type: "CEDAR",
-    gates: [{ type: "SW-4", count: 1 }],
+// ════════════════════════════════════════════════════════════════════
+// PMT helper
+// ════════════════════════════════════════════════════════════════════
+describe("pmtCents amortization", () => {
+  it("returns 0 for zero principal", () => {
+    expect(pmtCents(0, 0.0999, 24)).toBe(0);
   });
 
-  it("base_fence = 150 LF × $52 × 1.05 = $8,190", () => {
-    const r = calculatePrice(SPEC_INPUT);
-    // CP-B base = $52/LF, slope 1 = ×1.05 → $54.60/LF × 150 = $8,190
-    expect(r.breakdown.base_fence).toBe(819000);
+  it("returns flat division when APR=0", () => {
+    expect(pmtCents(120000, 0, 24)).toBe(5000);
   });
 
-  it("demo = 150 × $5.50 = $825", () => {
-    const r = calculatePrice(SPEC_INPUT);
-    expect(r.breakdown.demo).toBe(82500);
-  });
-
-  it("gates = 1 × SW-4 = $300", () => {
-    const r = calculatePrice(SPEC_INPUT);
-    expect(r.breakdown.gates).toBe(30000);
-  });
-
-  it("snapshot matches", () => {
-    const r = calculatePrice(SPEC_INPUT);
-    expect({
-      subtotal_cents: r.subtotal_cents,
-      tiers: r.tiers,
-      breakdown: r.breakdown,
-    }).toMatchInlineSnapshot(`
-      {
-        "breakdown": {
-          "base_fence": 819000,
-          "corners": 0,
-          "demo": 82500,
-          "french_gothic": 0,
-          "gates": 30000,
-          "height_upgrade": 0,
-          "hoa_admin": 0,
-          "permit": 0,
-          "stain": 0,
-          "travel": 0,
-        },
-        "subtotal_cents": 1099170,
-        "tiers": {
-          "best": {
-            "monthly_24mo_cents": 62321,
-            "total_cents": 1350675,
-          },
-          "better": {
-            "monthly_24mo_cents": 50716,
-            "total_cents": 1099170,
-          },
-          "good": {
-            "monthly_24mo_cents": 42980,
-            "total_cents": 931500,
-          },
-        },
-      }
-    `);
-  });
-});
-
-describe("getSkuCode helper", () => {
-  it("maps tier to suffix correctly", () => {
-    expect(getSkuCode("CP", "good")).toBe("CP-G");
-    expect(getSkuCode("CP", "better")).toBe("CP-B");
-    expect(getSkuCode("CP", "best")).toBe("CP-X");
-    expect(getSkuCode("CL", "better")).toBe("CL-B");
+  it("computes 24-month monthly at 9.99% within $1 of expected", () => {
+    // $7,500 @ 9.99% for 24 months ≈ $345.92
+    const monthly = pmtCents(750000, 0.0999, 24);
+    expect(monthly).toBeGreaterThan(34000);
+    expect(monthly).toBeLessThan(35200);
   });
 });

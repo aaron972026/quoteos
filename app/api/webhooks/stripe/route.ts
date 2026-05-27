@@ -6,7 +6,9 @@ import { eq } from "drizzle-orm";
 import { STRIPE_EVENTS, getStripe } from "@/lib/integrations/stripe";
 import { pushGhl } from "@/lib/integrations/ghl";
 import { pushHcpJob } from "@/lib/integrations/hcp";
+import { sendEstimatorBriefing } from "@/lib/integrations/send-briefing";
 import { FINANCING } from "@/lib/pricing/data";
+import { skus as skusTable } from "@/lib/db/schema";
 import type { Feature, LineString, Polygon } from "geojson";
 
 // Webhook needs raw body for signature verification + node runtime (Stripe SDK is not edge-compatible).
@@ -130,6 +132,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     stage: "Hot Lead — Deposit Paid",
   });
 
+  // Fire-and-forget estimator briefing PDF email. Needs the SKU's familyName
+  // for the header; everything else lives on the quote row.
+  fireBriefing(quoteId, existing, customerEmail, session).catch((err) =>
+    console.error("[stripe-webhook] briefing dispatch failed", err)
+  );
+
   // Fire-and-forget HCP/Make.com — spec §9 (HCP job spawn after deposit)
   pushHcpJob({
     quote_id: quoteId,
@@ -167,4 +175,69 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   });
 
   return NextResponse.json({ received: true, processed: true });
+}
+
+async function fireBriefing(
+  quoteId: string,
+  existing: typeof quotes.$inferSelect,
+  customerEmail: string | null,
+  session: Stripe.Checkout.Session
+): Promise<void> {
+  // Pull familyName from the SKUs table (briefing header). Cheap one-row lookup.
+  let familyName: string | null = null;
+  if (existing.skuCode) {
+    const [skuRow] = await db
+      .select({ familyName: skusTable.familyName })
+      .from(skusTable)
+      .where(eq(skusTable.code, existing.skuCode))
+      .limit(1);
+    familyName = skuRow?.familyName ?? null;
+  }
+
+  await sendEstimatorBriefing({
+    quoteNumber: existing.quoteNumber,
+    quoteId,
+    customerName:
+      existing.customerName ?? session.customer_details?.name ?? null,
+    customerEmail,
+    customerPhone:
+      existing.customerPhone ?? session.customer_details?.phone ?? null,
+    addressLine: existing.addressLine,
+    city: existing.city,
+    state: existing.state,
+    zip: existing.zip,
+    lat: existing.lat != null ? Number(existing.lat) : null,
+    lng: existing.lng != null ? Number(existing.lng) : null,
+    parcelId: existing.parcelId,
+    linearFeet:
+      existing.linearFeet != null ? Number(existing.linearFeet) : 0,
+    cornerCount: existing.cornerCount ?? 0,
+    slopeCode: existing.slopeCode ?? 0,
+    slopeSelfReported: !!existing.slopeSelfReported,
+    demoRequired: !!existing.demoRequired,
+    demoType: existing.demoType,
+    gates:
+      (existing.gates as Array<{ type: string; count: number }> | null) ?? [],
+    skuCode: existing.skuCode,
+    tier: existing.tier,
+    familyName,
+    heightUpgrade: !!existing.heightUpgrade,
+    frenchGothic: !!existing.frenchGothic,
+    stainSeal: !!existing.stainSeal,
+    selectedTierCents: existing.selectedTierCents,
+    monthly24moCents: existing.monthly24moCents,
+    depositCents: FINANCING.DEPOSIT_CENTS,
+    estimatedMaterialCostCents: existing.estimatedMaterialCostCents,
+    estimatedSubCostCents: existing.estimatedSubCostCents,
+    estimatedGrossMarginPct:
+      existing.estimatedGrossMarginPct != null
+        ? Number(existing.estimatedGrossMarginPct)
+        : null,
+    marginFlag: existing.marginFlag,
+    photoUrls: (
+      (existing.photoUrls as Array<{ url: string; uploadedAt: string }> | null) ??
+      []
+    ).map((p) => p.url),
+    photoAudit: existing.photoAudit,
+  });
 }

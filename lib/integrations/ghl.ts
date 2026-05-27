@@ -39,10 +39,6 @@ export interface QuoteFinalizedEvent {
   zip: string | null;
   linear_feet: number | null;
   sku_code: string | null;
-  selected_tier: "good" | "better" | "best" | null;
-  tier_good_cents: number | null;
-  tier_better_cents: number | null;
-  tier_best_cents: number | null;
   selected_tier_cents: number | null;
   price_valid_until: string | null; // ISO
 }
@@ -71,7 +67,6 @@ export interface AbandonedEvent {
   linear_feet: number | null;
   sku_code: string | null;
   selected_tier_cents: number | null;
-  tier_better_cents: number | null;
   quote_link: string; // recovery URL we want GHL to send
 }
 

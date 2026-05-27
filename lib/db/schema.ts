@@ -57,6 +57,12 @@ export const sessions = pgTable(
     lastActivityAt: timestamp("last_activity_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+
+    // Phase 1.5 — sticky A/B variant assignments. Shape: { [experimentKey]: variantKey }.
+    // Populated lazily by lib/experiments/server.ts the first time the session
+    // requests an experiment's variant. Funnel queries can JOIN on this to
+    // segment by variant.
+    variants: jsonb("variants").$type<Record<string, string>>(),
   },
   (t) => ({
     fingerprintIdx: index("sessions_fingerprint_idx").on(t.fingerprint),
@@ -88,6 +94,15 @@ export const quotes = pgTable(
     lng: numeric("lng", { precision: 10, scale: 7 }),
     parcelId: text("parcel_id"),
 
+    // Ownership / consent gate (Brand v1.0 — captured on /address/confirm).
+    // Null = not yet confirmed; "owner" = customer is the property owner;
+    // "consent" = customer has written consent from the owner. Blocks
+    // progression past /address/confirm.
+    ownership: text("ownership").$type<"owner" | "consent" | null>(),
+    ownershipConfirmedAt: timestamp("ownership_confirmed_at", {
+      withTimezone: true,
+    }),
+
     // Scope (drawing result + config)
     geometry: jsonb("geometry"), // GeoJSON LineString or Polygon
     linearFeet: numeric("linear_feet", { precision: 10, scale: 2 }),
@@ -108,6 +123,43 @@ export const quotes = pgTable(
     gates: jsonb("gates").$type<
       Array<{ type: string; count: number; position?: { lat: number; lng: number } }>
     >(),
+
+    // Phase 1.5 — yard photos uploaded by the user. Stored as a jsonb array
+    // of { url, uploadedAt } so we keep ordering + provenance. photoAudit is
+    // populated by the AI vision pass (deferred slice).
+    // Phase 1.5 — Regrid parcel boundary GeoJSON Polygon | MultiPolygon, fetched
+    // by lat/lng after quote creation. Drawn under the fence layer as a guide
+    // so the user can see their actual property limits.
+    parcelBoundary: jsonb("parcel_boundary").$type<{
+      type: "Polygon" | "MultiPolygon";
+      coordinates: number[][][] | number[][][][];
+    } | null>(),
+
+    // Phase 2 — adjacent properties from Regrid bbox search around the
+    // customer's parcel. Used to surface "your west boundary borders 123 Main"
+    // on /draw so the user knows where HOA / cost-split conversations apply.
+    adjacentParcels: jsonb("adjacent_parcels").$type<Array<{
+      parcelId: string | null;
+      address: string | null;
+      direction: "N" | "S" | "E" | "W" | "NE" | "NW" | "SE" | "SW";
+      boundary: {
+        type: "Polygon" | "MultiPolygon";
+        coordinates: number[][][] | number[][][][];
+      };
+    }> | null>(),
+
+    photoUrls: jsonb("photo_urls").$type<
+      Array<{ url: string; uploadedAt: string }>
+    >(),
+    photoAudit: jsonb("photo_audit").$type<{
+      existing_fence_material?: string | null;
+      slope_estimate?: string | null;
+      obstacles?: string[];
+      suggested_demo_type?: string | null;
+      confidence?: number;
+      raw_notes?: string;
+      audited_at?: string;
+    } | null>(),
 
     // Computed pricing (cents)
     subtotalCents: integer("subtotal_cents"),
@@ -167,15 +219,23 @@ export const pricingVersions = pgTable("pricing_versions", {
 // ─── SKUs ─────────────────────────────────────────────────────────────
 
 export const skus = pgTable("skus", {
-  code: text("code").primaryKey(), // e.g. CP-B (cedar privacy, better)
-  family: text("family").notNull(), // CP, HC, CL, OR, RR
+  code: text("code").primaryKey(), // e.g. CPF-PRM (cedar privacy fence, premium)
+  family: text("family").notNull(), // CPF | HCF | CL | RR
   familyName: text("family_name").notNull(), // "Cedar Privacy"
-  tier: tierEnum("tier").notNull(),
+  // Pricing-model v2 deprecates the tier column — SKU IS the tier now. Kept
+  // nullable for legacy rows; new rows leave it null.
+  tier: tierEnum("tier"),
   description: text("description").notNull(),
   heightInches: integer("height_inches").notNull(),
   basePricePerLfCents: integer("base_price_per_lf_cents").notNull(),
   materialCostPerLfCents: integer("material_cost_per_lf_cents").notNull(),
-  subLaborPct: numeric("sub_labor_pct", { precision: 5, scale: 4 }).notNull(),
+  // v2: labor as $/LF cents (replaces subLaborPct which is now legacy).
+  laborCostPerLfCents: integer("labor_cost_per_lf_cents"),
+  subLaborPct: numeric("sub_labor_pct", { precision: 5, scale: 4 }),
+  // v2: market-position metadata for warnings + admin sanity checks.
+  marketMaxPerLfCents: integer("market_max_per_lf_cents"),
+  marketFlag: text("market_flag"), // "ok" | "ABOVE_MKT"
+  postsStandard: text("posts_standard"), // "cedar_wood" | "galv_line"
   active: boolean("active").notNull().default(true),
   heroImageUrl: text("hero_image_url"),
   specBullets: jsonb("spec_bullets").$type<string[]>().notNull().default(sql`'[]'::jsonb`),

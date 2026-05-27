@@ -1,0 +1,24 @@
+﻿ADD-ON & SURCHARGE CATALOG,,,,
+Fixed pricing. Never custom. Feeds the QuoteOS engine.,,,,
+,,,,
+Code,Item,Price / Rate,Unit,Notes
+STEEL-UP,Steel post upgrade (PostMaster+),$5 ,per LF,Upgrades 5-yr wood post warranty to 15-yr structural
+GATE-W4,"4' walk gate, matching fence",$350 ,each,Fixed by family
+GATE-W5,5' walk gate,$425 ,each,
+GATE-D10,10' single-leaf drive gate,$850 ,each,
+GATE-D12,12' single-leaf drive gate,"$1,100 ",each,
+GATE-D16,16' double-leaf drive gate,"$1,750 ",each,Largest standard gate
+DEMO,Demo + haul-off existing fence,$3-5,per LF,
+STAIN,Premium stain / seal,$8 ,per LF,Only warranty stain we apply
+SLOPE-1,Mild grade,+5%,segment,Auto from QuoteOS slope detect
+SLOPE-2,Moderate grade,+12%,segment,
+SLOPE-3,Steep grade,18%,segment,
+SLOPE-4,Severe grade,Review,segment,Flag to human
+ROCK,Rock / hard-clay drilling,$25 ,per post,
+ACCESS,Difficult access / tight lot,+8%,segment,
+TEAR-CONCRETE,Remove concrete-set old posts,$20 ,per post,
+PERMIT-TUL,Tulsa permit,$75,per job,"Baked in, not itemized"
+PERMIT-BA,Broken Arrow permit,TBD,per job,Confirm with city
+PERMIT-BIX,Bixby permit,TBD,per job,Confirm with city
+PERMIT-JEN,Jenks permit,TBD,per job,Confirm with city
+PERMIT-OWA,Owasso permit,$0,per job,No permit required

@@ -4,19 +4,26 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Loader2, MapPin } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ProgressDots } from "@/components/ProgressDots";
-import { TrustStrip } from "@/components/TrustStrip";
 import { SessionInit } from "@/components/SessionInit";
-import { AddressAutocomplete, type AddressResult } from "@/components/AddressAutocomplete";
+import { LocaleToggle } from "@/components/LocaleToggle";
+import {
+  AddressAutocomplete,
+  type AddressResult,
+} from "@/components/AddressAutocomplete";
+import { Header } from "@/components/brand/Header";
+import { Progress } from "@/components/brand/Progress";
+import { Eyebrow } from "@/components/brand/Eyebrow";
+import { TrustBar } from "@/components/brand/TrustBar";
+import { Footer } from "@/components/brand/Footer";
+import { useT } from "@/lib/i18n/use-locale";
+import { cn } from "@/lib/utils";
 
 export default function AddressPage() {
   const router = useRouter();
+  const t = useT();
   const [picked, setPicked] = useState<AddressResult | null>(null);
   const [zone, setZone] = useState<{
     in_service_area: boolean;
-    in_primary?: boolean;
-    in_extended?: boolean;
     message?: string;
   } | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -27,16 +34,17 @@ export default function AddressPage() {
     setError(null);
     setZone(null);
     if (!addr.zip) {
-      setError("That address is missing a zip code — please pick a more specific address.");
+      setError(t.address.missingZip);
       return;
     }
 
     try {
-      const r = await fetch(`/api/v1/service-zones/${addr.zip}`, { credentials: "include" });
-      const data = await r.json();
-      setZone(data);
+      const r = await fetch(`/api/v1/service-zones/${addr.zip}`, {
+        credentials: "include",
+      });
+      setZone(await r.json());
     } catch {
-      // Allow the user to continue if the lookup fails — we can re-check server-side
+      // Allow the user to continue if the lookup fails — server re-checks anyway
       setZone({ in_service_area: true });
     }
   }
@@ -47,7 +55,6 @@ export default function AddressPage() {
 
     startTransition(async () => {
       try {
-        // Ensure session exists
         await fetch("/api/v1/sessions/init", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -72,7 +79,6 @@ export default function AddressPage() {
 
         if (!r.ok) {
           const body = await r.json().catch(() => ({}));
-          // Surface the first Zod validation issue if present
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const issues = (body?.error?.details ?? []) as Array<any>;
           if (issues.length > 0) {
@@ -82,104 +88,175 @@ export default function AddressPage() {
               `${first?.message ?? "Validation failed"}${path ? ` (field: ${path})` : ""}`
             );
           }
-          throw new Error(body?.error?.message ?? "Could not save your address");
+          throw new Error(body?.error?.message ?? t.address.couldNotSave);
         }
 
         const { id } = await r.json();
-        router.push(`/draw?q=${id}`);
+        router.push(`/address/confirm?q=${id}`);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Something went wrong");
       }
     });
   }
 
-  const cantServe = zone && !zone.in_service_area;
+  const cantServe = zone ? !zone.in_service_area : false;
+  const canProceed = !!picked && !cantServe && !isPending;
 
   return (
     <>
       <SessionInit />
-      <main className="mx-auto flex min-h-dvh max-w-2xl flex-col px-6 pb-16 pt-6">
-        <ProgressDots current="address" />
+      <div className="flex min-h-dvh flex-col bg-paper">
+        <Header />
+        <Progress step={0} />
 
-        <section className="mt-6">
-          <h1 className="text-balance text-3xl font-bold leading-tight text-navy sm:text-4xl">
-            Where&rsquo;s the fence going?
-          </h1>
-          <p className="mt-2 text-navy/70">
-            We&rsquo;ll pull up your address on a satellite map next.
-          </p>
-
-          <div className="mt-8">
-            <AddressAutocomplete onSelect={handleSelect} autoFocus />
+        {/* Hero ─────────────────────────────────────────────── */}
+        <section className="relative overflow-hidden">
+          {/* Decorative pickets, top-right (desktop only) */}
+          <div
+            className="pickets absolute right-10 top-10 hidden opacity-50 md:flex"
+            aria-hidden="true"
+          >
+            {Array.from({ length: 7 }).map((_, i) => (
+              <span key={i} />
+            ))}
           </div>
 
-          {picked && (
-            <div className="mt-6 rounded-xl border border-navy/10 bg-navy/5 p-4">
-              <div className="flex items-start gap-3">
-                <MapPin
-                  className="mt-0.5 flex-shrink-0 text-accent"
-                  size={20}
-                  aria-hidden
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-navy">
-                    {picked.address_line}
+          {/* Locale toggle floats top-right under the picket flourish */}
+          <div className="absolute right-5 top-5 z-10 md:right-10 md:top-32">
+            <LocaleToggle />
+          </div>
+
+          <div className="mx-auto max-w-[1280px] px-5 pb-16 pt-14 md:px-10 md:pb-28 md:pt-24">
+            <div className="mx-auto max-w-[820px] text-center">
+              <Eyebrow>{t.address.eyebrow}</Eyebrow>
+
+              <h1
+                className={cn(
+                  "mt-7 font-display font-bold uppercase text-navy",
+                  "text-[44px] leading-[0.95] tracking-tightest md:text-[88px]"
+                )}
+              >
+                {t.address.h1Pre}
+                <br />
+                In <span className="text-brick">{t.address.h1Highlight}</span>
+              </h1>
+
+              <p className="mx-auto mt-7 max-w-[58ch] font-body text-[18px] leading-[1.5] text-char md:text-[21px]">
+                {t.address.lead}
+              </p>
+
+              {/* Address input shell ────────────────────────── */}
+              <div className="relative mx-auto mt-10 max-w-[640px]">
+                <div
+                  className={cn(
+                    "flex items-stretch bg-paper transition-all",
+                    "rounded-md border-2 shadow-card-lg",
+                    "border-navy/30 focus-within:border-navy focus-within:ring-[5px] focus-within:ring-navy/12"
+                  )}
+                >
+                  <div className="flex items-center pl-5 pr-2 text-brick">
+                    <MapPin size={22} strokeWidth={2} />
                   </div>
-                  <div className="text-sm text-navy/60">
-                    {[picked.city, picked.state, picked.zip]
-                      .filter(Boolean)
-                      .join(", ")}
+                  <div className="flex-1 self-center qos-address-input-host">
+                    <AddressAutocomplete
+                      onSelect={handleSelect}
+                      placeholder={t.address.inputPlaceholder}
+                      autoFocus
+                    />
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleConfirm}
+                    disabled={!canProceed}
+                    className={cn(
+                      "m-1.5 flex items-center gap-2 rounded-sm px-6 md:px-8",
+                      "font-display text-[14px] font-semibold uppercase tracking-eyebrow",
+                      "transition-colors",
+                      canProceed
+                        ? "bg-brick text-cream hover:bg-brick-deep"
+                        : "cursor-not-allowed bg-steel-soft text-cream"
+                    )}
+                    aria-disabled={!canProceed}
+                  >
+                    {isPending ? (
+                      <Loader2 className="animate-spin" size={14} />
+                    ) : (
+                      <>
+                        {t.address.inputCta}
+                        <ArrowRight size={14} strokeWidth={2.5} />
+                      </>
+                    )}
+                  </button>
                 </div>
+
+                {/* Selected-address chip — confirms the pick stuck after the
+                    Google web component blanks its own input on select. */}
+                {picked && !cantServe && (
+                  <div className="mt-3 flex items-center justify-center gap-2 rounded-sm border border-navy/15 bg-cream px-3 py-2 text-left">
+                    <MapPin size={14} className="flex-shrink-0 text-brick" strokeWidth={2.5} />
+                    <span className="font-mono text-[10px] uppercase tracking-spec text-steel">
+                      {t.address.selectedLabel}
+                    </span>
+                    <span className="truncate font-display text-[13px] font-semibold uppercase tracking-eyebrow text-navy">
+                      {[picked.address_line, picked.city, picked.state, picked.zip]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </span>
+                  </div>
+                )}
+
+                {/* Inline status: out of area / general error */}
+                {cantServe && zone?.message && (
+                  <div className="mt-3 rounded-sm border border-brick/30 bg-brick/5 px-3 py-2 text-left text-sm text-brick">
+                    {zone.message}{" "}
+                    <Link
+                      href="/"
+                      className="font-semibold underline-offset-4 hover:underline"
+                    >
+                      {t.address.outOfArea}
+                    </Link>
+                  </div>
+                )}
+                {error && (
+                  <div className="mt-3 rounded-sm border border-brick/30 bg-brick/5 px-3 py-2 text-left text-sm text-brick">
+                    {error}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
 
-          {cantServe && zone?.message && (
-            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              {zone.message}{" "}
-              <Link href="/" className="underline">
-                Back to home
-              </Link>
+              <p className="mt-5 font-body text-[13px] text-steel">
+                {t.address.sub}
+              </p>
             </div>
-          )}
 
-          {error && (
-            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
-              {error}
+            {/* Trust microbar */}
+            <div className="mx-auto mt-16 max-w-[920px] md:mt-20">
+              <TrustBar />
             </div>
-          )}
+          </div>
         </section>
 
-        <div className="mt-8">
-          <Button
-            type="button"
-            size="lg"
-            className="w-full"
-            onClick={handleConfirm}
-            disabled={!picked || isPending || !!cantServe}
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="animate-spin" size={20} /> Saving…
-              </>
-            ) : (
-              <>
-                Yes, that&rsquo;s my home <ArrowRight size={20} />
-              </>
-            )}
-          </Button>
-          <p className="mt-3 text-center text-sm text-navy/50">
-            <Link href="/" className="underline-offset-4 hover:underline">
-              Use a different address
-            </Link>
-          </p>
-        </div>
+        {/* Reassurance band ────────────────────────────────── */}
+        <section className="border-y border-navy/10 bg-cream">
+          <div className="mx-auto grid max-w-[1280px] gap-10 px-5 py-14 md:grid-cols-3 md:px-10">
+            {t.address.reassurance.map((c) => (
+              <div key={c.n}>
+                <div className="mb-3 font-mono text-[12px] tracking-spec text-brick">
+                  {c.eyebrow.toUpperCase()}
+                </div>
+                <h3 className="font-display text-[24px] font-bold uppercase leading-[1.1] tracking-[0.04em] text-navy">
+                  {c.title}
+                </h3>
+                <p className="mt-3 font-body text-[15px] leading-[1.55] text-char">
+                  {c.body}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-        <div className="mt-auto pt-12">
-          <TrustStrip compact />
-        </div>
-      </main>
+        <Footer />
+      </div>
     </>
   );
 }

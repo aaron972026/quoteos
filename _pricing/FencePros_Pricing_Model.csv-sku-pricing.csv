@@ -1,0 +1,24 @@
+﻿SKU COST → PRICE ENGINE,,,,,,,,,,,,
+Enter Material $/LF and Labor $/LF (BLUE). Wood posts standard; steel is an add-on. Everything else computes.,,,,,,,,,,,,
+,,,,,,,,,,,,
+SKU,Description,Posts (std),"Material
+$/LF","Labor
+$/LF","Waste-adj
+Material","Overhead
+$/LF","Total Cost
+$/LF","Price $/LF
+@45%","Margin
+%","Profit
+$/LF","Market
+Max",Flag
+CPF-PINE,"KDAT pine dog-ear, hand-selected, 12-mo no-warp",Cedar (wood),$9.50,$6.50,$9.98,$3.00,$19.48,$35.41,45.0%,$15.93,$40,ok
+CPF-STD,"#2 cedar dog-ear, 2-rail, concrete-set",Cedar (wood),$11.00,$7.50,$11.55,$3.00,$22.05,$40.09,45.0%,$18.04,$50,ok
+CPF-PRM,"#1 cedar square-top, cap rail, 3-rail",Cedar (wood),$13.00,$8.00,$13.65,$3.00,$24.65,$44.82,45.0%,$20.17,$64,ok
+CPF-EST,"#1/BTR board-on-board, kickboard, cap+trim",Cedar (wood),$17.00,$9.00,$17.85,$3.00,$29.85,$54.27,45.0%,$24.42,$80,ok
+HCF-STD,1x6 horizontal cedar slats,Cedar (wood),$15.00,$9.00,$15.75,$3.00,$27.75,$50.45,45.0%,$22.70,$62,ok
+HCF-PRM,"1x6 #1 cedar, hidden fasteners, mitered",Cedar (wood),$18.50,$10.50,$19.43,$3.00,$32.93,$59.86,45.0%,$26.94,$84,ok
+CL-RES,"Galvanized chain link, residential",Galv line,$5.50,$4.50,$5.78,$3.00,$13.28,$24.14,45.0%,$10.86,$26,ok
+CL-VIN,Black vinyl-coated chain link,Galv line,$8.00,$5.00,$8.40,$3.00,$16.40,$29.82,45.0%,$13.42,$36,ok
+RR-2,"2-rail ranch, cedar",Cedar (wood),$6.50,$4.00,$6.83,$3.00,$13.83,$25.14,45.0%,$11.31,$24,ABOVE MKT
+RR-3,"3-rail ranch, cedar",Cedar (wood),$8.50,$4.50,$8.93,$3.00,$16.43,$29.86,45.0%,$13.44,$30,ok
+RR-4,"4-rail ranch, cedar",Cedar (wood),$10.50,$5.00,$11.03,$3.00,$19.03,$34.59,45.0%,$15.57,$34,ABOVE MKT

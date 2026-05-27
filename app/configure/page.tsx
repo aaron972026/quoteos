@@ -12,24 +12,30 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   Loader2,
   TriangleAlert,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ProgressDots } from "@/components/ProgressDots";
-import { FamilyCard } from "@/components/configure/FamilyCard";
-import { TierCard } from "@/components/configure/TierCard";
+import { Header } from "@/components/brand/Header";
+import { Progress } from "@/components/brand/Progress";
+import { Eyebrow } from "@/components/brand/Eyebrow";
 import { AddonRow } from "@/components/configure/AddonRow";
-import { formatCents } from "@/lib/utils";
+import { FenceSketch } from "@/components/configure/FenceSketch";
+import { cn, formatCents } from "@/lib/utils";
+import { useT } from "@/lib/i18n/use-locale";
 
 interface SkuApiRow {
   code: string;
   family: string;
   familyName: string;
-  tier: "good" | "better" | "best";
+  displayName: string;
+  tier: "good" | "better" | "best" | null;
   description: string;
   heightInches: number;
   basePricePerLfCents: number;
+  marketMaxPerLfCents: number | null;
+  marketFlag: string | null;
+  postsStandard: string | null;
   heroImageUrl: string | null;
   specBullets: string[];
   sortOrder: number;
@@ -43,42 +49,71 @@ interface QuoteShape {
   demoType: "NONE" | "CEDAR" | "CHAIN" | "METAL" | "CONC" | null;
   demoRequired: boolean | null;
   addressLine: string | null;
+  city: string | null;
+  skuCode: string | null;
+  stainSeal: boolean | null;
+  gates?: Array<{ type: string; count: number }> | null;
 }
 
 interface PricingResponse {
-  subtotal_cents: number;
-  tiers: {
-    good: { total_cents: number; monthly_24mo_cents: number };
-    better: { total_cents: number; monthly_24mo_cents: number };
-    best: { total_cents: number; monthly_24mo_cents: number };
-  };
+  final_price_cents: number;
+  display_range_low_cents: number;
+  display_range_high_cents: number;
+  raw_subtotal_cents: number;
+  guards_applied: string[];
   deposit_cents: number;
+  valid_until: string;
+  breakdown: {
+    base_fence_cents: number;
+    slope_surcharge_cents: number;
+    access_surcharge_cents: number;
+    steel_upgrade_cents: number;
+    gates_cents: number;
+    demo_cents: number;
+    stain_cents: number;
+    rock_drilling_cents: number;
+    tear_concrete_cents: number;
+    permit_cents: number;
+  };
   warnings: string[];
 }
 
-const HEIGHT_UPGRADE_FAMILIES = new Set(["CP", "HC"]);
-type Tier = "good" | "better" | "best";
+// Wood-post families that can take the PostMaster+ steel-post upgrade.
+// Mirrors STEEL_UPGRADE_FAMILIES in lib/pricing/data.ts.
+const STEEL_UPGRADE_FAMILIES = new Set(["CPF", "HCF", "BP"]);
+
+// Wood-picket families that can take the cap-rail + decorative trim upgrade.
+const CAP_RAIL_FAMILIES = new Set(["CPF", "HCF", "BP"]);
+
+const TIER_SLOT_LABEL: Record<"good" | "better" | "best", string> = {
+  good: "Good",
+  better: "Better",
+  best: "Best",
+};
+
+const TIER_SLOT_ORDER: Array<"good" | "better" | "best"> = ["good", "better", "best"];
 
 function ConfigurePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const quoteId = searchParams.get("q");
+  const t = useT();
 
   const [skus, setSkus] = useState<SkuApiRow[] | null>(null);
   const [quote, setQuote] = useState<QuoteShape | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [family, setFamily] = useState<string | null>(null);
-  const [tier, setTier] = useState<Tier>("better"); // default Better per spec §6
-  const [heightUpgrade, setHeightUpgrade] = useState(false);
-  const [frenchGothic, setFrenchGothic] = useState(false);
+  const [familyCode, setFamilyCode] = useState<string | null>(null);
+  const [skuCode, setSkuCode] = useState<string | null>(null);
   const [stainSeal, setStainSeal] = useState(false);
+  const [steelPostUpgrade, setSteelPostUpgrade] = useState(false);
+  const [capRailTrim, setCapRailTrim] = useState(false);
+  const [matchVinylPosts, setMatchVinylPosts] = useState(false);
 
   const [pricing, setPricing] = useState<PricingResponse | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  // ── Initial data load ────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     Promise.all([
@@ -86,74 +121,118 @@ function ConfigurePageInner() {
       quoteId
         ? fetch(`/api/v1/quotes/${quoteId}`, { credentials: "include" }).then(
             async (r) => {
-              if (!r.ok) throw new Error(`Quote load failed (${r.status})`);
+              if (!r.ok) throw new Error(`${t.configure.quoteLoadFailed} (${r.status})`);
               return r.json();
             }
           )
-        : Promise.reject(new Error("Missing quote id")),
+        : Promise.reject(new Error(t.configure.missingQuote)),
     ])
-      .then(([s, q]) => {
+      .then(([s, q]: [SkuApiRow[], QuoteShape]) => {
         if (cancelled) return;
         setSkus(s);
         setQuote(q);
+        if (q.skuCode) {
+          setSkuCode(q.skuCode);
+          const picked = s.find((sk) => sk.code === q.skuCode);
+          if (picked) setFamilyCode(picked.family);
+        }
+        if (q.stainSeal) setStainSeal(true);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Load failed");
+        if (!cancelled) setError(e instanceof Error ? e.message : t.configure.loadFailed);
       });
     return () => {
       cancelled = true;
     };
-  }, [quoteId]);
+  }, [
+    quoteId,
+    t.configure.quoteLoadFailed,
+    t.configure.missingQuote,
+    t.configure.loadFailed,
+  ]);
 
-  // Reset incompatible options when switching family
-  useEffect(() => {
-    if (family && !HEIGHT_UPGRADE_FAMILIES.has(family) && heightUpgrade) {
-      setHeightUpgrade(false);
-    }
-  }, [family, heightUpgrade]);
-
-  // ── Family list (one card per family, "starting at" = good-tier price) ───
+  // Group SKUs by family with tier-slot lookup
   const families = useMemo(() => {
     if (!skus) return [];
-    type FamilyRow = {
-      code: string;
-      familyName: string;
-      startingAtCents: number;
-      description: string;
-    };
-    const byFamily = new Map<string, FamilyRow>();
-    for (const sku of skus) {
-      if (sku.tier === "good") {
-        byFamily.set(sku.family, {
-          code: sku.family,
-          familyName: sku.familyName,
-          startingAtCents: sku.basePricePerLfCents,
-          description: sku.description,
+    const byFamily = new Map<
+      string,
+      { code: string; name: string; variants: SkuApiRow[] }
+    >();
+    for (const s of skus) {
+      const existing = byFamily.get(s.family);
+      if (existing) {
+        existing.variants.push(s);
+      } else {
+        byFamily.set(s.family, {
+          code: s.family,
+          name: s.familyName,
+          variants: [s],
         });
       }
     }
-    return Array.from(byFamily.values()).sort(
-      (a, b) => a.startingAtCents - b.startingAtCents
+    const famList = Array.from(byFamily.values());
+    for (const fam of famList) {
+      fam.variants.sort(
+        (a: SkuApiRow, b: SkuApiRow) =>
+          TIER_SLOT_ORDER.indexOf((a.tier ?? "good") as "good") -
+          TIER_SLOT_ORDER.indexOf((b.tier ?? "good") as "good")
+      );
+    }
+    // Stable family order: cheapest variant first.
+    return famList.sort(
+      (a: { variants: SkuApiRow[] }, b: { variants: SkuApiRow[] }) => {
+        const aMin = Math.min(...a.variants.map((v) => v.basePricePerLfCents));
+        const bMin = Math.min(...b.variants.map((v) => v.basePricePerLfCents));
+        return aMin - bMin;
+      }
     );
   }, [skus]);
 
-  // ── Tier cards for the picked family ─────────────────────────────
-  const familyTiers = useMemo(() => {
-    if (!skus || !family) return null;
-    const ofFamily = skus.filter((s) => s.family === family);
-    return {
-      good: ofFamily.find((s) => s.tier === "good"),
-      better: ofFamily.find((s) => s.tier === "better"),
-      best: ofFamily.find((s) => s.tier === "best"),
-    };
-  }, [skus, family]);
+  const selectedFamily = families.find((f) => f.code === familyCode) ?? null;
+  const selectedSku = skus?.find((s) => s.code === skuCode) ?? null;
+  const steelUpgradeAvailable = selectedSku
+    ? STEEL_UPGRADE_FAMILIES.has(selectedSku.family)
+    : false;
 
-  // ── Live debounced pricing ───────────────────────────────────────
+  // Auto-pick: first family + its Better variant (or first available)
   useEffect(() => {
-    if (!family || !quote || !quote.linearFeet) return;
-    const skuCode = `${family}-${
-      tier === "good" ? "G" : tier === "better" ? "B" : "X"
-    }`;
+    if (!familyCode && families.length > 0) {
+      const cheapest = families[0];
+      setFamilyCode(cheapest.code);
+      if (!skuCode && cheapest.variants[0]) {
+        setSkuCode(cheapest.variants[0].code);
+      }
+    }
+  }, [familyCode, families, skuCode]);
+
+  // When family changes, default the SKU to the middle tier (or the only one)
+  function handleFamilyPick(code: string) {
+    setFamilyCode(code);
+    const fam = families.find((f) => f.code === code);
+    if (!fam) return;
+    const defaultPick =
+      fam.variants.find((v) => v.tier === "better") ??
+      fam.variants[0];
+    if (defaultPick) setSkuCode(defaultPick.code);
+  }
+
+  // Reset upgrades that don't apply to the picked family/SKU
+  useEffect(() => {
+    if (!selectedSku) return;
+    if (!STEEL_UPGRADE_FAMILIES.has(selectedSku.family) && steelPostUpgrade) {
+      setSteelPostUpgrade(false);
+    }
+    if (!CAP_RAIL_FAMILIES.has(selectedSku.family) && capRailTrim) {
+      setCapRailTrim(false);
+    }
+    if (selectedSku.code !== "CL-VIN" && matchVinylPosts) {
+      setMatchVinylPosts(false);
+    }
+  }, [selectedSku, steelPostUpgrade, capRailTrim, matchVinylPosts]);
+
+  // Live pricing
+  useEffect(() => {
+    if (!skuCode || !quote || !quote.linearFeet) return;
     const ctl = new AbortController();
     setPricingLoading(true);
     const timer = setTimeout(async () => {
@@ -169,10 +248,12 @@ function ConfigurePageInner() {
             corner_count: quote.cornerCount ?? 0,
             slope_code: quote.slopeCode ?? 0,
             demo_type: quote.demoType ?? "NONE",
-            gates: [], // Phase 1 follow-up
-            height_upgrade: heightUpgrade,
-            french_gothic: frenchGothic,
+            gates: quote.gates ?? [],
             stain_seal: stainSeal,
+            steel_post_upgrade: steelPostUpgrade,
+            cap_rail_trim: capRailTrim,
+            match_vinyl_posts: matchVinylPosts,
+            city: quote.city ?? "Tulsa",
           }),
         });
         if (!r.ok) throw new Error("pricing failed");
@@ -190,14 +271,10 @@ function ConfigurePageInner() {
       clearTimeout(timer);
       ctl.abort();
     };
-  }, [family, tier, heightUpgrade, frenchGothic, stainSeal, quote]);
+  }, [skuCode, stainSeal, steelPostUpgrade, capRailTrim, matchVinylPosts, quote]);
 
-  // ── Continue → save selection + route to Screen 5 ────────────────
   function handleContinue() {
-    if (!quoteId || !family) return;
-    const skuCode = `${family}-${
-      tier === "good" ? "G" : tier === "better" ? "B" : "X"
-    }`;
+    if (!quoteId || !skuCode) return;
     setError(null);
     startTransition(async () => {
       try {
@@ -207,203 +284,458 @@ function ConfigurePageInner() {
           credentials: "include",
           body: JSON.stringify({
             sku_code: skuCode,
-            tier,
-            height_upgrade: heightUpgrade,
-            french_gothic: frenchGothic,
             stain_seal: stainSeal,
+            steel_post_upgrade: steelPostUpgrade,
+            cap_rail_trim: capRailTrim,
+            match_vinyl_posts: matchVinylPosts,
           }),
         });
         if (!r.ok) {
           const body = await r.json().catch(() => ({}));
-          throw new Error(body?.error?.message ?? "Could not save");
+          throw new Error(body?.error?.message ?? t.configure.couldNotSave);
         }
         router.push(`/quote/${quoteId}`);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Something went wrong");
+        setError(e instanceof Error ? e.message : t.configure.couldNotSave);
       }
     });
   }
 
   if (error && !quote) {
     return (
-      <main className="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center px-6">
-        <TriangleAlert size={32} className="text-accent" />
-        <h1 className="mt-3 text-xl font-semibold text-navy">{error}</h1>
-        <Link href="/" className="mt-6 text-sm underline">
-          Start over
-        </Link>
-      </main>
+      <div className="flex min-h-dvh flex-col bg-paper">
+        <Header />
+        <main className="mx-auto flex max-w-2xl flex-1 flex-col items-center justify-center px-6 text-center">
+          <TriangleAlert size={32} className="text-brick" />
+          <h1 className="mt-3 font-display text-[20px] font-semibold uppercase tracking-eyebrow text-navy">
+            {error}
+          </h1>
+          <Link
+            href="/"
+            className="mt-6 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-brick underline-offset-4 hover:underline"
+          >
+            {t.common.startOver}
+          </Link>
+        </main>
+      </div>
     );
   }
 
   if (!quote || !skus) {
     return (
-      <main className="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center px-6">
-        <Loader2 className="animate-spin text-navy/40" size={32} />
-        <p className="mt-3 text-sm text-navy/60">Loading…</p>
-      </main>
+      <div className="flex min-h-dvh flex-col bg-paper">
+        <Header dark />
+        <Progress step={3} dark />
+        <main className="flex flex-1 items-center justify-center">
+          <Loader2 className="animate-spin text-navy/40" size={32} />
+        </main>
+      </div>
     );
   }
 
   const lf = Number(quote.linearFeet) || 0;
-  const heightUpgradeAvailable = family ? HEIGHT_UPGRADE_FAMILIES.has(family) : false;
-  const livePrice =
-    pricing?.tiers?.[tier]?.total_cents ?? null;
+  const gateCount = Array.isArray(quote.gates)
+    ? quote.gates.reduce((sum, g) => sum + (g.count ?? 0), 0)
+    : 0;
+  const gateText =
+    gateCount === 0
+      ? "no gates"
+      : gateCount === 1
+        ? "1 gate"
+        : `${gateCount} gates`;
+  const helperLine = t.configure.helper
+    .replace("{lf}", lf.toFixed(0))
+    .replace("{gates}", gateText);
 
   return (
-    <div className="flex min-h-dvh flex-col bg-white pb-24">
-      <header className="border-b border-navy/10 bg-white px-4 py-2">
-        <ProgressDots current="configure" />
-      </header>
+    <div className="flex min-h-dvh flex-col bg-paper">
+      <Header dark />
+      <Progress step={3} dark />
 
-      <main className="mx-auto w-full max-w-2xl px-4 pt-4 sm:px-6">
-        <div className="mb-4 flex items-center justify-between">
-          <Link
-            href={`/draw?q=${quoteId}`}
-            className="inline-flex items-center gap-1 text-sm text-navy/60 hover:text-navy"
-          >
-            <ArrowLeft size={16} /> Back to drawing
-          </Link>
-          <div className="text-sm text-navy/60">
-            <span className="font-semibold text-navy">{lf.toFixed(0)}</span> LF
-          </div>
-        </div>
-
-        {/* ─── Step A: pick a family ────────────────────────────── */}
-        {!family && (
-          <section>
-            <h1 className="text-2xl font-bold text-navy sm:text-3xl">
-              Pick your fence style
-            </h1>
-            <p className="mt-1 text-sm text-navy/60">
-              Five options. Sorted by price.
-            </p>
-            <div className="mt-5 space-y-2.5">
-              {families.map((f) => (
-                <FamilyCard
-                  key={f.code}
-                  family={f.code}
-                  familyName={f.familyName}
-                  startingAtCents={f.startingAtCents}
-                  description={f.description}
-                  selected={false}
-                  onSelect={() => setFamily(f.code)}
-                />
-              ))}
+      <section className="flex-1">
+        <div className="mx-auto max-w-[1280px] px-5 py-8 md:px-10 md:py-12">
+          {/* Header row */}
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <Eyebrow>{t.configure.eyebrow}</Eyebrow>
+              <h2 className="mt-3 font-display text-[36px] font-bold uppercase leading-[1] tracking-[0.01em] text-navy md:text-[44px]">
+                {t.configure.title}
+              </h2>
+              <p className="mt-3 max-w-[64ch] font-body text-[15px] leading-[1.55] text-char">
+                {helperLine}
+              </p>
             </div>
-          </section>
-        )}
-
-        {/* ─── Step B: pick tier + add-ons ────────────────────────── */}
-        {family && familyTiers && (
-          <section>
-            <div className="mb-4 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setFamily(null)}
-                className="rounded-full border border-navy/15 px-3 py-1 text-xs font-semibold text-navy/70 hover:border-navy/30"
-              >
-                ← Change style
-              </button>
-              <span className="text-sm font-semibold text-navy">
-                {familyTiers.better?.familyName ?? family}
-              </span>
-            </div>
-
-            <h2 className="text-xl font-bold text-navy">Pick your level</h2>
-            <div
-              role="radiogroup"
-              aria-label="Tier selection"
-              className="mt-4 space-y-3"
-            >
-              {(["good", "better", "best"] as const).map((t) => {
-                const sku = familyTiers[t];
-                if (!sku) return null;
-                return (
-                  <TierCard
-                    key={t}
-                    tier={t}
-                    description={sku.description}
-                    pricePerLfCents={sku.basePricePerLfCents}
-                    specBullets={sku.specBullets}
-                    selected={tier === t}
-                    onSelect={() => setTier(t)}
-                  />
-                );
-              })}
-            </div>
-
-            <h2 className="mt-8 text-xl font-bold text-navy">Add-ons</h2>
-            <div className="mt-3 space-y-2.5">
-              <AddonRow
-                label="Stain & seal"
-                description="UV / weather protection. Doubles the life of cedar."
-                priceLabel="+$3.25/LF"
-                checked={stainSeal}
-                onChange={setStainSeal}
-              />
-              <AddonRow
-                label="Height upgrade — 8' tall"
-                description="Bumps standard 6' fence up to 8'."
-                priceLabel="+18%"
-                checked={heightUpgrade}
-                disabled={!heightUpgradeAvailable}
-                disabledReason="Available on Cedar Privacy and Horizontal Cedar only"
-                onChange={setHeightUpgrade}
-              />
-              <AddonRow
-                label="French Gothic top"
-                description="Premium decorative picket profile."
-                priceLabel="+$2.00/LF"
-                checked={frenchGothic}
-                onChange={setFrenchGothic}
-              />
-            </div>
-
-            {error && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
-                {error}
+            {quoteId && (
+              <div className="font-mono text-[11px] uppercase tracking-spec text-brick">
+                QUOTE-IN-PROGRESS · {quoteId.slice(0, 8).toUpperCase()}
               </div>
             )}
-          </section>
-        )}
-      </main>
+          </div>
 
-      {/* ─── Sticky live-price bar ──────────────────────────────── */}
-      {family && (
-        <div className="fixed bottom-0 left-0 right-0 border-t border-navy/10 bg-white px-4 py-3 shadow-[0_-2px_12px_rgba(31,58,95,0.08)] sm:px-6">
-          <div className="mx-auto flex max-w-2xl items-center gap-3">
-            <div className="flex-1">
-              <div className="text-xs text-navy/60">Estimated price</div>
-              <div className="flex items-baseline gap-2">
-                <div className="text-xl font-bold tabular-nums text-navy">
-                  {livePrice ? formatCents(livePrice) : "—"}
-                </div>
-                {pricingLoading && (
-                  <Loader2 size={14} className="animate-spin text-navy/40" />
-                )}
+          <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_360px]">
+            {/* ── Left column ─────────────────────────────────────── */}
+            <div>
+              {/* Section 01 — Family cards (large, with fence-style sketches) */}
+              <SectionHeader num="01" label="Pick A Style" />
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {families.map((f) => {
+                  const selected = familyCode === f.code;
+                  const cheapest = Math.min(
+                    ...f.variants.map((v) => v.basePricePerLfCents)
+                  );
+                  return (
+                    <button
+                      key={f.code}
+                      type="button"
+                      onClick={() => handleFamilyPick(f.code)}
+                      aria-pressed={selected}
+                      className={cn(
+                        "group relative flex flex-col rounded-sm border p-4 text-left transition-all",
+                        selected
+                          ? "border-navy bg-cream shadow-card-lg ring-2 ring-brass/40"
+                          : "border-navy/15 bg-paper hover:border-navy/40"
+                      )}
+                    >
+                      {selected && (
+                        <span className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-pill bg-brass text-navy shadow-card-lg">
+                          <Check size={14} strokeWidth={3} />
+                        </span>
+                      )}
+                      <div
+                        className={cn(
+                          "mb-3 flex h-[60px] w-[80px] items-center justify-center rounded-sm border",
+                          selected
+                            ? "border-navy/30 bg-paper text-navy"
+                            : "border-navy/15 bg-navy/5 text-navy/60"
+                        )}
+                      >
+                        <FenceSketch family={f.code} />
+                      </div>
+                      <div className="font-display text-[13px] font-semibold uppercase tracking-eyebrow text-navy">
+                        {f.name}
+                      </div>
+                      <div className="mt-2 flex items-baseline gap-1">
+                        <span className="font-mono text-[10px] uppercase tracking-spec text-steel">
+                          FROM
+                        </span>
+                        <span className="font-display text-[18px] font-bold tabular-nums text-brick">
+                          {formatCents(cheapest)}
+                        </span>
+                        <span className="font-mono text-[10px] uppercase tracking-spec text-steel">
+                          {t.configure.perLF}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            </div>
-            <Button
-              type="button"
-              size="lg"
-              onClick={handleContinue}
-              disabled={!family || isPending}
-              className="flex-shrink-0"
-            >
-              {isPending ? (
+
+              {/* Section 02 — Tier within family */}
+              {selectedFamily && (
                 <>
-                  <Loader2 className="animate-spin" size={20} /> Saving…
-                </>
-              ) : (
-                <>
-                  See my final price <ArrowRight size={18} />
+                  <div className="mt-10">
+                    <SectionHeader
+                      num="02"
+                      label={`Pick A Level · ${selectedFamily.name}`}
+                    />
+                  </div>
+                  <div
+                    role="radiogroup"
+                    aria-label="Tier selection"
+                    className={cn(
+                      "mt-5 grid gap-4",
+                      selectedFamily.variants.length === 3
+                        ? "sm:grid-cols-3"
+                        : "sm:grid-cols-2"
+                    )}
+                  >
+                    {selectedFamily.variants.map((v) => {
+                      const selected = skuCode === v.code;
+                      const slot = v.tier;
+                      const slotLabel = slot ? TIER_SLOT_LABEL[slot] : "Option";
+                      const popular = slot === "better";
+                      return (
+                        <button
+                          key={v.code}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={() => setSkuCode(v.code)}
+                          className={cn(
+                            "group relative flex flex-col rounded-sm border p-5 pt-7 text-left transition-all",
+                            selected
+                              ? "border-navy bg-navy text-cream shadow-card-lg ring-2 ring-brass/40"
+                              : "border-navy/15 bg-paper text-navy hover:border-navy/40"
+                          )}
+                        >
+                          {popular && (
+                            <span
+                              className={cn(
+                                "absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-pill px-3 py-0.5 font-display text-[10px] font-semibold uppercase tracking-eyebrow",
+                                selected
+                                  ? "bg-brass text-navy"
+                                  : "bg-brick text-cream"
+                              )}
+                            >
+                              {t.configure.mostPicked}
+                            </span>
+                          )}
+
+                          {/* BIG GOOD / BETTER / BEST label — the dominant text. */}
+                          <div
+                            className={cn(
+                              "font-display text-[32px] font-bold uppercase leading-[0.95] tracking-[0.02em]",
+                              selected ? "text-brass" : "text-brick"
+                            )}
+                          >
+                            {slotLabel}
+                          </div>
+
+                          {/* Friendly variant name + description (sub-label). */}
+                          <div
+                            className={cn(
+                              "mt-2 font-display text-[13px] font-semibold uppercase tracking-eyebrow",
+                              selected ? "text-cream" : "text-navy"
+                            )}
+                          >
+                            {v.displayName}
+                          </div>
+                          <p
+                            className={cn(
+                              "mt-2 font-body text-[12.5px] leading-[1.45]",
+                              selected ? "text-cream/80" : "text-steel"
+                            )}
+                          >
+                            {v.description}
+                          </p>
+
+                          <div className="mt-4 flex items-baseline gap-1.5">
+                            <span
+                              className={cn(
+                                "font-display text-[24px] font-bold tabular-nums",
+                                selected ? "text-cream" : "text-navy"
+                              )}
+                            >
+                              {formatCents(v.basePricePerLfCents)}
+                            </span>
+                            <span
+                              className={cn(
+                                "font-mono text-[10px] uppercase tracking-spec",
+                                selected ? "text-cream/60" : "text-steel"
+                              )}
+                            >
+                              {t.configure.perLF}
+                            </span>
+                          </div>
+
+                          {v.specBullets.length > 0 && (
+                            <ul className="mt-3 space-y-1.5">
+                              {v.specBullets.slice(0, 4).map((bullet) => (
+                                <li
+                                  key={bullet}
+                                  className={cn(
+                                    "flex items-start gap-1.5 font-body text-[12px] leading-[1.45]",
+                                    selected ? "text-cream/80" : "text-char"
+                                  )}
+                                >
+                                  <Check
+                                    size={12}
+                                    strokeWidth={2.5}
+                                    className={cn(
+                                      "mt-1 flex-shrink-0",
+                                      selected ? "text-brass" : "text-brick"
+                                    )}
+                                  />
+                                  <span>{bullet}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </>
               )}
-            </Button>
+
+              {/* Customize toggles — appear after the customer picks a tier
+                  so the screen flows family → level → upgrades. */}
+              <div className="mt-10">
+                <SectionHeader num="03" label="Add Upgrades" />
+              </div>
+              <div className="mt-4 space-y-3">
+                <AddonRow
+                  label={t.configure.addonStain}
+                  description={t.configure.addonStainDesc}
+                  priceLabel={t.configure.addonStainPrice}
+                  checked={stainSeal}
+                  onChange={setStainSeal}
+                />
+                <AddonRow
+                  label="Steel Post Upgrade (PostMaster+)"
+                  description="Galvanized, powder-coated steel posts — 15-year structural warranty, rated to 130 mph wind."
+                  priceLabel="+$5/LF"
+                  checked={steelPostUpgrade}
+                  disabled={!steelUpgradeAvailable}
+                  disabledReason="Available on cedar + pine wood-post families."
+                  onChange={setSteelPostUpgrade}
+                />
+                <AddonRow
+                  label="Cap Rail + Trim"
+                  description="Decorative cap rail and trim board — finishes the top edge and hides picket ends."
+                  priceLabel="+$4/LF"
+                  checked={capRailTrim}
+                  disabled={
+                    !selectedSku ||
+                    !CAP_RAIL_FAMILIES.has(selectedSku.family)
+                  }
+                  disabledReason="Available on wood-picket families (cedar, horizontal cedar, pine)."
+                  onChange={setCapRailTrim}
+                />
+                <AddonRow
+                  label="Match Black Vinyl Posts"
+                  description="Coat the line posts in matching black PVC so the whole fence reads as one piece."
+                  priceLabel="+$3/LF"
+                  checked={matchVinylPosts}
+                  disabled={selectedSku?.code !== "CL-VIN"}
+                  disabledReason="Pair with the Vinyl-Coated Black chain link option."
+                  onChange={setMatchVinylPosts}
+                />
+              </div>
+
+              {error && (
+                <div className="mt-4 rounded-sm border border-brick/30 bg-brick/5 px-3 py-2 text-sm text-brick">
+                  {error}
+                </div>
+              )}
+            </div>
+
+            {/* ── Right column — Running estimate ──────────────── */}
+            <aside className="order-first lg:order-last">
+              <div className="lg:sticky lg:top-6 lg:self-start">
+                <div className="rounded-sm border border-brass/30 bg-navy p-6 text-cream shadow-card-lg">
+                  <div className="font-mono text-[11px] uppercase tracking-spec text-brass">
+                    {t.configure.estimateEyebrow}
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="font-display text-[40px] font-bold leading-none tabular-nums text-cream">
+                      {pricing?.final_price_cents != null
+                        ? formatCents(pricing.final_price_cents)
+                        : "—"}
+                    </span>
+                    {pricingLoading && (
+                      <Loader2
+                        size={16}
+                        className="animate-spin text-cream/60"
+                      />
+                    )}
+                  </div>
+                  <p className="mt-2 font-body text-[12px] leading-[1.45] text-cream/65">
+                    {t.configure.estimateHelper}
+                  </p>
+
+                  <div className="mt-5 space-y-2 border-t border-cream/15 pt-4">
+                    <EstimateRow
+                      label={selectedSku?.familyName ?? "Fence"}
+                      value={lf > 0 ? `${lf.toFixed(0)} LF` : "—"}
+                    />
+                    {selectedSku && (
+                      <EstimateRow
+                        label={selectedSku.displayName}
+                        value={
+                          selectedSku.tier
+                            ? TIER_SLOT_LABEL[selectedSku.tier]
+                            : ""
+                        }
+                      />
+                    )}
+                    {gateCount > 0 && (
+                      <EstimateRow label={gateText} value={`${gateCount} ×`} />
+                    )}
+                    {quote.demoType && quote.demoType !== "NONE" && (
+                      <EstimateRow label="Tear-out & haul" value="incl." />
+                    )}
+                    {stainSeal && (
+                      <EstimateRow label={t.configure.addonStain} value="✓" />
+                    )}
+                    {steelPostUpgrade && (
+                      <EstimateRow label="Steel posts" value="✓" />
+                    )}
+                    {capRailTrim && (
+                      <EstimateRow label="Cap rail + trim" value="✓" />
+                    )}
+                    {matchVinylPosts && (
+                      <EstimateRow label="Black vinyl posts" value="✓" />
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleContinue}
+                    disabled={!skuCode || isPending}
+                    className={cn(
+                      "mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-sm bg-brick",
+                      "font-display text-[14px] font-semibold uppercase tracking-eyebrow text-cream",
+                      "transition-colors hover:bg-brick-deep disabled:cursor-not-allowed disabled:bg-steel-soft"
+                    )}
+                  >
+                    {isPending ? (
+                      <Loader2 className="animate-spin" size={16} />
+                    ) : (
+                      <>
+                        {t.configure.continueCta}
+                        <ArrowRight size={14} strokeWidth={2.5} />
+                      </>
+                    )}
+                  </button>
+
+                  <Link
+                    href={`/draw?q=${quoteId}`}
+                    className="mt-4 flex items-center justify-center gap-2 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-cream/70 hover:text-cream"
+                  >
+                    <ArrowLeft size={12} strokeWidth={2.5} />
+                    {t.configure.backLink}
+                  </Link>
+                </div>
+
+                <div className="mt-4 rounded-sm border border-navy/15 bg-cream-deep p-5">
+                  <div className="font-mono text-[10px] uppercase tracking-spec text-brick">
+                    {t.configure.coverageTitle}
+                  </div>
+                  <p className="mt-2 font-body text-[12.5px] leading-[1.5] text-char">
+                    {t.configure.coverageBody}
+                  </p>
+                </div>
+              </div>
+            </aside>
           </div>
         </div>
-      )}
+      </section>
+    </div>
+  );
+}
+
+function SectionHeader({ num, label }: { num: string; label: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="font-mono text-[12px] uppercase tracking-spec text-brick">
+        {num}
+      </span>
+      <span className="font-display text-[16px] font-semibold uppercase tracking-eyebrow text-navy">
+        {label}
+      </span>
+      <span className="h-px flex-1 bg-navy/15" />
+    </div>
+  );
+}
+
+function EstimateRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 font-body text-[12.5px]">
+      <span className="truncate text-cream/80">{label}</span>
+      <span className="flex-shrink-0 font-mono text-[12px] tabular-nums text-cream">
+        {value}
+      </span>
     </div>
   );
 }

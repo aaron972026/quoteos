@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileDown } from "lucide-react";
 import { eq } from "drizzle-orm";
 import type { Feature, LineString, Polygon } from "geojson";
 import { db } from "@/lib/db/client";
@@ -88,7 +88,7 @@ export default async function AdminQuoteDetailPage({
         </span>
       ) : null,
     ],
-    ["Tier", q.tier ? TIER_LABEL[q.tier] : null],
+    ["Tier (legacy)", q.tier ? TIER_LABEL[q.tier] : null],
     [
       "Add-ons",
       [
@@ -157,14 +157,24 @@ export default async function AdminQuoteDetailPage({
           </h1>
           <p className="text-sm text-navy/60">{q.addressLine ?? "(no address yet)"}</p>
         </div>
-        <span
-          className={
-            "rounded px-2 py-1 text-xs font-semibold " +
-            (STATUS_PILL[q.status] ?? "bg-navy/5 text-navy/60")
-          }
-        >
-          {q.status}
-        </span>
+        <div className="flex items-center gap-2">
+          {q.skuCode && q.linearFeet != null && (
+            <a
+              href={`/api/admin/quotes/${q.id}/bom`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-navy/15 bg-white px-3 py-1.5 text-xs font-semibold text-navy hover:border-navy/30 hover:bg-navy/5"
+            >
+              <FileDown size={14} /> Download BOM
+            </a>
+          )}
+          <span
+            className={
+              "rounded px-2 py-1 text-xs font-semibold " +
+              (STATUS_PILL[q.status] ?? "bg-navy/5 text-navy/60")
+            }
+          >
+            {q.status}
+          </span>
+        </div>
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -183,12 +193,10 @@ export default async function AdminQuoteDetailPage({
               Pricing
             </h2>
             <dl className="mt-3 divide-y divide-navy/5">
-              <PriceRow label="Good" cents={q.tierGoodCents} />
-              <PriceRow label="Better" cents={q.tierBetterCents} highlight={q.tier === "better"} />
-              <PriceRow label="Best" cents={q.tierBestCents} highlight={q.tier === "best"} />
-              <PriceRow label="Selected tier total" cents={q.selectedTierCents} bold />
+              <PriceRow label="Final price" cents={q.selectedTierCents} bold />
+              <PriceRow label="Subtotal (legacy)" cents={q.subtotalCents} />
               <PriceRow label="Deposit" cents={q.depositCents} />
-              <PriceRow label="Monthly (Better, 24mo)" cents={q.monthly24moCents} />
+              <PriceRow label="Monthly est." cents={q.monthly24moCents} />
             </dl>
           </section>
 
@@ -198,7 +206,6 @@ export default async function AdminQuoteDetailPage({
             grossMarginPct={q.estimatedGrossMarginPct}
             marginFlag={q.marginFlag}
             selectedTierCents={q.selectedTierCents}
-            tierBetterCents={q.tierBetterCents}
           />
 
           <ScopeList title="Customer" pairs={customerPairs} />

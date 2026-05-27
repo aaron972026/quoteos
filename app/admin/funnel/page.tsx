@@ -4,6 +4,11 @@ import { db } from "@/lib/db/client";
 import { quotes, sessions } from "@/lib/db/schema";
 import { FunnelStep } from "@/components/admin/FunnelStep";
 import { SourceTable, type SourceRow } from "@/components/admin/SourceTable";
+import {
+  VariantFunnel,
+  type VariantRow,
+} from "@/components/admin/VariantFunnel";
+import { activeExperiments } from "@/lib/experiments/registry";
 import { formatCents } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -57,15 +62,16 @@ export default async function AdminFunnelPage({
       configured: sql<number>`count(*) filter (where ${quotes.skuCode} is not null)::int`,
       finalized: sql<number>`count(*) filter (where ${quotes.status} in ('finalized','deposit_paid','won','lost','expired'))::int`,
       deposited: sql<number>`count(*) filter (where ${quotes.status} in ('deposit_paid','won'))::int`,
-      avgTicket: sql<number>`coalesce(avg(coalesce(${quotes.selectedTierCents}, ${quotes.tierBetterCents})) filter (where ${quotes.status} in ('deposit_paid','won')), 0)::int`,
+      avgTicket: sql<number>`coalesce(avg(coalesce(${quotes.selectedTierCents}, ${quotes.subtotalCents})) filter (where ${quotes.status} in ('deposit_paid','won')), 0)::int`,
     })
     .from(quotes)
     .where(gte(quotes.createdAt, since));
 
-  // ─── Tier mix among deposits ──────────────────────────────────
-  const tierMixRaw = await db
+  // ─── SKU mix among deposits ───────────────────────────────────
+  // (Replaces the legacy tier-mix readout — pricing v2 made SKU = tier.)
+  const skuMixRaw = await db
     .select({
-      tier: quotes.tier,
+      skuCode: quotes.skuCode,
       count: sql<number>`count(*)::int`,
     })
     .from(quotes)
@@ -75,16 +81,15 @@ export default async function AdminFunnelPage({
         inArray(quotes.status, [...DEPOSITED_STATUSES])
       )
     )
-    .groupBy(quotes.tier);
-  const tierMix = { good: 0, better: 0, best: 0, unset: 0 };
-  for (const t of tierMixRaw) {
-    if (t.tier === "good" || t.tier === "better" || t.tier === "best") {
-      tierMix[t.tier] = t.count;
-    } else {
-      tierMix.unset += t.count;
-    }
+    .groupBy(quotes.skuCode);
+  const skuMix: Array<{ code: string; count: number }> = [];
+  let skuMixTotal = 0;
+  for (const r of skuMixRaw) {
+    const code = r.skuCode ?? "(unset)";
+    skuMix.push({ code, count: r.count });
+    skuMixTotal += r.count;
   }
-  const tierMixTotal = tierMix.good + tierMix.better + tierMix.best + tierMix.unset;
+  skuMix.sort((a, b) => b.count - a.count);
 
   // ─── Source breakdown ─────────────────────────────────────────
   const sourceRows = (await db
@@ -100,6 +105,31 @@ export default async function AdminFunnelPage({
     .groupBy(sessions.utmSource)
     .orderBy(desc(sql`count(distinct ${sessions.id})`))
     .limit(12)) as SourceRow[];
+
+  // ─── Variant funnels (one per active experiment) ─────────────
+  // Postgres `variants ->> 'key'` extracts the assigned variant text. Sessions
+  // visited before assignment land in '(unassigned)'.
+  const experiments = activeExperiments();
+  const variantFunnels = await Promise.all(
+    experiments.map(async (exp) => {
+      const rows = (await db.execute(sql`
+        SELECT
+          coalesce(${sessions.variants}->>${exp.key}, '(unassigned)') as variant,
+          count(distinct ${sessions.id})::int as visited,
+          count(${quotes.id})::int as started,
+          count(${quotes.id}) filter (where ${quotes.linearFeet} > 0)::int as drew,
+          count(${quotes.id}) filter (where ${quotes.skuCode} is not null)::int as configured,
+          count(${quotes.id}) filter (where ${quotes.status} in ('finalized','deposit_paid','won','lost','expired'))::int as finalized,
+          count(${quotes.id}) filter (where ${quotes.status} in ('deposit_paid','won'))::int as deposited
+        FROM ${sessions}
+        LEFT JOIN ${quotes} ON ${quotes.sessionId} = ${sessions.id}
+        WHERE ${sessions.startedAt} >= ${since}
+        GROUP BY variant
+        ORDER BY visited DESC
+      `)) as unknown as VariantRow[];
+      return { experiment: exp, rows };
+    })
+  );
 
   // ─── Headline numbers ─────────────────────────────────────────
   const conversion = visited > 0 ? funnel.deposited / visited : 0;
@@ -212,34 +242,45 @@ export default async function AdminFunnelPage({
         · Spec target ≥60%
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Tier mix */}
-        <section className="rounded-lg border border-navy/10 bg-white p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-navy/70">
-            Tier mix (deposits)
+      {variantFunnels.length > 0 && (
+        <>
+          <h2 className="mt-8 text-sm font-semibold uppercase tracking-wider text-navy/70">
+            Experiments
           </h2>
           <p className="mt-1 text-xs text-navy/50">
-            Which tier the customer locked in.
+            Conversion by variant. Sticky per session via sessions.variants.
           </p>
-          {tierMixTotal === 0 ? (
+          <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {variantFunnels.map(({ experiment, rows }) => (
+              <VariantFunnel
+                key={experiment.key}
+                experiment={experiment}
+                rows={rows}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* SKU mix */}
+        <section className="rounded-lg border border-navy/10 bg-white p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-navy/70">
+            SKU mix (deposits)
+          </h2>
+          <p className="mt-1 text-xs text-navy/50">
+            Which SKU the customer locked in.
+          </p>
+          {skuMixTotal === 0 ? (
             <div className="mt-3 text-sm text-navy/60">No deposits yet.</div>
           ) : (
             <div className="mt-3 space-y-2">
-              {(
-                [
-                  ["Good", tierMix.good],
-                  ["Better", tierMix.better],
-                  ["Best", tierMix.best],
-                  ...(tierMix.unset > 0
-                    ? ([["(unset)", tierMix.unset]] as Array<[string, number]>)
-                    : []),
-                ] as Array<[string, number]>
-              ).map(([label, count]) => {
-                const p = tierMixTotal > 0 ? count / tierMixTotal : 0;
+              {skuMix.map(({ code, count }) => {
+                const p = skuMixTotal > 0 ? count / skuMixTotal : 0;
                 return (
-                  <div key={label}>
+                  <div key={code}>
                     <div className="flex justify-between text-sm">
-                      <span className="text-navy">{label}</span>
+                      <span className="font-mono text-navy">{code}</span>
                       <span className="font-mono text-navy/70 tabular-nums">
                         {count} · {(p * 100).toFixed(0)}%
                       </span>

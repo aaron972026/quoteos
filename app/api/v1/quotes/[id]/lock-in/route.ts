@@ -1,12 +1,10 @@
 import { NextRequest } from "next/server";
-import { z } from "zod";
 import Stripe from "stripe";
 import { db } from "@/lib/db/client";
 import { quotes } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import {
   badRequest,
-  fromZod,
   notFound,
   ok,
   serverError,
@@ -18,9 +16,8 @@ import { getCurrentSessionId } from "@/lib/api/session-helper";
 import { pushGhl } from "@/lib/integrations/ghl";
 import { FINANCING } from "@/lib/pricing/data";
 
-const Body = z.object({
-  tier: z.enum(["good", "better", "best"]),
-});
+// Pricing v2: SKU IS the variant. The lock-in request no longer needs a tier;
+// the price already locked on PATCH /quotes/:id sits on `selectedTierCents`.
 
 function siteOrigin(req: NextRequest): string {
   const env = process.env.NEXT_PUBLIC_SITE_URL;
@@ -37,13 +34,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const limit = checkLimit(`lock-in:${sid}`, LIMITS.DEPOSIT.max, LIMITS.DEPOSIT.windowMs);
   if (!limit.allowed) return tooManyRequests();
 
-  const json = await req.json().catch(() => null);
-  if (!json) return badRequest("INVALID_JSON", "Request body must be JSON");
-  const parsed = Body.safeParse(json);
-  if (!parsed.success) return fromZod(parsed.error);
-  const { tier } = parsed.data;
-
-  // Confirm ownership + load enough to build the Stripe line item
   const [row] = await db
     .select()
     .from(quotes)
@@ -54,26 +44,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return badRequest("ALREADY_LOCKED", "Quote is already locked in");
   }
 
-  const tierTotalCents =
-    tier === "good" ? row.tierGoodCents :
-    tier === "better" ? row.tierBetterCents :
-    row.tierBestCents;
-  if (!tierTotalCents) {
+  const totalCents = row.selectedTierCents ?? row.subtotalCents;
+  if (!totalCents) {
     return badRequest("MISSING_PRICING", "Quote pricing has not been computed");
   }
 
-  // Persist the chosen tier + bump status to "finalized"
   await db
     .update(quotes)
     .set({
-      tier,
-      selectedTierCents: tierTotalCents,
+      selectedTierCents: totalCents,
       status: "finalized",
       updatedAt: new Date(),
     })
     .where(eq(quotes.id, params.id));
 
-  // Fire-and-forget GHL push — spec §9 trigger 2 (quote_viewed)
   pushGhl({
     event: "quote_finalized",
     quote_id: params.id,
@@ -83,22 +67,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     zip: row.zip,
     linear_feet: row.linearFeet != null ? Number(row.linearFeet) : null,
     sku_code: row.skuCode,
-    selected_tier: tier,
-    tier_good_cents: row.tierGoodCents,
-    tier_better_cents: row.tierBetterCents,
-    tier_best_cents: row.tierBestCents,
-    selected_tier_cents: tierTotalCents,
+    selected_tier_cents: totalCents,
     price_valid_until: row.priceValidUntil?.toISOString() ?? null,
   });
 
-  // ── Stripe Checkout Session ────────────────────────────────────
   const stripeSecret = process.env.STRIPE_SECRET_KEY;
-  // Reject obviously-placeholder values too — the literal "sk_test_xxx" is
-  // valid string but Stripe will throw at the API boundary with a confusing
-  // 500. Real Stripe keys are >40 chars and contain alphanumerics, not "xxx".
   const looksReal =
-    !!stripeSecret &&
-    /^sk_(test|live)_[A-Za-z0-9]{20,}/.test(stripeSecret);
+    !!stripeSecret && /^sk_(test|live)_[A-Za-z0-9]{20,}/.test(stripeSecret);
   if (!looksReal) {
     return new Response(
       JSON.stringify({
@@ -115,7 +90,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   try {
     const stripe = new Stripe(stripeSecret);
     const origin = siteOrigin(req);
-    const tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -126,7 +100,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             currency: "usd",
             product_data: {
               name: "FencePros — Hold deposit",
-              description: `Reserves your ${tierLabel} tier price for ${row.addressLine ?? "your project"}. Refundable for 7 days.`,
+              description: `Reserves your ${row.skuCode ?? "fence"} quote for ${row.addressLine ?? "your project"}. Refundable for 7 days.`,
             },
             unit_amount: FINANCING.DEPOSIT_CENTS,
           },
@@ -135,8 +109,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       ],
       metadata: {
         quote_id: params.id,
-        tier,
-        tier_total_cents: String(tierTotalCents),
+        sku_code: row.skuCode ?? "",
+        total_cents: String(totalCents),
       },
       success_url: `${origin}/quote/${params.id}/success?cs={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/quote/${params.id}`,

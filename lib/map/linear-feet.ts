@@ -50,10 +50,67 @@ export function cornerCount(
   return 0;
 }
 
-/** Check if a polygon self-intersects — used for "geometry that crosses itself" guard from spec §11 */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function isSelfIntersecting(_feature: Feature<LineString | Polygon>): boolean {
-  // TODO: pull in @turf/boolean-intersects against each segment pair.
-  // Phase 1.5 — for now we trust mapbox-gl-draw's UX to discourage crossings.
+/**
+ * Orientation of triple (a, b, c). >0 = counter-clockwise, <0 = clockwise, 0 = collinear.
+ */
+function orient(a: Position, b: Position, c: Position): number {
+  return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+}
+
+/**
+ * True iff segments (p1, p2) and (p3, p4) properly cross each other's interior.
+ * Collinear/touching-at-endpoint cases return false — they're the "shared
+ * vertex" pattern between adjacent segments, not real self-intersections.
+ *
+ * Treats lng/lat as Cartesian — accurate at fence scale (<1000 ft).
+ */
+function segmentsCross(
+  p1: Position,
+  p2: Position,
+  p3: Position,
+  p4: Position
+): boolean {
+  const d1 = orient(p3, p4, p1);
+  const d2 = orient(p3, p4, p2);
+  const d3 = orient(p1, p2, p3);
+  const d4 = orient(p1, p2, p4);
+  return (
+    ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+    ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+  );
+}
+
+/**
+ * Check if a drawn LineString or Polygon crosses itself (figure-8 pattern).
+ * O(n²) over segment pairs — fine because fence draws have <30 segments.
+ *
+ * For polygons, the closing segment (last → first) is treated as adjacent to
+ * the first segment, so closing the ring doesn't trip the check.
+ */
+export function isSelfIntersecting(
+  feature: Feature<LineString | Polygon> | LineString | Polygon
+): boolean {
+  const geom = "geometry" in feature ? feature.geometry : feature;
+  const isPolygon = geom.type === "Polygon";
+  const coords: Position[] = isPolygon
+    ? geom.coordinates[0]
+    : geom.coordinates;
+  if (coords.length < 4) return false;
+
+  // Polygons have a duplicated closing vertex; segment count is coords-1 for both
+  const segCount = coords.length - 1;
+
+  for (let i = 0; i < segCount - 1; i++) {
+    for (let j = i + 2; j < segCount; j++) {
+      // Polygons: segments 0 and (segCount-1) are adjacent through the closing
+      // vertex, so skip that pair.
+      if (isPolygon && i === 0 && j === segCount - 1) continue;
+      if (
+        segmentsCross(coords[i], coords[i + 1], coords[j], coords[j + 1])
+      ) {
+        return true;
+      }
+    }
+  }
   return false;
 }

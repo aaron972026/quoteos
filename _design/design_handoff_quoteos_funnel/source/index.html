@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>QuoteOS — FencePros</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy:        '#1A2A4A',
+          'navy-deep': '#121C33',
+          'navy-soft': '#2A3A5C',
+          brick:       '#8B2332',
+          'brick-deep':'#6E1A26',
+          brass:       '#C8962E',
+          'brass-soft':'#E0B452',
+          cream:       '#F4F1E8',
+          'cream-deep':'#E9E4D3',
+          paper:       '#FBF8F0',
+          ink:         '#15161A',
+          char:        '#2C2F36',
+          steel:       '#6B6F76',
+          'steel-soft':'#A7ABB2',
+        },
+        fontFamily: {
+          display: ['Oswald', 'Arial Narrow', 'sans-serif'],
+          body:    ['"Source Sans 3"', 'system-ui', 'sans-serif'],
+          mono:    ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        },
+        letterSpacing: {
+          tightest: '-0.015em',
+          eyebrow:  '0.12em',
+          spec:     '0.18em',
+        },
+      }
+    }
+  }
+</script>
+
+<style>
+  html,body{margin:0;background:#FBF8F0;color:#15161A;font-family:'Source Sans 3',system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  body{overflow-x:hidden}
+
+  /* Brand utility: dashes flourish ─ ── TEXT ── ─ (eyebrow flanker) */
+  .dashes{display:inline-flex;align-items:center;gap:8px;font-family:'Oswald',sans-serif;font-weight:600;color:#C8962E;text-transform:uppercase;letter-spacing:.18em;font-size:12px;white-space:nowrap}
+  .dashes .d{display:inline-block;height:1.5px;background:#C8962E;flex:none}
+  .dashes .d.short{width:8px}
+  .dashes .d.long{width:28px}
+  .dashes.tight .d.long{width:20px}
+
+  /* Pickets motif (brass) */
+  .pickets{display:inline-flex;align-items:flex-end;gap:5px;height:22px}
+  .pickets span{display:block;width:8px;height:18px;background:#C8962E;clip-path:polygon(0 22%,50% 0,100% 22%,100% 100%,0 100%)}
+  .pickets span:nth-child(odd){height:22px}
+
+  /* Brand wordmark fence/pros */
+  .wm{font-family:'Oswald',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.01em;line-height:1}
+  .wm .nv{color:#1A2A4A}
+  .wm .br{color:#8B2332}
+
+  /* Map "satellite" placeholder texture */
+  .sat{
+    background:
+      radial-gradient(circle at 22% 28%, rgba(60,80,55,.55) 0 8%, transparent 9%),
+      radial-gradient(circle at 14% 70%, rgba(60,80,55,.45) 0 6%, transparent 7%),
+      radial-gradient(circle at 78% 18%, rgba(60,80,55,.4) 0 5%, transparent 6%),
+      radial-gradient(circle at 86% 80%, rgba(60,80,55,.5) 0 7%, transparent 8%),
+      linear-gradient(120deg, #6e7758 0%, #7c8362 30%, #8b906c 60%, #6a7355 100%);
+  }
+  .sat-noise{
+    background-image:
+      repeating-linear-gradient(45deg, rgba(0,0,0,.04) 0 2px, transparent 2px 5px),
+      repeating-linear-gradient(-45deg, rgba(255,255,255,.03) 0 2px, transparent 2px 6px);
+  }
+
+  /* tabular numerals for footage / quote */
+  .tnum{font-variant-numeric:tabular-nums;letter-spacing:.04em}
+
+  /* Custom focus ring (navy) */
+  .focus-navy:focus{outline:none;border-color:#1A2A4A;box-shadow:0 0 0 3px rgba(26,42,74,.18)}
+
+  /* Subtle inset on cream cards */
+  .card-cream{background:#F4F1E8;border:1px solid rgba(26,42,74,.14)}
+
+  /* Animated drawing dash */
+  @keyframes flow {to{stroke-dashoffset:-24}}
+  .flow{stroke-dasharray:6 4;animation:flow 1.4s linear infinite}
+
+  /* Pulse for star coin loaders */
+  @keyframes coinpulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.06);opacity:.8}}
+  .coinpulse{animation:coinpulse 1.6s ease-in-out infinite}
+
+  /* Tweak panel scale fix */
+  .twk-panel{font-family:'Source Sans 3',system-ui,sans-serif!important}
+
+  /* Hide native autocomplete arrow on selects */
+  select{appearance:none;-webkit-appearance:none}
+
+  /* viewport frame for desktop/mobile preview */
+  .viewport-stage{display:flex;align-items:stretch;justify-content:center;min-height:100vh;background:#1A2A4A;padding:0}
+  .viewport-stage.mobile{padding:48px 16px;background:#15161A}
+  .viewport-stage.mobile > .frame{
+    width:390px;height:844px;border-radius:38px;
+    box-shadow:0 0 0 12px #2c2f36, 0 0 0 13px #15161A, 0 30px 80px rgba(0,0,0,.5);
+    overflow:hidden;position:relative;
+  }
+  .viewport-stage.desktop > .frame{width:100%;min-height:100vh}
+</style>
+
+<!-- React + Babel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="components.jsx"></script>
+<script type="text/babel" src="screens-a.jsx"></script>
+<script type="text/babel" src="screens-b.jsx"></script>
+<script type="text/babel" src="screens-c.jsx"></script>
+<script type="text/babel" src="app.jsx"></script>
+</body>
+</html>

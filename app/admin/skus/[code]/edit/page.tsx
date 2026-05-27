@@ -45,14 +45,16 @@ export default async function AdminSkuEditPage({
         <SkuEditForm
           code={sku.code}
           familyName={sku.familyName}
-          tier={sku.tier}
+          tier={sku.tier ?? "—"}
           heightInches={sku.heightInches}
           initial={{
             description: sku.description,
             base_price_per_lf_dollars: sku.basePricePerLfCents / 100,
             material_cost_per_lf_dollars: sku.materialCostPerLfCents / 100,
             sub_labor_pct_display:
-              Math.round(Number(sku.subLaborPct) * 10000) / 100,
+              sku.subLaborPct != null
+                ? Math.round(Number(sku.subLaborPct) * 10000) / 100
+                : 0,
             spec_bullets: (sku.specBullets ?? []).join("\n"),
             hero_image_url: sku.heroImageUrl ?? "",
             active: sku.active,

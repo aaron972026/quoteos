@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "@/components/BrandMark";
 
 export const metadata = { title: "QuoteOS Admin" };
 
@@ -21,7 +22,7 @@ export default function AdminLayout({
             href="/admin/quotes"
             className="flex items-center gap-2 text-sm font-bold tracking-wider text-navy"
           >
-            <span className="rounded-md bg-navy px-2 py-1 text-accent">FENCEPROS</span>
+            <BrandMark height={28} />
             <span className="text-navy/60">/ Admin</span>
           </Link>
           <nav className="flex gap-1">

@@ -1,8 +1,9 @@
 /**
  * Seed pricing tables from lib/pricing/data.ts.
- * Idempotent — safe to re-run; uses ON CONFLICT.
+ * Idempotent — safe to re-run; uses ON CONFLICT for SKUs and wipes-and-fills
+ * for adjustments + permits.
  *
- *   pnpm run db:seed   (uses .env.local)
+ *   npm run db:seed   (uses .env.local)
  */
 import { db } from "../lib/db/client";
 import {
@@ -13,30 +14,65 @@ import {
 } from "../lib/db/schema";
 import {
   ADDONS,
+  ASSUMPTIONS,
   DEMO_RATES,
   FINANCING,
   GATE_PRICES,
+  PERMITS,
   SKUS,
   SLOPE,
-  TIER_MULTIPLIERS,
 } from "../lib/pricing/data";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+
+// SKU → tier slot mapping. Pricing v2 keeps the `tier` column on `skus`,
+// repurposed from the old multiplier-tier to a slot label (good/better/best)
+// that drives the /configure UI's family→tier card layout. Each family has
+// 2 or 3 slots; not every family fills all three.
+const LEGACY_TIER: Record<string, "good" | "better" | "best"> = {
+  "BP-STD":   "good",
+  "CPF-PRM":  "better",
+  "CPF-EST":  "best",
+  "HCF-STD":  "better",
+  "HCF-PRM":  "best",
+  "CL-RES":   "good",
+  "CL-VIN":   "better",
+  "RR-3":     "good",
+  "RR-4":     "better",
+};
 
 async function seedSkus() {
   console.log(`→ Seeding ${SKUS.length} SKUs…`);
+
+  // The pricing model changed shape (CP/HC/OR/CL/RR good/better/best → new 11-SKU set).
+  // Delete the old SKU codes before inserting the new ones so the table reflects
+  // only what the new engine knows about. Safe because no FKs reference skus.code.
+  const newCodes = new Set(SKUS.map((s) => s.code));
+  const existing = await db.select({ code: skus.code }).from(skus);
+  for (const row of existing) {
+    if (!newCodes.has(row.code)) {
+      await db.delete(skus).where(eq(skus.code, row.code));
+    }
+  }
+
   for (const s of SKUS) {
+    const tier = LEGACY_TIER[s.code] ?? null;
+
     await db
       .insert(skus)
       .values({
         code: s.code,
         family: s.family,
         familyName: s.family_name,
-        tier: s.tier,
+        tier,
         description: s.description,
         heightInches: s.height_inches,
         basePricePerLfCents: s.base_price_per_lf_cents,
         materialCostPerLfCents: s.material_cost_per_lf_cents,
-        subLaborPct: s.sub_labor_pct.toString(),
+        laborCostPerLfCents: s.labor_cost_per_lf_cents,
+        subLaborPct: null,
+        marketMaxPerLfCents: s.market_max_per_lf_cents,
+        marketFlag: s.market_flag,
+        postsStandard: s.posts_standard,
         active: true,
         heroImageUrl: s.hero_image_url,
         specBullets: s.spec_bullets,
@@ -45,20 +81,29 @@ async function seedSkus() {
       .onConflictDoUpdate({
         target: skus.code,
         set: {
+          family: s.family,
           familyName: s.family_name,
+          tier,
+          description: s.description,
+          heightInches: s.height_inches,
           basePricePerLfCents: s.base_price_per_lf_cents,
           materialCostPerLfCents: s.material_cost_per_lf_cents,
-          subLaborPct: s.sub_labor_pct.toString(),
+          laborCostPerLfCents: s.labor_cost_per_lf_cents,
+          marketMaxPerLfCents: s.market_max_per_lf_cents,
+          marketFlag: s.market_flag,
+          postsStandard: s.posts_standard,
+          active: true,
           specBullets: s.spec_bullets,
+          sortOrder: s.sort_order,
         },
       });
   }
+  console.log(`  ${SKUS.length} SKUs inserted/updated`);
 }
 
 async function seedAdjustments() {
-  console.log("→ Seeding adjustments (slope / demo / gates / addons / tiers)…");
+  console.log("→ Seeding adjustments (slope / demo / gates / addons / permits)…");
 
-  // Wipe existing then re-insert (this table has no business identity)
   await db.delete(adjustments);
 
   const rows: Array<{
@@ -70,19 +115,21 @@ async function seedAdjustments() {
     metadata?: Record<string, unknown>;
   }> = [];
 
-  // Slope
+  // Slope (5 rows: codes 0..4)
   for (const [code, s] of Object.entries(SLOPE)) {
     rows.push({
       category: "slope",
       code: `slope_${code}`,
       label: s.label,
-      value: s.multiplier.toString(),
-      unit: "multiplier",
+      value: s.surcharge_pct.toString(),
+      unit: "surcharge_pct",
+      metadata: { review_required: s.review_required },
     });
   }
 
-  // Demo
+  // Demo — single rate now ($3/LF for all demo types)
   for (const [type, rate] of Object.entries(DEMO_RATES)) {
+    if (rate === 0) continue;
     rows.push({
       category: "demo",
       code: type,
@@ -92,7 +139,7 @@ async function seedAdjustments() {
     });
   }
 
-  // Gates
+  // Gates (W4, W5, D10, D12, D16)
   for (const [type, g] of Object.entries(GATE_PRICES)) {
     rows.push({
       category: "gate",
@@ -103,19 +150,15 @@ async function seedAdjustments() {
     });
   }
 
-  // Tier multipliers
-  for (const [tier, mul] of Object.entries(TIER_MULTIPLIERS)) {
-    rows.push({
-      category: "tier",
-      code: tier,
-      label: `Tier: ${tier}`,
-      value: mul.toString(),
-      unit: "multiplier",
-    });
-  }
-
   // Add-ons
   rows.push(
+    {
+      category: "addon",
+      code: "steel_upgrade",
+      label: "Steel post upgrade (Cedar families only)",
+      value: ADDONS.STEEL_UPGRADE_PER_LF_CENTS.toString(),
+      unit: "per_lf_cents",
+    },
     {
       category: "addon",
       code: "stain_seal",
@@ -125,47 +168,48 @@ async function seedAdjustments() {
     },
     {
       category: "addon",
-      code: "french_gothic",
-      label: "French Gothic top",
-      value: ADDONS.FRENCH_GOTHIC_PER_LF_CENTS.toString(),
-      unit: "per_lf_cents",
+      code: "rock_drilling",
+      label: "Rock / hard-clay drilling",
+      value: ADDONS.ROCK_PER_POST_CENTS.toString(),
+      unit: "per_post_cents",
     },
     {
       category: "addon",
-      code: "height_upgrade",
-      label: "Height upgrade 6'→8' (CP/HC only)",
-      value: ADDONS.HEIGHT_UPGRADE_PCT.toString(),
-      unit: "pct",
+      code: "tear_concrete",
+      label: "Remove concrete-set old posts",
+      value: ADDONS.TEAR_CONCRETE_PER_POST_CENTS.toString(),
+      unit: "per_post_cents",
     },
     {
       category: "addon",
-      code: "corner_over",
-      label: "Each corner over 4",
-      value: ADDONS.CORNER_OVER_CENTS.toString(),
-      unit: "per_each_cents",
-    },
-    {
-      category: "addon",
-      code: "permit",
-      label: "Permit (when required)",
-      value: ADDONS.PERMIT_FLAT_CENTS.toString(),
-      unit: "flat_cents",
-    },
-    {
-      category: "addon",
-      code: "hoa_admin",
-      label: "HOA admin fee",
-      value: ADDONS.HOA_ADMIN_FLAT_CENTS.toString(),
-      unit: "flat_cents",
-    },
-    {
-      category: "addon",
-      code: "travel",
-      label: "Travel >25 mi",
-      value: ADDONS.TRAVEL_PER_MILE_CENTS.toString(),
-      unit: "per_mile_cents",
+      code: "access",
+      label: "Difficult access surcharge",
+      value: ADDONS.ACCESS_SURCHARGE_PCT.toString(),
+      unit: "surcharge_pct",
     }
   );
+
+  // Permits by city
+  for (const [city, cents] of Object.entries(PERMITS)) {
+    rows.push({
+      category: "permit",
+      code: city,
+      label: `${city} permit`,
+      value: cents.toString(),
+      unit: "flat_cents",
+    });
+  }
+
+  // Assumptions snapshot (so admin can see the global knobs)
+  for (const [key, value] of Object.entries(ASSUMPTIONS)) {
+    rows.push({
+      category: "assumption",
+      code: key,
+      label: key,
+      value: value.toString(),
+      unit: "raw",
+    });
+  }
 
   await db.insert(adjustments).values(rows);
   console.log(`  inserted ${rows.length} adjustment rows`);
@@ -174,7 +218,6 @@ async function seedAdjustments() {
 async function seedServiceZones() {
   console.log("→ Seeding Tulsa metro service zones…");
 
-  // Tulsa metro core (primary). Source: standard Tulsa OK zip list.
   const primaryZips = [
     "74103", "74104", "74105", "74106", "74107", "74108",
     "74110", "74112", "74114", "74115", "74116", "74117", "74119",
@@ -183,7 +226,7 @@ async function seedServiceZones() {
   ];
   const extendedZips = [
     "74008", "74011", "74012", "74014", "74015", "74021", "74033",
-    "74037", "74055", "74063", "74070", "74131", "74055", "74080",
+    "74037", "74055", "74063", "74070", "74131", "74080",
   ];
 
   const rows: Array<{
@@ -211,7 +254,7 @@ async function seedServiceZones() {
       state: "OK",
       inPrimary: false,
       inExtended: true,
-      travelSurchargePerMileCents: ADDONS.TRAVEL_PER_MILE_CENTS,
+      travelSurchargePerMileCents: 0,
     });
   }
 
@@ -234,14 +277,15 @@ async function seedServiceZones() {
 async function seedPricingVersion() {
   console.log("→ Recording pricing version snapshot…");
 
-  const versionNumber = `v1.0-${new Date().toISOString().slice(0, 10)}`;
+  const versionNumber = `v2.0-${new Date().toISOString().slice(0, 10)}`;
   const config = {
+    assumptions: ASSUMPTIONS,
     skus: SKUS,
     slope: SLOPE,
     demo_rates: DEMO_RATES,
     gate_prices: GATE_PRICES,
-    tier_multipliers: TIER_MULTIPLIERS,
     addons: ADDONS,
+    permits: PERMITS,
     financing: FINANCING,
   };
 
@@ -258,10 +302,10 @@ async function seedPricingVersion() {
 }
 
 async function main() {
-  console.log("Seeding QuoteOS pricing data…");
+  console.log("Seeding QuoteOS pricing data (v2 — cost-up engine)…");
   console.log(`DB: ${process.env.DATABASE_URL?.replace(/:[^:@]+@/, ":***@")}`);
 
-  await db.execute(sql`SELECT 1`); // sanity check
+  await db.execute(sql`SELECT 1`);
 
   await seedSkus();
   await seedAdjustments();

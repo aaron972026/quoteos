@@ -2,11 +2,12 @@ import { formatCents } from "@/lib/utils";
 
 interface Props {
   materialCostCents: number | null;
+  /** Labor cost cents (renamed from sub-labor in pricing model v2). */
   subLaborCostCents: number | null;
-  grossMarginPct: string | number | null; // numeric column → string from drizzle
+  grossMarginPct: string | number | null;
   marginFlag: "ok" | "warn" | "low" | null;
+  /** Final price the customer was quoted. */
   selectedTierCents: number | null;
-  tierBetterCents: number | null;
 }
 
 const FLAG_PILL = {
@@ -21,7 +22,6 @@ export function MarginPanel({
   grossMarginPct,
   marginFlag,
   selectedTierCents,
-  tierBetterCents,
 }: Props) {
   const pct =
     grossMarginPct == null
@@ -30,7 +30,7 @@ export function MarginPanel({
           ? Number(grossMarginPct)
           : grossMarginPct) * 100;
 
-  const basis = selectedTierCents ?? tierBetterCents;
+  const basis = selectedTierCents;
   const totalCost =
     materialCostCents != null && subLaborCostCents != null
       ? materialCostCents + subLaborCostCents
@@ -58,9 +58,9 @@ export function MarginPanel({
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-        <Row label="Tier basis" value={basis != null ? formatCents(basis) : "—"} />
+        <Row label="Final price" value={basis != null ? formatCents(basis) : "—"} />
         <Row label="Material" value={materialCostCents != null ? formatCents(materialCostCents) : "—"} />
-        <Row label="Sub labor" value={subLaborCostCents != null ? formatCents(subLaborCostCents) : "—"} />
+        <Row label="Labor" value={subLaborCostCents != null ? formatCents(subLaborCostCents) : "—"} />
         <Row label="Total cost" value={totalCost != null ? formatCents(totalCost) : "—"} />
         <Row
           label="Gross profit"

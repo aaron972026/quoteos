@@ -44,6 +44,11 @@ export interface FenceMapHandle {
   setMode(mode: "line" | "polygon"): void;
 }
 
+export type ParcelBoundary = {
+  type: "Polygon" | "MultiPolygon";
+  coordinates: number[][][] | number[][][][];
+};
+
 interface Props {
   centerLat: number;
   centerLng: number;
@@ -57,21 +62,54 @@ interface Props {
   gates?: PlacedGate[];
   gatePlacementMode?: boolean;
   onGatePointPicked?: (point: { lat: number; lng: number }) => void;
+  // Phase 1.5 — gate edit affordances
+  onGateMove?: (index: number, position: { lat: number; lng: number }) => void;
+  onGateDelete?: (index: number) => void;
+  // Phase 1.5 — parcel boundary overlay from Regrid
+  parcelBoundary?: ParcelBoundary | null;
+  // Phase 2 — neighbor parcel outlines (rendered fainter under the primary)
+  adjacentBoundaries?: ParcelBoundary[];
 }
 
 const GATE_WIDTH_LABEL: Record<GateType, string> = {
-  "SW-4": "4'",
-  "SW-5": "5'",
-  "DD-10": "10'",
-  "DD-12": "12'",
-  "DD-14": "14'",
+  W4: "4'",
+  W5: "5'",
+  D10: "10'",
+  D12: "12'",
+  D16: "16'",
 };
 
-function makeGateMarkerEl(type: GateType): HTMLDivElement {
+function makeGateMarkerEl(
+  type: GateType,
+  index: number,
+  onDelete?: (i: number) => void
+): HTMLDivElement {
   const el = document.createElement("div");
   el.className = GATE_MARKER_CLASS;
-  el.textContent = GATE_WIDTH_LABEL[type];
   el.setAttribute("aria-label", `Gate: ${GATE_WIDTH_LABEL[type]} ${type}`);
+
+  const label = document.createElement("span");
+  label.textContent = GATE_WIDTH_LABEL[type];
+  el.appendChild(label);
+
+  if (onDelete) {
+    const x = document.createElement("button");
+    x.className = "qos-gate-marker-delete";
+    x.type = "button";
+    x.setAttribute("aria-label", `Delete gate ${index + 1}`);
+    x.textContent = "×";
+    // Stop pointerdown so a tap on × doesn't initiate a marker drag
+    x.addEventListener("pointerdown", (e) => e.stopPropagation());
+    x.addEventListener("mousedown", (e) => e.stopPropagation());
+    x.addEventListener("touchstart", (e) => e.stopPropagation());
+    x.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      onDelete(index);
+    });
+    el.appendChild(x);
+  }
+
   return el;
 }
 
@@ -83,6 +121,10 @@ export default function FenceMap({
   gates,
   gatePlacementMode,
   onGatePointPicked,
+  onGateMove,
+  onGateDelete,
+  parcelBoundary,
+  adjacentBoundaries,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -91,6 +133,10 @@ export default function FenceMap({
   onChangeRef.current = onChange;
   const onGatePointPickedRef = useRef(onGatePointPicked);
   onGatePointPickedRef.current = onGatePointPicked;
+  const onGateMoveRef = useRef(onGateMove);
+  onGateMoveRef.current = onGateMove;
+  const onGateDeleteRef = useRef(onGateDelete);
+  onGateDeleteRef.current = onGateDelete;
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -163,6 +209,47 @@ export default function FenceMap({
     });
     map.on("style.load", () => {
       console.info("[FenceMap] style.load fired");
+      // Overlay house numbers from the Mapbox Streets vector tileset so users
+      // can identify which roof is theirs. Adding just this one symbol layer is
+      // far cheaper than switching the base style to satellite-streets-v12
+      // (see SATELLITE_STYLE comment in draw-config.ts).
+      try {
+        if (!map.getSource("qos-streets")) {
+          map.addSource("qos-streets", {
+            type: "vector",
+            url: "mapbox://mapbox.mapbox-streets-v8",
+          });
+        }
+        if (!map.getLayer("qos-housenum")) {
+          // Insert before any gl-draw layers so fence lines stay on top of labels.
+          const beforeId = map
+            .getStyle()
+            .layers?.find((l) => l.id.startsWith("gl-draw"))?.id;
+          map.addLayer(
+            {
+              id: "qos-housenum",
+              type: "symbol",
+              source: "qos-streets",
+              "source-layer": "housenum_label",
+              minzoom: 17,
+              layout: {
+                "text-field": ["get", "house_num"],
+                "text-font": ["DIN Pro Medium", "Arial Unicode MS Bold"],
+                "text-size": 12,
+                "text-padding": 2,
+              },
+              paint: {
+                "text-color": "#FFFFFF",
+                "text-halo-color": "rgba(0,0,0,0.75)",
+                "text-halo-width": 1.5,
+              },
+            },
+            beforeId
+          );
+        }
+      } catch (err) {
+        console.warn("[FenceMap] house-number overlay failed:", err);
+      }
     });
 
     // ResizeObserver — keep the map sized to its container even if the parent
@@ -217,6 +304,19 @@ export default function FenceMap({
     // Live update during drawing — covers mid-line tap before "create" fires
     map.on("draw.render", emitStats);
 
+    // Right-click to finish the current line/polygon. Without this the
+    // phantom cursor-vertex keeps tracking the mouse and there's no way to
+    // stop drawing other than double-click (easy to miss on touchpads).
+    map.on("contextmenu", (e) => {
+      e.preventDefault();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const drawAny = draw as any;
+      const m = drawAny.getMode?.() as string | undefined;
+      if (m === "draw_line_string" || m === "draw_polygon") {
+        drawAny.changeMode("simple_select");
+      }
+    });
+
     return () => {
       try {
         ro.disconnect();
@@ -232,20 +332,176 @@ export default function FenceMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Sync parcel-boundary overlay ─────────────────────────────────
+  // Renders a dashed cyan outline of the property parcel so the user can see
+  // where the lot line is before drawing. Layer sits below the gl-draw layers
+  // so the orange fence line stays visually on top.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const PARCEL_SOURCE = "qos-parcel";
+    const PARCEL_LAYER = "qos-parcel-outline";
+
+    function applyOverlay() {
+      if (!map) return;
+      if (!parcelBoundary) {
+        if (map.getLayer(PARCEL_LAYER)) map.removeLayer(PARCEL_LAYER);
+        if (map.getSource(PARCEL_SOURCE)) map.removeSource(PARCEL_SOURCE);
+        return;
+      }
+      const data: GeoJSON.Feature = {
+        type: "Feature",
+        properties: {},
+        geometry: parcelBoundary as GeoJSON.Polygon | GeoJSON.MultiPolygon,
+      };
+      const existing = map.getSource(PARCEL_SOURCE) as
+        | mapboxgl.GeoJSONSource
+        | undefined;
+      if (existing) {
+        existing.setData(data);
+        return;
+      }
+      map.addSource(PARCEL_SOURCE, { type: "geojson", data });
+      // Insert before the first gl-draw layer so the fence line renders above
+      const beforeId = map
+        .getStyle()
+        .layers?.find((l) => l.id.startsWith("gl-draw"))?.id;
+      map.addLayer(
+        {
+          id: PARCEL_LAYER,
+          type: "line",
+          source: PARCEL_SOURCE,
+          paint: {
+            "line-color": "#22D3EE", // cyan — distinct from accent orange + satellite
+            "line-width": 2,
+            "line-dasharray": [3, 2],
+            "line-opacity": 0.85,
+          },
+        },
+        beforeId
+      );
+    }
+
+    if (map.isStyleLoaded()) {
+      applyOverlay();
+    } else {
+      map.once("style.load", applyOverlay);
+    }
+  }, [parcelBoundary]);
+
+  // ── Sync adjacent-parcel outlines ────────────────────────────────
+  // Renders all neighbor parcels as a fainter dashed line so the customer
+  // can see the full block context — helpful for "which side borders the
+  // neighbor" reasoning. Layered below the primary parcel outline.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const SOURCE = "qos-adjacent-parcels";
+    const LAYER = "qos-adjacent-parcels-line";
+
+    function applyOverlay() {
+      if (!map) return;
+      if (!adjacentBoundaries || adjacentBoundaries.length === 0) {
+        if (map.getLayer(LAYER)) map.removeLayer(LAYER);
+        if (map.getSource(SOURCE)) map.removeSource(SOURCE);
+        return;
+      }
+      const data: GeoJSON.FeatureCollection = {
+        type: "FeatureCollection",
+        features: adjacentBoundaries.map((b) => ({
+          type: "Feature",
+          properties: {},
+          geometry: b as GeoJSON.Polygon | GeoJSON.MultiPolygon,
+        })),
+      };
+      const existing = map.getSource(SOURCE) as
+        | mapboxgl.GeoJSONSource
+        | undefined;
+      if (existing) {
+        existing.setData(data);
+        return;
+      }
+      // Insert under qos-parcel-outline if present, otherwise under gl-draw
+      const layers = map.getStyle().layers ?? [];
+      const beforeId =
+        layers.find((l) => l.id === "qos-parcel-outline")?.id ??
+        layers.find((l) => l.id.startsWith("gl-draw"))?.id;
+      map.addLayer(
+        {
+          id: LAYER,
+          type: "line",
+          source: SOURCE,
+          paint: {
+            "line-color": "#22D3EE",
+            "line-width": 1,
+            "line-dasharray": [2, 3],
+            "line-opacity": 0.4,
+          },
+        },
+        beforeId
+      );
+    }
+
+    if (map.isStyleLoaded()) {
+      applyOverlay();
+    } else {
+      map.once("style.load", applyOverlay);
+    }
+  }, [adjacentBoundaries]);
+
   // ── Sync gate markers to the gates prop ─────────────────────────
   useEffect(() => {
-    if (!mapRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
     // Wipe existing markers; cheap for the small N (max ~5–10 gates per quote)
     for (const m of markersRef.current) m.remove();
     markersRef.current = [];
     if (!gates) return;
-    for (const g of gates) {
-      const el = makeGateMarkerEl(g.type);
-      const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
+
+    gates.forEach((g, idx) => {
+      const el = makeGateMarkerEl(g.type, idx, onGateDeleteRef.current);
+      const draggable = !!onGateMoveRef.current;
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: "center",
+        draggable,
+      })
         .setLngLat([g.position.lng, g.position.lat])
-        .addTo(mapRef.current);
+        .addTo(map);
+
+      if (draggable) {
+        marker.on("dragend", () => {
+          const lngLat = marker.getLngLat();
+          const draw = drawRef.current;
+          const fc = draw?.getAll();
+          const feature = fc?.features[fc.features.length - 1] as
+            | Feature<LineString | Polygon>
+            | undefined;
+          if (!feature) {
+            onGateMoveRef.current?.(idx, { lat: lngLat.lat, lng: lngLat.lng });
+            return;
+          }
+          const coords =
+            feature.geometry.type === "Polygon"
+              ? feature.geometry.coordinates[0]
+              : feature.geometry.coordinates;
+          if (coords.length < 2) {
+            onGateMoveRef.current?.(idx, { lat: lngLat.lat, lng: lngLat.lng });
+            return;
+          }
+          // Snap the drop point to the line so the gate stays on the fence
+          const line = turfLineString(coords as [number, number][]);
+          const dropped = turfPoint([lngLat.lng, lngLat.lat]);
+          const snapped = nearestPointOnLine(line, dropped, {
+            units: "kilometers",
+          });
+          const [lng, lat] = snapped.geometry.coordinates as [number, number];
+          onGateMoveRef.current?.(idx, { lat, lng });
+        });
+      }
+
       markersRef.current.push(marker);
-    }
+    });
   }, [gates]);
 
   // ── Gate placement mode: switch draw to simple_select, intercept clicks ──
@@ -268,6 +524,12 @@ export default function FenceMap({
     // Entering placement mode — stop drawing so taps don't add vertices
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (draw as any).changeMode("simple_select");
+
+    // Visual cue: the map cursor turns to crosshair while in placement mode
+    // so the user understands "tap somewhere" rather than the default arrow.
+    const canvas = map.getCanvas();
+    const prevCursor = canvas.style.cursor;
+    canvas.style.cursor = "crosshair";
 
     const handleClick = (e: mapboxgl.MapMouseEvent) => {
       const fc = draw.getAll();
@@ -298,6 +560,7 @@ export default function FenceMap({
     map.on("click", handleClick);
     return () => {
       map.off("click", handleClick);
+      canvas.style.cursor = prevCursor;
     };
   }, [gatePlacementMode]);
 
@@ -307,12 +570,72 @@ export default function FenceMap({
       drawRef.current?.changeMode("draw_line_string");
     },
     undo() {
-      // mapbox-gl-draw doesn't expose undo, so we approximate: in drawing mode
-      // the trash button removes the last point. Surface the same action here
-      // if user is mid-line.
-      const all = drawRef.current?.getAll();
-      if (!all || all.features.length === 0) return;
-      drawRef.current?.trash();
+      const draw = drawRef.current;
+      if (!draw) return;
+      const all = draw.getAll();
+      if (all.features.length === 0) return;
+      const feature = all.features[all.features.length - 1];
+      const geom = feature.geometry;
+      const id = feature.id as string;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mode = (draw as any).getMode?.() as string | undefined;
+      const drawingLine = mode === "draw_line_string";
+      const drawingPoly = mode === "draw_polygon";
+
+      // NOTE: mapbox-gl-draw's `trash()` in draw_line_string mode deletes the
+      // ENTIRE feature, not just the last vertex (despite some doc pages
+      // suggesting otherwise). We pop the last clicked coord manually.
+
+      if (geom.type === "LineString") {
+        const coords = geom.coordinates;
+        // In draw_line_string mode the trailing coordinate is the phantom
+        // cursor-follower, so the most recently *clicked* vertex is at -2.
+        // After drawing finishes (simple_select), every coord is real.
+        const popTarget = drawingLine ? coords.length - 2 : coords.length - 1;
+        const newCoords = coords.slice(0, popTarget);
+
+        if (newCoords.length < 2) {
+          draw.delete(id);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (draw as any).changeMode("draw_line_string");
+          return;
+        }
+        draw.add({
+          type: "Feature",
+          id,
+          properties: feature.properties ?? {},
+          geometry: { type: "LineString", coordinates: newCoords },
+        });
+        // Resume drawing from the new last vertex so the user can keep going
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (draw as any).changeMode("draw_line_string", { featureId: id });
+        return;
+      }
+
+      if (geom.type === "Polygon") {
+        const ring = geom.coordinates[0];
+        // Polygons repeat the first coord at the end of the ring; in
+        // draw_polygon mode there's also a phantom cursor coord just before
+        // the closing duplicate.
+        const popTarget = drawingPoly ? ring.length - 3 : ring.length - 2;
+        if (popTarget < 2) {
+          draw.delete(id);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (draw as any).changeMode("draw_line_string");
+          return;
+        }
+        const newRing = ring.slice(0, popTarget + 1).concat([ring[0]]);
+        draw.add({
+          type: "Feature",
+          id,
+          properties: feature.properties ?? {},
+          geometry: { type: "Polygon", coordinates: [newRing] },
+        });
+        if (drawingPoly) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (draw as any).changeMode("draw_polygon", { featureId: id });
+        }
+      }
     },
     setMode(mode) {
       const target = mode === "polygon" ? "draw_polygon" : "draw_line_string";

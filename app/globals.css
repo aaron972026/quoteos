@@ -3,8 +3,10 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #1F3A5F;
+  /* Brand v1.0 — paper surface as the default page background per spec
+     ("Tulsa Cream — paper surface"). Ink as default body color. */
+  --background: #FBF8F0;
+  --foreground: #15161A;
   /* Lock to light UA form styling regardless of system dark-mode preference.
      Without this, browsers in dark mode render <input> with a dark background
      by default — visible on the Google Places web component's internal input. */
@@ -16,6 +18,8 @@ html {
 }
 
 body {
+  background: var(--background);
+  color: var(--foreground);
   font-feature-settings: "ss01", "cv11";
 }
 
@@ -26,10 +30,47 @@ body {
   .text-pretty {
     text-wrap: pretty;
   }
+  /* Tabular numerals — price / linear-foot displays */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .04em;
+  }
 }
+
+/* Brand utility: eyebrow dashes flourish — "[short][long] TEXT [long][short]"
+   Used as small-caps section labels. See <Eyebrow /> component (Slice B). */
+.dashes {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display), "Oswald", "Arial Narrow", sans-serif;
+  font-weight: 600;
+  color: #C8962E;
+  text-transform: uppercase;
+  letter-spacing: .18em;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.dashes .d { display: inline-block; height: 1.5px; background: #C8962E; flex: none; }
+.dashes .d.short { width: 8px; }
+.dashes .d.long { width: 28px; }
+.dashes.tight .d.long { width: 20px; }
+
+/* Brand utility: brass pickets motif — small pentagon-topped bars used as
+   footer flourish and tier-quality indicator. */
+.pickets { display: inline-flex; align-items: flex-end; gap: 5px; height: 22px; }
+.pickets span {
+  display: block;
+  width: 8px;
+  height: 18px;
+  background: #C8962E;
+  clip-path: polygon(0 22%, 50% 0, 100% 22%, 100% 100%, 0 100%);
+}
+.pickets span:nth-child(odd) { height: 22px; }
 
 /* Gate markers on the fence map — circular badge with width label */
 .qos-gate-marker {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -42,8 +83,36 @@ body {
   font-size: 12px;
   font-family: var(--font-inter), system-ui, sans-serif;
   box-shadow: 0 2px 6px rgba(31, 58, 95, 0.35), 0 0 0 3px rgba(255, 255, 255, 0.95);
-  cursor: default;
+  cursor: grab;
   user-select: none;
+}
+.qos-gate-marker:active {
+  cursor: grabbing;
+}
+
+/* Delete (×) badge in the top-right corner of each gate marker */
+.qos-gate-marker-delete {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1.5px solid #fff;
+  border-radius: 9999px;
+  background: #1F3A5F;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+.qos-gate-marker-delete:hover {
+  background: #b3261e;
 }
 
 /* Style the Google Places web component to match our Input primitive.
@@ -59,32 +128,53 @@ body {
   width: 100%;
   display: block;
   color-scheme: light;
-  background: white;
+  background: #FBF8F0;
 }
 .qos-address-autocomplete gmp-place-autocomplete::part(input),
 .qos-address-autocomplete gmp-place-autocomplete::part(prediction-item),
 .qos-address-autocomplete gmp-place-autocomplete input {
-  background-color: white !important;
+  background-color: #FBF8F0 !important;
   background-image: none !important;
-  color: #1F3A5F !important;
+  color: #15161A !important;
   color-scheme: light !important;
-  font-family: var(--font-inter), system-ui, sans-serif !important;
+  font-family: var(--font-body), "Source Sans 3", system-ui, sans-serif !important;
 }
 .qos-address-autocomplete gmp-place-autocomplete::part(input),
 .qos-address-autocomplete gmp-place-autocomplete input {
   height: 3.5rem;
   width: 100%;
-  border-radius: 0.5rem;
-  border: 1px solid rgb(31 58 95 / 0.2);
+  border-radius: 3px;
+  border: 1px solid rgb(26 42 74 / 0.25);
   padding: 0.75rem 1rem;
   font-size: 1.125rem;
 }
 .qos-address-autocomplete gmp-place-autocomplete::part(input)::placeholder,
 .qos-address-autocomplete gmp-place-autocomplete input::placeholder {
-  color: rgb(31 58 95 / 0.4) !important;
+  color: rgb(107 111 118 / 0.7) !important;
 }
 .qos-address-autocomplete gmp-place-autocomplete::part(input):focus,
 .qos-address-autocomplete gmp-place-autocomplete input:focus {
-  outline: 2px solid #F4A623;
+  outline: 2px solid #1A2A4A;
   outline-offset: 2px;
+}
+
+/* In-shell mode — when the autocomplete sits inside the new hero input
+   chrome, the outer wrapper provides the border + shadow + focus ring.
+   The inner web component renders flush and transparent.
+   The hero's <div class="qos-address-input-host"> wraps it. */
+.qos-address-input-host .qos-address-autocomplete gmp-place-autocomplete {
+  background: transparent;
+}
+.qos-address-input-host .qos-address-autocomplete gmp-place-autocomplete::part(input),
+.qos-address-input-host .qos-address-autocomplete gmp-place-autocomplete input {
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  height: 68px !important;
+  padding: 0 8px 0 0 !important;
+  font-size: 18px !important;
+}
+.qos-address-input-host .qos-address-autocomplete gmp-place-autocomplete::part(input):focus,
+.qos-address-input-host .qos-address-autocomplete gmp-place-autocomplete input:focus {
+  outline: none !important;
 }

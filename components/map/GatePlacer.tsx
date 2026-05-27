@@ -9,11 +9,11 @@ interface SizeOption {
 }
 
 const SIZES: SizeOption[] = [
-  { type: "SW-4", label: "4'", sublabel: "Single walk" },
-  { type: "SW-5", label: "5'", sublabel: "Single walk" },
-  { type: "DD-10", label: "10'", sublabel: "Double drive" },
-  { type: "DD-12", label: "12'", sublabel: "Double drive" },
-  { type: "DD-14", label: "14'", sublabel: "Double drive" },
+  { type: "W4", label: "4'", sublabel: "Walk" },
+  { type: "W5", label: "5'", sublabel: "Walk" },
+  { type: "D10", label: "10'", sublabel: "Drive" },
+  { type: "D12", label: "12'", sublabel: "Drive" },
+  { type: "D16", label: "16'", sublabel: "Double drive" },
 ];
 
 interface Props {
@@ -61,8 +61,8 @@ export function GatePlacer({
       </button>
 
       {placementMode && !pendingPoint && (
-        <div className="pointer-events-none fixed left-1/2 top-20 z-30 -translate-x-1/2 rounded-full bg-navy px-4 py-2 text-sm font-medium text-white shadow-lg">
-          Tap a point on your fence to drop a gate
+        <div className="pointer-events-none fixed left-1/2 top-24 z-30 -translate-x-1/2 animate-pulse rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-navy shadow-[0_4px_16px_rgba(244,166,35,0.5)] ring-2 ring-white">
+          Tap a spot on your fence line to drop a gate
         </div>
       )}
 

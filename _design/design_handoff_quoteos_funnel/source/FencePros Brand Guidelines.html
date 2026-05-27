@@ -1,0 +1,1519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1200" />
+<title>FencePros — Brand Guidelines 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --navy:#1A2A4A;
+    --navy-deep:#121C33;
+    --navy-soft:#2A3A5C;
+    --brick:#8B2332;
+    --brick-deep:#6E1A26;
+    --brass:#C8962E;
+    --brass-soft:#E0B452;
+    --cream:#F4F1E8;
+    --cream-deep:#E9E4D3;
+    --paper:#FBF8F0;
+    --ink:#15161A;
+    --steel:#6B6F76;
+    --steel-soft:#A7ABB2;
+    --rule:rgba(26,42,74,.14);
+    --rule-strong:rgba(26,42,74,.28);
+    --display:'Oswald', 'Arial Narrow', sans-serif;
+    --body:'Source Sans 3', system-ui, sans-serif;
+    --mono:'JetBrains Mono', ui-monospace, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--body);
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    font-size:16px;
+    line-height:1.55;
+  }
+  .page{max-width:1200px;margin:0 auto;padding:0 64px}
+  .section{padding:96px 0;border-top:1px solid var(--rule)}
+  .section:first-of-type{border-top:none}
+
+  /* ---------- TYPE ---------- */
+  h1,h2,h3,h4,.display{
+    font-family:var(--display);
+    font-weight:700;
+    letter-spacing:.01em;
+    line-height:1.02;
+    color:var(--navy);
+    margin:0;
+  }
+  h1{font-size:96px;letter-spacing:-.01em}
+  h2{font-size:56px;text-transform:uppercase;letter-spacing:.02em}
+  h3{font-size:28px;text-transform:uppercase;letter-spacing:.06em}
+  h4{font-size:18px;text-transform:uppercase;letter-spacing:.12em;font-weight:600}
+  p{margin:0 0 12px}
+  .lede{font-size:21px;line-height:1.5;color:#2c2f36;max-width:62ch}
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--brass);
+  }
+  .num{
+    font-family:var(--mono);
+    color:var(--brick);
+    font-weight:500;
+  }
+  .mono{font-family:var(--mono)}
+  .caption{font-size:13px;color:var(--steel);letter-spacing:.02em}
+
+  /* ---------- DECOR ---------- */
+  .dashes{
+    display:inline-flex;align-items:center;gap:10px;
+    font-family:var(--display);font-weight:600;
+    color:var(--brass);text-transform:uppercase;letter-spacing:.2em;
+    font-size:13px;
+  }
+  .dashes::before,.dashes::after{
+    content:"";display:inline-block;width:34px;height:2px;background:var(--brass);
+    position:relative;
+  }
+  .dashes::before{box-shadow: -10px 0 0 -1px var(--brass)}
+  .dashes::after{box-shadow:  10px 0 0 -1px var(--brass)}
+  .rule{height:1px;background:var(--rule);width:100%;margin:48px 0}
+  .rule-brass{height:2px;width:64px;background:var(--brass);margin:24px 0 28px}
+  .picket{
+    display:flex;align-items:flex-end;gap:8px;height:36px;
+  }
+  .picket span{
+    display:block;width:14px;height:30px;background:var(--brass);
+    clip-path:polygon(0 22%, 50% 0, 100% 22%, 100% 100%, 0 100%);
+    opacity:.95;
+  }
+  .picket span:nth-child(odd){height:34px}
+
+  /* ---------- COVER ---------- */
+  .cover{
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(200,150,46,.12), transparent 55%),
+      radial-gradient(ellipse at 100% 100%, rgba(139,35,50,.18), transparent 50%),
+      linear-gradient(180deg, var(--navy-deep), var(--navy));
+    color:var(--cream);
+    padding:120px 0 100px;
+    position:relative;
+    overflow:hidden;
+  }
+  .cover::before{
+    content:"";position:absolute;inset:24px;border:1px solid rgba(200,150,46,.45);pointer-events:none;
+  }
+  .cover::after{
+    content:"";position:absolute;inset:30px;border:1px solid rgba(244,241,232,.08);pointer-events:none;
+  }
+  .cover h1{color:var(--cream);font-size:140px;line-height:.95;letter-spacing:-.015em}
+  .cover .eyebrow{color:var(--brass-soft)}
+  .cover .sub{
+    font-family:var(--display);font-weight:500;font-size:24px;
+    text-transform:uppercase;letter-spacing:.22em;color:var(--brass);
+  }
+  .cover .grid{
+    display:grid;grid-template-columns:1.1fr .9fr;gap:64px;align-items:center;
+    margin-top:64px;
+  }
+  .cover .meta{
+    display:grid;grid-template-columns:1fr 1fr;gap:24px 40px;
+    margin-top:48px;padding-top:32px;border-top:1px solid rgba(200,150,46,.35);
+  }
+  .cover .meta div{font-size:14px}
+  .cover .meta .k{
+    font-family:var(--mono);font-size:11px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--brass);margin-bottom:6px;display:block;
+  }
+  .cover .meta .v{color:var(--cream);font-size:16px;font-family:var(--display);
+    font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+  .badge-shrine{
+    background:radial-gradient(circle at 50% 45%, rgba(244,241,232,.06), transparent 60%);
+    padding:24px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .badge-shrine img{width:100%;max-width:480px;height:auto;filter:drop-shadow(0 24px 40px rgba(0,0,0,.4))}
+
+  /* ---------- CONTENTS ---------- */
+  .toc{display:grid;grid-template-columns:repeat(2,1fr);gap:0 64px;margin-top:32px}
+  .toc .row{
+    display:grid;grid-template-columns:48px 1fr auto;align-items:baseline;
+    padding:16px 0;border-bottom:1px solid var(--rule);
+    font-family:var(--display);font-weight:500;font-size:20px;
+    text-transform:uppercase;letter-spacing:.06em;color:var(--navy);
+  }
+  .toc .row .n{color:var(--brick);font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:.1em}
+  .toc .row .p{color:var(--steel);font-family:var(--mono);font-size:13px;font-weight:400}
+
+  /* ---------- SECTION HEAD ---------- */
+  .sec-head{
+    display:grid;grid-template-columns:200px 1fr;gap:32px;align-items:start;
+    margin-bottom:48px;
+  }
+  .sec-head .n{
+    font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--brick);
+  }
+  .sec-head .n span{display:block;color:var(--steel);margin-top:8px;font-family:var(--mono);font-size:12px;font-weight:400;letter-spacing:.1em}
+  .sec-head .h h2{margin-bottom:14px}
+  .sec-head .h .lede{margin-top:6px}
+
+  /* ---------- COLOR PALETTE ---------- */
+  .palette-row{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+  .swatch{
+    border-radius:2px;overflow:hidden;border:1px solid var(--rule);
+    background:#fff;display:flex;flex-direction:column;
+  }
+  .swatch .chip{height:200px;position:relative;padding:18px}
+  .swatch .chip .role{
+    font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.18em;
+    text-transform:uppercase;
+  }
+  .swatch .chip .name{
+    font-family:var(--display);font-weight:700;font-size:34px;letter-spacing:.02em;
+    text-transform:uppercase;line-height:1;margin-top:8px;
+  }
+  .swatch .chip .pms{
+    position:absolute;left:18px;bottom:18px;font-family:var(--mono);font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;opacity:.85;
+  }
+  .swatch .meta{padding:14px 18px 18px;background:#fff}
+  .swatch .meta dl{margin:0;display:grid;grid-template-columns:46px 1fr;row-gap:4px;font-size:13px}
+  .swatch .meta dt{font-family:var(--mono);color:var(--steel);font-size:11px;letter-spacing:.12em;text-transform:uppercase;align-self:center}
+  .swatch .meta dd{margin:0;font-family:var(--mono);color:var(--ink);font-size:12.5px}
+
+  .neutrals{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:24px}
+  .nchip{height:96px;border-radius:2px;border:1px solid var(--rule);position:relative;overflow:hidden}
+  .nchip .lbl{
+    position:absolute;left:12px;bottom:10px;font-family:var(--mono);font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;
+  }
+  .nchip .hex{position:absolute;right:12px;bottom:10px;font-family:var(--mono);font-size:11px;opacity:.7}
+
+  /* ---------- TWO-COL ---------- */
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:48px}
+  .three{display:grid;grid-template-columns:repeat(3,1fr);gap:32px}
+  .panel{
+    background:#fff;border:1px solid var(--rule);border-radius:3px;padding:28px;
+  }
+  .panel h4{margin-bottom:12px;color:var(--navy)}
+  .panel ul{margin:0;padding-left:18px}
+  .panel li{margin-bottom:6px;font-size:15px}
+
+  /* ---------- USAGE RULES TABLE ---------- */
+  .usage{
+    border:1px solid var(--rule);background:#fff;border-radius:3px;
+  }
+  .usage .row{
+    display:grid;grid-template-columns:160px 1fr 1fr;gap:0;
+    border-bottom:1px solid var(--rule);
+  }
+  .usage .row:last-child{border-bottom:none}
+  .usage .row > div{padding:18px 20px}
+  .usage .row .lab{
+    font-family:var(--display);text-transform:uppercase;font-weight:600;letter-spacing:.1em;
+    font-size:14px;color:var(--brick);background:#FAF7EE;border-right:1px solid var(--rule);
+  }
+  .usage .row .rule-do{border-right:1px solid var(--rule)}
+  .usage .row .rule-dont{color:#7a3038}
+  .usage .head .lab{color:var(--navy)}
+  .usage .head{background:var(--cream)}
+  .usage .head > div{font-family:var(--display);text-transform:uppercase;letter-spacing:.1em;font-weight:600;font-size:13px}
+
+  /* ---------- A11Y MATRIX ---------- */
+  .a11y{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:14px;
+  }
+  .a11y .cell{
+    border-radius:2px;padding:22px;height:140px;display:flex;flex-direction:column;justify-content:space-between;
+    border:1px solid var(--rule);
+  }
+  .a11y .cell .sample{font-family:var(--display);font-size:24px;font-weight:600;line-height:1.05}
+  .a11y .cell .body{font-size:13px;opacity:.9}
+  .a11y .cell .badge{
+    align-self:flex-start;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;
+    padding:3px 8px;border-radius:2px;text-transform:uppercase;
+  }
+  .pass{background:#1e7a3c;color:#fff}
+  .pass-large{background:#a6740f;color:#fff}
+  .fail{background:#8a2731;color:#fff}
+
+  /* ---------- TYPOGRAPHY ---------- */
+  .type-spec{
+    display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:start;
+  }
+  .type-card{
+    background:#fff;border:1px solid var(--rule);border-radius:3px;padding:36px;
+  }
+  .type-card .glyph{
+    font-family:var(--display);font-weight:700;font-size:200px;line-height:.85;color:var(--navy);
+    letter-spacing:-.02em;
+  }
+  .type-card .alpha{
+    font-family:var(--display);font-weight:600;font-size:22px;letter-spacing:.02em;
+    color:var(--ink);margin-top:16px;line-height:1.3;
+  }
+  .type-card .meta{margin-top:24px;font-size:14px;color:var(--steel);font-family:var(--mono);letter-spacing:.06em}
+  .type-card.body-card .glyph{font-family:var(--body);font-weight:400;font-size:160px;letter-spacing:-.04em}
+  .type-card.body-card .alpha{font-family:var(--body);font-weight:400;letter-spacing:0}
+
+  .scale{margin-top:24px;border-top:1px solid var(--rule)}
+  .scale .row{
+    display:grid;grid-template-columns:170px 1fr 220px;align-items:baseline;
+    padding:22px 0;border-bottom:1px solid var(--rule);gap:24px;
+  }
+  .scale .role{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brick)}
+  .scale .role span{display:block;color:var(--steel);margin-top:6px;font-size:11px}
+  .scale .sample{color:var(--navy)}
+  .scale .spec{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--steel);text-align:right}
+
+  /* ---------- LOGO USAGE ---------- */
+  .clearspace{
+    background:var(--paper);border:1px solid var(--rule);padding:48px;border-radius:3px;
+    display:flex;align-items:center;justify-content:center;position:relative;min-height:420px;
+  }
+  .cs-frame{
+    position:relative;display:inline-block;
+  }
+  .cs-frame img{display:block;width:280px;height:auto}
+  .cs-frame::before{
+    content:"";position:absolute;inset:-72px;border:1px dashed var(--brass);pointer-events:none;
+  }
+  .cs-frame .x{
+    position:absolute;background:var(--brick);color:var(--cream);
+    font-family:var(--display);font-weight:700;font-size:18px;
+    width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 2px 8px rgba(0,0,0,.15);
+  }
+  .cs-frame .x.tl{top:-90px;left:-90px}
+  .cs-frame .x.tr{top:-90px;right:-90px}
+  .cs-frame .x.bl{bottom:-90px;left:-90px}
+  .cs-frame .x.br{bottom:-90px;right:-90px}
+  .cs-note{
+    position:absolute;left:48px;bottom:24px;font-family:var(--mono);font-size:12px;
+    color:var(--steel);text-transform:uppercase;letter-spacing:.1em;
+  }
+
+  .minsize{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .ms-card{
+    background:#fff;border:1px solid var(--rule);padding:28px;border-radius:3px;
+    display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;
+    min-height:280px;justify-content:space-between;
+  }
+  .ms-card img{height:auto}
+  .ms-card .role{font-family:var(--display);text-transform:uppercase;letter-spacing:.12em;font-size:13px;color:var(--brick);font-weight:600}
+  .ms-card .spec{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel)}
+
+  .bgtests{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .bg{
+    height:240px;border-radius:3px;display:flex;align-items:center;justify-content:center;position:relative;
+    overflow:hidden;border:1px solid var(--rule);
+  }
+  .bg img{width:60%;height:auto}
+  .bg .lbl{
+    position:absolute;left:12px;bottom:10px;font-family:var(--mono);font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--cream);
+    background:rgba(0,0,0,.55);padding:4px 8px;border-radius:2px;
+  }
+  .bg.cream{background:var(--cream)}
+  .bg.cream .lbl{color:var(--ink);background:rgba(255,255,255,.85)}
+  .bg.white{background:#fff}
+  .bg.white .lbl{color:var(--ink);background:rgba(0,0,0,.06)}
+  .bg.navy{background:var(--navy)}
+  .bg.photo{
+    background:
+      linear-gradient(180deg, rgba(20,30,50,.55), rgba(20,30,50,.55)),
+      repeating-linear-gradient(135deg, #6b7a8a 0 14px, #5a6878 14px 28px);
+  }
+  .bg.photo::after{
+    content:"";position:absolute;inset:0;
+    background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.18), transparent 50%);
+  }
+  .bg.bad{background:repeating-conic-gradient(from 0deg, #e64 0 25%, #4a3 0 50%);filter:saturate(1.2)}
+  .bg.bad .lbl{background:rgba(0,0,0,.7)}
+  .bg.bad::before{
+    content:"";position:absolute;inset:14px;border:2px solid #fff;
+  }
+  .bg.bad::after{
+    content:"";position:absolute;left:50%;top:50%;width:140%;height:2px;background:var(--brick);
+    transform:translate(-50%,-50%) rotate(-22deg);
+  }
+
+  /* ---------- LOCKUP ---------- */
+  .lockup{
+    background:var(--cream);padding:48px;border-radius:3px;border:1px solid var(--rule);
+    display:flex;align-items:center;gap:36px;
+  }
+  .lockup img{height:140px;width:auto}
+  .lockup-words{display:flex;flex-direction:column}
+  .lockup-words .word{
+    font-family:var(--display);font-weight:700;font-size:84px;line-height:.95;letter-spacing:.005em;
+    text-transform:uppercase;
+  }
+  .lockup-words .word .blue{color:var(--navy)}
+  .lockup-words .word .red{color:var(--brick)}
+  .lockup-words .tag{
+    margin-top:10px;display:flex;align-items:center;gap:10px;color:var(--brass);
+    font-family:var(--display);font-weight:600;text-transform:uppercase;letter-spacing:.22em;font-size:13px;
+  }
+  .lockup-words .tag::before,.lockup-words .tag::after{
+    content:"";height:1.5px;width:22px;background:var(--brass)
+  }
+  .lockup-divider{width:2px;align-self:stretch;background:var(--brass);opacity:.55;margin:0 4px}
+
+  /* ---------- FAVICONS ---------- */
+  .fav-row{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+  .fav{
+    width:120px;height:120px;border-radius:18px;background:var(--navy);
+    position:relative;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 6px 18px rgba(0,0,0,.18);
+  }
+  .fav .star{
+    width:78px;height:78px;border-radius:50%;background:var(--brick);
+    border:3px solid var(--brass);display:flex;align-items:center;justify-content:center;
+  }
+  .fav .star svg{width:56px;height:56px}
+  .fav-2{border-radius:8px;width:64px;height:64px}
+  .fav-2 .star{width:46px;height:46px;border-width:2px}
+  .fav-2 .star svg{width:32px;height:32px}
+  .fav-3{width:32px;height:32px;border-radius:5px}
+  .fav-3 .star{width:24px;height:24px;border-width:1.5px}
+  .fav-3 .star svg{width:18px;height:18px}
+  .fav.alt{background:var(--cream)}
+  .fav.alt .star{background:var(--navy);border-color:var(--brass)}
+
+  /* ---------- DON'TS ---------- */
+  .donts{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:24px}
+  .dont{
+    background:#fff;border:1px solid var(--rule);border-radius:3px;padding:18px;
+    display:flex;flex-direction:column;gap:14px;
+  }
+  .dont .visual{
+    height:160px;background:var(--cream);border-radius:2px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;
+  }
+  .dont .visual img{width:55%;height:auto}
+  .dont .visual::after{
+    content:"";position:absolute;left:8%;top:50%;width:84%;height:2px;background:var(--brick);
+    transform:rotate(-12deg);transform-origin:center;
+  }
+  .dont .l{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-weight:600;color:var(--brick);font-size:14px}
+  .dont .d{font-size:13.5px;color:#3a3d44;line-height:1.45}
+  .dont.stretch .visual img{width:75%;transform:scaleX(.6)}
+  .dont.recolor .visual img{filter:hue-rotate(120deg) saturate(.6)}
+  .dont.glow .visual img{filter:drop-shadow(0 0 18px #ff6) drop-shadow(0 0 8px #f80)}
+  .dont.rotate .visual img{transform:rotate(-14deg)}
+  .dont.busy .visual{background:repeating-conic-gradient(from 0deg, #e8b 0 25%, #6cd 0 50%)}
+  .dont.outline .visual img{filter:invert(1) brightness(1.2) contrast(.6)}
+
+  /* ---------- VOICE ---------- */
+  .voice-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:48px}
+  .headline-list{display:flex;flex-direction:column;gap:0}
+  .headline-list .hl{
+    padding:22px 0;border-bottom:1px solid var(--rule);
+    font-family:var(--display);font-weight:600;font-size:32px;text-transform:uppercase;
+    letter-spacing:.01em;line-height:1.05;color:var(--navy);
+  }
+  .headline-list .hl:first-child{border-top:1px solid var(--rule)}
+  .headline-list .hl .ctx{
+    display:block;font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--brick);margin-bottom:6px;font-weight:500;
+  }
+  .wordlist{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .wordlist .col{
+    background:#fff;border:1px solid var(--rule);padding:24px;border-radius:3px;
+  }
+  .wordlist .col.use{border-top:3px solid var(--navy)}
+  .wordlist .col.avoid{border-top:3px solid var(--brick)}
+  .wordlist .col h4{margin-bottom:14px}
+  .wordlist .col h4 .icn{color:var(--brass);margin-right:6px;font-weight:400}
+  .wordlist .col ul{margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px}
+  .wordlist .col li{
+    font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;
+    font-size:13px;font-weight:500;color:var(--navy);
+    padding:6px 11px;background:var(--cream);border-radius:2px;
+  }
+  .wordlist .col.avoid li{color:#7a3038;background:#f6e8ea}
+
+  .taglines{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:20px}
+  .tline{
+    background:#fff;border:1px solid var(--rule);border-radius:3px;padding:24px;display:flex;flex-direction:column;gap:14px;min-height:200px;
+  }
+  .tline .ctx{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brick)}
+  .tline .t{font-family:var(--display);font-weight:700;font-size:24px;text-transform:uppercase;letter-spacing:.01em;line-height:1.05;color:var(--navy)}
+  .tline.primary{background:var(--navy);border-color:var(--navy)}
+  .tline.primary .ctx{color:var(--brass)}
+  .tline.primary .t{color:var(--cream)}
+
+  /* ---------- APPLICATIONS ---------- */
+  /* Business card */
+  .cards-row{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+  .bcard{
+    aspect-ratio:1.75/1;border-radius:6px;position:relative;overflow:hidden;
+    box-shadow:0 18px 40px rgba(20,30,50,.18), 0 2px 6px rgba(0,0,0,.08);
+  }
+  .bcard.front{background:var(--cream);color:var(--navy);padding:30px 32px;display:flex;flex-direction:column;justify-content:space-between}
+  .bcard.front::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--brick)}
+  .bcard.front::after{content:"";position:absolute;left:0;right:0;bottom:0;height:6px;background:var(--brass)}
+  .bcard.front .top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+  .bcard.front .top img{height:96px;width:auto}
+  .bcard.front .name{font-family:var(--display);font-weight:700;font-size:26px;text-transform:uppercase;letter-spacing:.02em;line-height:1.05;color:var(--navy)}
+  .bcard.front .role{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--brick);margin-top:4px}
+  .bcard.front .info{
+    display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:12px;font-family:var(--body);
+  }
+  .bcard.front .info .k{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);margin-bottom:1px}
+  .bcard.front .info .v{color:var(--navy);font-weight:500;font-size:12.5px}
+  .bcard.back{background:var(--navy);color:var(--cream);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center}
+  .bcard.back::before{content:"";position:absolute;inset:14px;border:1px solid rgba(200,150,46,.5)}
+  .bcard.back .tag{font-family:var(--display);font-weight:700;font-size:36px;text-transform:uppercase;letter-spacing:.02em;line-height:1.05;color:var(--cream)}
+  .bcard.back .tag .y{color:var(--brass)}
+  .bcard.back .sub{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--brass);margin-top:16px;display:flex;align-items:center;gap:10px}
+  .bcard.back .sub::before,.bcard.back .sub::after{content:"";width:18px;height:1.5px;background:var(--brass)}
+
+  /* Email signature */
+  .esig{
+    background:#fff;border:1px solid var(--rule);padding:32px;border-radius:3px;
+    font-family:Georgia, 'Source Serif 4', serif;
+  }
+  .esig .sigwrap{display:grid;grid-template-columns:auto 1px 1fr;gap:24px;align-items:center;max-width:560px}
+  .esig img{height:88px;width:auto}
+  .esig .div{background:var(--rule-strong);width:1px;height:96px}
+  .esig .name{font-family:var(--body);font-weight:700;color:var(--navy);font-size:18px;letter-spacing:.01em}
+  .esig .title{font-family:var(--body);color:var(--steel);font-size:13px;margin-bottom:8px}
+  .esig .meta{font-family:var(--body);font-size:13px;color:#2c2f36;line-height:1.55}
+  .esig .meta a{color:var(--brick);text-decoration:none;font-weight:600}
+  .esig .meta .gold{color:var(--brass);font-weight:700;letter-spacing:.06em;font-size:11px;text-transform:uppercase}
+
+  /* Yard sign */
+  .yard-wrap{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start}
+  .yard{
+    aspect-ratio:1/1;background:var(--navy);border:6px solid var(--brass);border-radius:4px;
+    position:relative;padding:36px 28px;color:var(--cream);
+    box-shadow:0 24px 50px rgba(20,30,50,.25);
+    display:flex;flex-direction:column;align-items:center;text-align:center;
+    overflow:hidden;
+  }
+  .yard::before{content:"";position:absolute;inset:14px;border:1px solid rgba(200,150,46,.5)}
+  .yard img{width:160px;height:auto;margin-top:6px}
+  .yard .pre{font-family:var(--display);font-weight:600;font-size:15px;letter-spacing:.28em;text-transform:uppercase;color:var(--brass);margin-top:18px}
+  .yard .head{font-family:var(--display);font-weight:700;font-size:46px;text-transform:uppercase;line-height:.95;color:var(--cream);margin-top:8px;letter-spacing:.01em}
+  .yard .head .y{color:var(--brass)}
+  .yard .phone{margin-top:18px;font-family:var(--display);font-weight:700;font-size:40px;letter-spacing:.04em;color:var(--brass)}
+  .yard .url{font-family:var(--mono);font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream);margin-top:6px;opacity:.9}
+  .yard .stake{position:absolute;left:50%;bottom:-26px;transform:translateX(-50%);width:8px;height:36px;background:var(--brass);border-radius:2px}
+
+  .yard-alt{background:var(--cream);border-color:var(--navy);color:var(--navy)}
+  .yard-alt::before{border-color:rgba(26,42,74,.25)}
+  .yard-alt .pre{color:var(--brick)}
+  .yard-alt .head{color:var(--navy)}
+  .yard-alt .head .y{color:var(--brick)}
+  .yard-alt .phone{color:var(--navy)}
+  .yard-alt .url{color:var(--steel)}
+
+  /* Truck */
+  .truck{
+    background:linear-gradient(180deg, #fafaf6 0%, #ecebe2 100%);
+    border:1px solid var(--rule);border-radius:6px;padding:36px;position:relative;
+    aspect-ratio:2/1;display:flex;align-items:center;
+    overflow:hidden;
+  }
+  .truck::before{
+    content:"";position:absolute;left:0;right:0;bottom:0;height:38%;
+    background:linear-gradient(180deg, transparent 0%, rgba(20,30,50,.06) 100%);
+  }
+  .truck .door{
+    width:100%;background:#fff;border:2px solid var(--navy);border-radius:4px;
+    padding:28px 36px;display:flex;align-items:center;gap:28px;position:relative;
+    box-shadow:inset 0 0 0 6px var(--cream), 0 6px 18px rgba(0,0,0,.08);
+  }
+  .truck .door img{height:170px;width:auto}
+  .truck .door .copy{flex:1}
+  .truck .door .head{font-family:var(--display);font-weight:700;font-size:64px;text-transform:uppercase;line-height:.95;color:var(--navy);letter-spacing:.005em}
+  .truck .door .head .r{color:var(--brick)}
+  .truck .door .sub{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:.22em;text-transform:uppercase;color:var(--brass);margin-top:10px;display:flex;align-items:center;gap:10px}
+  .truck .door .sub::before,.truck .door .sub::after{content:"";width:24px;height:2px;background:var(--brass)}
+  .truck .door .info{font-family:var(--display);font-weight:600;font-size:22px;letter-spacing:.04em;text-transform:uppercase;color:var(--navy);margin-top:16px;display:flex;gap:28px}
+  .truck .door .info .gold{color:var(--brass)}
+  .truck .wheel{position:absolute;bottom:18px;width:46px;height:46px;border-radius:50%;background:#1a1a1d;border:6px solid #444}
+  .truck .wheel.l{left:80px}
+  .truck .wheel.r{right:80px}
+
+  /* Polo */
+  .polo-row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .polo{
+    aspect-ratio:1/1.1;border-radius:6px;position:relative;overflow:hidden;
+    background:var(--navy);border:1px solid var(--rule);
+  }
+  .polo.cream{background:var(--cream)}
+  .polo.gray{background:#3a3f48}
+  .polo svg.shirt{position:absolute;inset:0;width:100%;height:100%}
+  .polo .crest{
+    position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);
+    width:120px;height:auto;filter:drop-shadow(0 2px 4px rgba(0,0,0,.18));
+  }
+  .polo .lbl{
+    position:absolute;left:14px;bottom:12px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream);
+    background:rgba(0,0,0,.5);padding:4px 8px;border-radius:2px;
+  }
+  .polo.cream .lbl{color:var(--navy);background:rgba(255,255,255,.7)}
+
+  /* Social */
+  .social{display:grid;grid-template-columns:1fr 2fr;gap:24px}
+  .social .profile{
+    aspect-ratio:1/1;background:var(--navy);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;
+    border:6px solid var(--cream);box-shadow:0 8px 24px rgba(0,0,0,.15);
+  }
+  .social .profile::before{
+    content:"";position:absolute;inset:8px;border:1px solid rgba(200,150,46,.45);border-radius:50%;
+  }
+  .social .profile .badge-mini{
+    width:64%;display:flex;align-items:center;justify-content:center;
+  }
+  .social .profile .star-only{
+    width:60%;height:60%;border-radius:50%;background:var(--brick);
+    border:5px solid var(--brass);display:flex;align-items:center;justify-content:center;
+  }
+  .social .profile .star-only svg{width:62%;height:62%}
+  .social .cover{
+    aspect-ratio:3/1;border-radius:6px;position:relative;overflow:hidden;
+    background:
+      radial-gradient(ellipse at 70% 0%, rgba(200,150,46,.18), transparent 55%),
+      linear-gradient(180deg, var(--navy-deep), var(--navy));
+    color:var(--cream);padding:36px 48px;display:flex;align-items:center;gap:40px;
+    border:none;
+  }
+  .social .cover::before{content:"";position:absolute;inset:14px;border:1px solid rgba(200,150,46,.4)}
+  .social .cover img.b{height:160px;width:auto;position:relative;z-index:1}
+  .social .cover .copy{position:relative;z-index:1;flex:1}
+  .social .cover .copy .h{font-family:var(--display);font-weight:700;font-size:54px;text-transform:uppercase;line-height:.95;color:var(--cream)}
+  .social .cover .copy .h .r{color:var(--brick)}
+  .social .cover .copy .h .y{color:var(--brass)}
+  .social .cover .copy .sub{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.28em;text-transform:uppercase;color:var(--brass);margin-top:14px;display:flex;align-items:center;gap:10px}
+  .social .cover .copy .sub::before,.social .cover .copy .sub::after{content:"";width:22px;height:2px;background:var(--brass)}
+  .social .cover .pickets{position:absolute;right:32px;bottom:18px;display:flex;gap:6px;z-index:1;opacity:.9}
+  .social .cover .pickets span{width:12px;height:42px;background:var(--brass);clip-path:polygon(0 22%, 50% 0, 100% 22%, 100% 100%, 0 100%)}
+
+  /* ---------- PHOTOGRAPHY ---------- */
+  .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .photo{
+    aspect-ratio:4/3;border-radius:3px;border:1px solid var(--rule);
+    position:relative;overflow:hidden;display:flex;align-items:flex-end;
+    color:var(--cream);
+    background:linear-gradient(180deg, rgba(20,30,50,.0) 50%, rgba(20,30,50,.7));
+  }
+  .photo::before{
+    content:"";position:absolute;inset:0;z-index:-1;
+    background:
+      repeating-linear-gradient(45deg, rgba(200,150,46,.08) 0 8px, transparent 8px 16px),
+      var(--cream-deep);
+  }
+  .photo .ph{
+    position:absolute;inset:0;
+    background:
+      linear-gradient(135deg, rgba(20,30,50,.35), rgba(139,35,50,.25)),
+      repeating-linear-gradient(45deg, rgba(0,0,0,.06) 0 14px, transparent 14px 28px),
+      linear-gradient(180deg, #c9b890, #8b7c5e);
+  }
+  .photo.p2 .ph{background:
+      linear-gradient(135deg, rgba(20,30,50,.4), rgba(20,30,50,.1)),
+      repeating-linear-gradient(45deg, rgba(0,0,0,.06) 0 12px, transparent 12px 24px),
+      linear-gradient(180deg, #99837a, #5d4b40);}
+  .photo.p3 .ph{background:
+      linear-gradient(135deg, rgba(200,150,46,.25), rgba(20,30,50,.5)),
+      repeating-linear-gradient(45deg, rgba(0,0,0,.06) 0 10px, transparent 10px 20px),
+      linear-gradient(180deg, #b9a387, #6d5743);}
+  .photo .meta{position:relative;z-index:1;padding:18px 20px;width:100%}
+  .photo .l{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+  .photo .t{font-family:var(--display);font-weight:600;font-size:20px;text-transform:uppercase;letter-spacing:.02em;line-height:1.1;color:var(--cream);margin-top:4px}
+
+  .do-dont-photo{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:36px}
+
+  /* ---------- FOOTER ---------- */
+  footer{
+    background:var(--navy-deep);color:var(--cream);padding:80px 0 64px;margin-top:32px;
+    position:relative;
+  }
+  footer::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--brass)}
+  footer h4{color:var(--cream);margin-bottom:12px}
+  footer .pickets{display:flex;justify-content:center;gap:8px;margin-top:48px;opacity:.85}
+  footer .pickets span{display:block;width:14px;height:30px;background:var(--brass);clip-path:polygon(0 22%, 50% 0, 100% 22%, 100% 100%, 0 100%)}
+  footer .row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:48px}
+  footer .col p{font-size:14px;color:rgba(244,241,232,.78);line-height:1.6}
+  footer .meta{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+
+  /* Print niceties */
+  @media print{
+    .section{page-break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<!-- ========================= COVER ========================= -->
+<section class="cover" data-screen-label="01 Cover">
+  <div class="page">
+    <div class="eyebrow">FencePros · Brand System v1.0 · Tulsa, OK</div>
+    <div class="grid">
+      <div>
+        <h1>BRAND<br/>GUIDE<span style="color:var(--brick)">·</span>LINES</h1>
+        <div class="sub" style="margin-top:24px">Built Right. Stands Strong.</div>
+        <div class="meta">
+          <div><span class="k">Issued</span><span class="v">May 2026</span></div>
+          <div><span class="k">Steward</span><span class="v">FencePros Marketing</span></div>
+          <div><span class="k">Region</span><span class="v">Tulsa Metro · OK</span></div>
+          <div><span class="k">Edition</span><span class="v">v1.0 · Master</span></div>
+        </div>
+      </div>
+      <div class="badge-shrine">
+        <img src="assets/fencepros-badge.png" alt="FencePros badge" />
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= CONTENTS ========================= -->
+<div class="page">
+<section class="section" data-screen-label="02 Contents">
+  <div class="sec-head">
+    <div class="n">00<span>Contents</span></div>
+    <div class="h">
+      <h2>The Manual</h2>
+      <p class="lede">A working reference for everyone who touches the FencePros mark — print, web, vehicles, uniforms, and yard signage. The badge is the anchor. Everything else lives in service of it.</p>
+    </div>
+  </div>
+  <div class="toc">
+    <div class="row"><div class="n">01</div><div>The Anchor — Logo Story</div><div class="p">p.03</div></div>
+    <div class="row"><div class="n">02</div><div>Color System</div><div class="p">p.04</div></div>
+    <div class="row"><div class="n">03</div><div>Typography</div><div class="p">p.06</div></div>
+    <div class="row"><div class="n">04</div><div>Logo Usage</div><div class="p">p.08</div></div>
+    <div class="row"><div class="n">05</div><div>Voice &amp; Messaging</div><div class="p">p.12</div></div>
+    <div class="row"><div class="n">06</div><div>Brand Applications</div><div class="p">p.14</div></div>
+    <div class="row"><div class="n">07</div><div>Photography &amp; Imagery</div><div class="p">p.20</div></div>
+    <div class="row"><div class="n">08</div><div>Stewardship &amp; Approvals</div><div class="p">p.22</div></div>
+  </div>
+</section>
+
+<!-- ========================= 01 — ANCHOR ========================= -->
+<section class="section" data-screen-label="03 Anchor">
+  <div class="sec-head">
+    <div class="n">01<span>The Anchor</span></div>
+    <div class="h">
+      <h2>One Badge.<br/>One Promise.</h2>
+      <p class="lede">The FencePros badge is the immovable center of the system. It is a heraldic shield — a mark of warranty, of work that holds up, of a contractor a homeowner is relieved to find. We build everything around it. We do not redraw it.</p>
+    </div>
+  </div>
+
+  <div class="two" style="align-items:start">
+    <div style="background:var(--cream);border:1px solid var(--rule);padding:48px;border-radius:3px;display:flex;align-items:center;justify-content:center;min-height:520px">
+      <img src="assets/fencepros-badge.png" alt="FencePros badge" style="width:80%;height:auto;filter:drop-shadow(0 18px 32px rgba(20,30,50,.18))" />
+    </div>
+    <div style="padding-top:8px">
+      <div class="dashes">Anatomy of the Badge</div>
+      <div class="rule-brass"></div>
+      <div style="display:grid;grid-template-columns:34px 1fr;gap:14px 18px;font-size:15px;line-height:1.55">
+        <div class="num">01</div><div><strong style="color:var(--navy);font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:14px">Star Roundel</strong><br/>The promise sealed — a Lone-Star nod for Oklahoma roots and a coin of trust.</div>
+        <div class="num">02</div><div><strong style="color:var(--navy);font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:14px">Cream Upper Field</strong><br/>The contract — clean, readable, where the wordmark sits with authority.</div>
+        <div class="num">03</div><div><strong style="color:var(--navy);font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:14px">Wordmark</strong><br/>FENCE in navy, PROS in brick. Two halves of one craft.</div>
+        <div class="num">04</div><div><strong style="color:var(--navy);font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:14px">Navy Ribbon</strong><br/>The tagline band, flanked by decorative dashes — our recurring motif.</div>
+        <div class="num">05</div><div><strong style="color:var(--navy);font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:14px">Brass Pickets</strong><br/>The product itself, abstracted. Posts that stand.</div>
+        <div class="num">06</div><div><strong style="color:var(--navy);font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:14px">Double Border</strong><br/>Gold outside, navy inside — the seal of the trade.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= 02 — COLOR SYSTEM ========================= -->
+<section class="section" data-screen-label="04 Color">
+  <div class="sec-head">
+    <div class="n">02<span>Color System</span></div>
+    <div class="h">
+      <h2>Heritage Palette</h2>
+      <p class="lede">Four colors do the heavy lifting. Navy is the structure. Brick is the emphasis. Brass is the trim. Cream is the paper. Two neutrals carry the text. Nothing else is invited.</p>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin-bottom:18px">Primary Palette</h3>
+  <div class="palette-row">
+    <div class="swatch">
+      <div class="chip" style="background:var(--navy);color:var(--cream)">
+        <div class="role">Primary</div>
+        <div class="name">Anchor<br/>Navy</div>
+        <div class="pms">PMS 281 C</div>
+      </div>
+      <div class="meta">
+        <dl>
+          <dt>HEX</dt><dd>#1A2A4A</dd>
+          <dt>RGB</dt><dd>26 · 42 · 74</dd>
+          <dt>CMYK</dt><dd>100 · 85 · 35 · 40</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="chip" style="background:var(--brick);color:var(--cream)">
+        <div class="role">Accent</div>
+        <div class="name">Storm<br/>Brick</div>
+        <div class="pms">PMS 1955 C</div>
+      </div>
+      <div class="meta">
+        <dl>
+          <dt>HEX</dt><dd>#8B2332</dd>
+          <dt>RGB</dt><dd>139 · 35 · 50</dd>
+          <dt>CMYK</dt><dd>22 · 95 · 70 · 22</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="chip" style="background:var(--brass);color:var(--navy)">
+        <div class="role">Accent</div>
+        <div class="name">Picket<br/>Brass</div>
+        <div class="pms">PMS 1245 C</div>
+      </div>
+      <div class="meta">
+        <dl>
+          <dt>HEX</dt><dd>#C8962E</dd>
+          <dt>RGB</dt><dd>200 · 150 · 46</dd>
+          <dt>CMYK</dt><dd>20 · 38 · 95 · 5</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="chip" style="background:var(--cream);color:var(--navy);border-bottom:1px solid var(--rule)">
+        <div class="role">Surface</div>
+        <div class="name">Tulsa<br/>Cream</div>
+        <div class="pms">PMS 9184 C</div>
+      </div>
+      <div class="meta">
+        <dl>
+          <dt>HEX</dt><dd>#F4F1E8</dd>
+          <dt>RGB</dt><dd>244 · 241 · 232</dd>
+          <dt>CMYK</dt><dd>3 · 3 · 10 · 0</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:48px">
+    <h3 style="font-size:18px;margin-bottom:8px">Neutrals</h3>
+    <p class="caption" style="margin-bottom:16px">Text, hairlines, and supporting surfaces. Keep saturation low — these read as graphite, not gray-blue.</p>
+    <div class="neutrals">
+      <div class="nchip" style="background:#15161A"><span class="lbl" style="color:#F4F1E8">Ink</span><span class="hex" style="color:#F4F1E8">#15161A</span></div>
+      <div class="nchip" style="background:#2C2F36"><span class="lbl" style="color:#F4F1E8">Char</span><span class="hex" style="color:#F4F1E8">#2C2F36</span></div>
+      <div class="nchip" style="background:#6B6F76"><span class="lbl" style="color:#F4F1E8">Steel</span><span class="hex" style="color:#F4F1E8">#6B6F76</span></div>
+      <div class="nchip" style="background:#A7ABB2"><span class="lbl" style="color:#15161A">Mist</span><span class="hex" style="color:#15161A">#A7ABB2</span></div>
+      <div class="nchip" style="background:#E9E4D3"><span class="lbl" style="color:#15161A">Linen</span><span class="hex" style="color:#15161A">#E9E4D3</span></div>
+      <div class="nchip" style="background:#FBF8F0"><span class="lbl" style="color:#15161A">Paper</span><span class="hex" style="color:#15161A">#FBF8F0</span></div>
+    </div>
+  </div>
+
+  <!-- USAGE RULES -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:18px">Usage Rules — Where Each Color Lives</h3>
+    <div class="usage">
+      <div class="row head">
+        <div class="lab">Surface</div>
+        <div>Use</div>
+        <div>Avoid</div>
+      </div>
+      <div class="row">
+        <div class="lab">Navy</div>
+        <div class="rule-do">Primary brand surface. Yard signs, truck doors, social headers, polos, footers, hero blocks. The default place the badge lives.</div>
+        <div class="rule-dont">Don't use as a body text color on cream — it works, but Ink (#15161A) reads cleaner for long copy.</div>
+      </div>
+      <div class="row">
+        <div class="lab">Brick</div>
+        <div class="rule-do">Emphasis only — call-to-action buttons, key numerals, the "PROS" half of split lockups, storm/insurance messaging.</div>
+        <div class="rule-dont">Never as a large background block. Brick is a stamp, not a wall.</div>
+      </div>
+      <div class="row">
+        <div class="lab">Brass</div>
+        <div class="rule-do">Trim and structure — rules, dashes, borders, picket motifs, "premium" callouts, the tagline in dark contexts.</div>
+        <div class="rule-dont">Don't set body copy in brass on cream. Brass is a finish, not a paint.</div>
+      </div>
+      <div class="row">
+        <div class="lab">Cream</div>
+        <div class="rule-do">The "paper" surface for documents, light marketing, and the upper field of the badge. Warmer than white, on purpose.</div>
+        <div class="rule-dont">Don't substitute pure white where cream is called for — it cools the system and breaks the heritage feel.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCESSIBILITY -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:8px">Accessibility — WCAG AA Pairings</h3>
+    <p class="caption" style="margin-bottom:18px">Combinations marked PASS clear AA at body text size. LARGE means valid only at 18pt+ / 14pt+ bold. AVOID means the contrast is insufficient for text — decorative use only.</p>
+    <div class="a11y">
+      <div class="cell" style="background:var(--cream);color:var(--ink)">
+        <span class="badge pass">AAA · 14.4:1</span>
+        <div class="sample">Ink on Cream</div>
+        <div class="body">Default body pairing for printed and digital documents.</div>
+      </div>
+      <div class="cell" style="background:var(--navy);color:var(--cream)">
+        <span class="badge pass">AA · 11.8:1</span>
+        <div class="sample">Cream on Navy</div>
+        <div class="body">Headlines, yard signs, truck doors, footer blocks.</div>
+      </div>
+      <div class="cell" style="background:var(--cream);color:var(--brick)">
+        <span class="badge pass">AA · 6.4:1</span>
+        <div class="sample">Brick on Cream</div>
+        <div class="body">Headlines and emphasis. Safe for body at 16px+.</div>
+      </div>
+      <div class="cell" style="background:var(--navy);color:var(--brass)">
+        <span class="badge pass-large">LARGE · 4.6:1</span>
+        <div class="sample">Brass on Navy</div>
+        <div class="body">Tagline, eyebrows, decorative type at 18pt+ only.</div>
+      </div>
+      <div class="cell" style="background:var(--brick);color:var(--cream)">
+        <span class="badge pass">AA · 8.2:1</span>
+        <div class="sample">Cream on Brick</div>
+        <div class="body">Promotional callouts. CTA pills.</div>
+      </div>
+      <div class="cell" style="background:var(--brass);color:var(--navy)">
+        <span class="badge pass">AA · 8.0:1</span>
+        <div class="sample">Navy on Brass</div>
+        <div class="body">Warning/important callouts. Limited edition tags.</div>
+      </div>
+      <div class="cell" style="background:var(--cream);color:var(--brass)">
+        <span class="badge fail">AVOID · 2.3:1</span>
+        <div class="sample">Brass on Cream</div>
+        <div class="body">Decorative only — rules, dashes, never as readable text.</div>
+      </div>
+      <div class="cell" style="background:var(--navy);color:var(--brick)">
+        <span class="badge fail">AVOID · 1.9:1</span>
+        <div class="sample">Brick on Navy</div>
+        <div class="body">Never. Both are anchors — pair each with cream or brass.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= 03 — TYPOGRAPHY ========================= -->
+<section class="section" data-screen-label="05 Typography">
+  <div class="sec-head">
+    <div class="n">03<span>Typography</span></div>
+    <div class="h">
+      <h2>Two Voices,<br/>One Mark.</h2>
+      <p class="lede">A condensed grotesque for everything that shouts. A clean humanist sans for everything that explains. Both are free, both are workhorses, both are widely licensable and available everywhere our team works.</p>
+    </div>
+  </div>
+
+  <div class="type-spec">
+    <div class="type-card">
+      <div class="eyebrow">Display · Headlines · Signage</div>
+      <div class="glyph">Aa</div>
+      <div class="alpha">ABCDEFGHIJKLMNOPQRSTUVWXYZ<br/>abcdefghijklmnopqrstuvwxyz<br/>0123456789 &amp; ! ? — &#x2022;</div>
+      <div class="meta">OSWALD · GOOGLE FONTS · OFL · 400 / 500 / 600 / 700</div>
+      <div class="rule"></div>
+      <p style="font-size:15px;line-height:1.55">Oswald is the spiritual sibling of the FENCEPROS wordmark — a condensed grotesque with broad shoulders. Use it for headlines, eyebrows, decorative all-caps, and any signage that needs to read from a curb. Always tracked open <code class="mono">+10 to +120</code> in caps; tight at display sizes.</p>
+    </div>
+
+    <div class="type-card body-card">
+      <div class="eyebrow">Body · Long Form · UI</div>
+      <div class="glyph">Aa</div>
+      <div class="alpha">ABCDEFGHIJKLMNOPQRSTUVWXYZ<br/>abcdefghijklmnopqrstuvwxyz<br/>0123456789 &amp; ! ? — &#x2022;</div>
+      <div class="meta">SOURCE SANS 3 · GOOGLE FONTS · OFL · 300 / 400 / 600 / 700</div>
+      <div class="rule"></div>
+      <p style="font-size:15px;line-height:1.55">Source Sans 3 is calm, modern, and professional — it pairs cleanly with Oswald's condensed forms without competing. Use for paragraphs, captions, forms, emails, and anything a homeowner will actually read. Never bolder than 700; never italic for emphasis (use weight or color instead).</p>
+    </div>
+  </div>
+
+  <!-- TYPE SCALE -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:8px">Type Scale</h3>
+    <p class="caption" style="margin-bottom:8px">Web baseline. Adapt proportionally for print (use the pt-size column ÷ 1.333 for px → pt).</p>
+    <div class="scale">
+      <div class="row">
+        <div class="role">Display · H1<span>Hero, cover only</span></div>
+        <div class="sample" style="font-family:var(--display);font-weight:700;font-size:84px;line-height:.95;letter-spacing:-.01em;text-transform:uppercase">Stands Strong.</div>
+        <div class="spec">Oswald 700 · 84/82 · −10 tr</div>
+      </div>
+      <div class="row">
+        <div class="role">Section · H2<span>Section openers</span></div>
+        <div class="sample" style="font-family:var(--display);font-weight:700;font-size:56px;line-height:1;letter-spacing:.02em;text-transform:uppercase">Built Right.</div>
+        <div class="spec">Oswald 700 · 56/56 · +20 tr</div>
+      </div>
+      <div class="row">
+        <div class="role">Sub · H3<span>Sub-sections</span></div>
+        <div class="sample" style="font-family:var(--display);font-weight:700;font-size:28px;line-height:1.1;letter-spacing:.06em;text-transform:uppercase">Premium Cedar</div>
+        <div class="spec">Oswald 700 · 28/30 · +60 tr</div>
+      </div>
+      <div class="row">
+        <div class="role">Eyebrow · H4<span>Labels &amp; tags</span></div>
+        <div class="sample" style="font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:.12em;text-transform:uppercase">Storm Response</div>
+        <div class="spec">Oswald 600 · 18/22 · +120 tr</div>
+      </div>
+      <div class="row">
+        <div class="role">Lead<span>Pull paragraphs</span></div>
+        <div class="sample" style="font-family:var(--body);font-weight:400;font-size:21px;line-height:1.5;color:#2c2f36">A discerning homeowner is relieved to find us. We finish what we start, and we stand by what we build.</div>
+        <div class="spec">Source Sans 3 · 21/32</div>
+      </div>
+      <div class="row">
+        <div class="role">Body<span>Default paragraph</span></div>
+        <div class="sample" style="font-family:var(--body);font-weight:400;font-size:16px;line-height:1.55;color:var(--ink)">Cedar privacy fencing built post-by-post. Concrete-set, weather-graded, warranty-backed for fifteen years. Quoted in 24 hours; installed in two weeks.</div>
+        <div class="spec">Source Sans 3 · 16/25</div>
+      </div>
+      <div class="row">
+        <div class="role">Small<span>Captions, fine print</span></div>
+        <div class="sample" style="font-family:var(--body);font-weight:400;font-size:13px;line-height:1.5;color:var(--steel)">Licensed, bonded, insured. OK contractor #FP-22-4810. Lead-safe certified.</div>
+        <div class="spec">Source Sans 3 · 13/19</div>
+      </div>
+      <div class="row">
+        <div class="role">Mono · Spec<span>Technical only</span></div>
+        <div class="sample" style="font-family:var(--mono);font-size:13px;letter-spacing:.06em;color:var(--brick)">QUOTE #FP-2026-04812 · 142 LF · CEDAR · 6FT</div>
+        <div class="spec">JetBrains Mono · 13/19</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:48px" class="three">
+    <div class="panel">
+      <h4>Hierarchy Rules</h4>
+      <ul>
+        <li>One Display per layout, max.</li>
+        <li>Headlines in Oswald. Body in Source Sans 3. Never the reverse.</li>
+        <li>All-caps tracking ≥ <span class="mono">+60</span> below 24px.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h4>Color &amp; Type</h4>
+      <ul>
+        <li>Display in Navy, Brick, or Cream — never Brass for readable type.</li>
+        <li>Body in Ink (#15161A) or Char (#2C2F36).</li>
+        <li>Use Brick on Cream for the single most important phrase per page.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h4>Things Not To Do</h4>
+      <ul>
+        <li>No italics for emphasis. Use weight or color.</li>
+        <li>No serif fonts anywhere except email signature (legacy mail clients).</li>
+        <li>No condensing Source Sans. No stretching Oswald.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= 04 — LOGO USAGE ========================= -->
+<section class="section" data-screen-label="06 Logo Usage">
+  <div class="sec-head">
+    <div class="n">04<span>Logo Usage</span></div>
+    <div class="h">
+      <h2>How The Badge<br/>Travels.</h2>
+      <p class="lede">The badge is sturdy but not invincible. Give it room. Place it on the right surface. Choose the right lockup for the moment. When in doubt, use the primary full-color badge on cream with breathing room.</p>
+    </div>
+  </div>
+
+  <!-- CLEAR SPACE -->
+  <h3 style="font-size:18px;margin-bottom:18px">Clear Space</h3>
+  <p style="max-width:62ch;margin-bottom:24px">The minimum clear space around the badge equals <strong class="mono">½ × the height of the star roundel</strong>. Nothing — type, edges, photographs, other marks — may enter that zone.</p>
+  <div class="clearspace">
+    <div class="cs-frame">
+      <img src="assets/fencepros-badge.png" alt="badge with clear space" />
+      <div class="x tl">½★</div>
+      <div class="x tr">½★</div>
+      <div class="x bl">½★</div>
+      <div class="x br">½★</div>
+    </div>
+    <div class="cs-note">Clear space = ½ × roundel diameter, all four sides</div>
+  </div>
+
+  <!-- MIN SIZE -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:18px">Minimum Size</h3>
+    <div class="minsize">
+      <div class="ms-card">
+        <img src="assets/fencepros-badge.png" alt="badge digital" style="width:200px" />
+        <div>
+          <div class="role">Digital · Web</div>
+          <div class="spec">Min height · 64 px</div>
+        </div>
+      </div>
+      <div class="ms-card">
+        <img src="assets/fencepros-badge.png" alt="badge print" style="width:140px" />
+        <div>
+          <div class="role">Print · Documents</div>
+          <div class="spec">Min height · 0.5 in / 13 mm</div>
+        </div>
+      </div>
+      <div class="ms-card">
+        <img src="assets/fencepros-badge.png" alt="badge embroidery" style="width:96px" />
+        <div>
+          <div class="role">Embroidery · Signage</div>
+          <div class="spec">Min height · 2 in / 50 mm</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPROVED BACKGROUNDS -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:8px">Approved Backgrounds</h3>
+    <p class="caption" style="margin-bottom:18px">The badge is full-color on every surface. On dark or photographic backgrounds, wrap it in a cream "passport" if legibility is at risk.</p>
+    <div class="bgtests">
+      <div class="bg cream">
+        <img src="assets/fencepros-badge.png" alt="on cream" />
+        <span class="lbl">Cream · Primary</span>
+      </div>
+      <div class="bg white">
+        <img src="assets/fencepros-badge.png" alt="on white" />
+        <span class="lbl">White · Approved</span>
+      </div>
+      <div class="bg navy">
+        <img src="assets/fencepros-badge.png" alt="on navy" />
+        <span class="lbl">Navy · Approved</span>
+      </div>
+      <div class="bg photo">
+        <img src="assets/fencepros-badge.png" alt="on photo" style="position:relative;z-index:1" />
+        <span class="lbl">Photo · Approved (darkened)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOCKUPS -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:8px">Horizontal Lockup</h3>
+    <p style="max-width:62ch;margin-bottom:24px">The badge is tall. For website headers, email signatures, document letterheads, and narrow horizontal placements, use the <strong>horizontal lockup</strong>: badge on the left, set wordmark on the right, separated by a brass keyline. The wordmark uses Oswald 700, all caps, tracked +5.</p>
+    <div class="lockup">
+      <img src="assets/fencepros-badge.png" alt="badge" />
+      <div class="lockup-divider"></div>
+      <div class="lockup-words">
+        <div class="word"><span class="blue">FENCE</span><span class="red">PROS</span></div>
+        <div class="tag">Built Right. Stands Strong.</div>
+      </div>
+    </div>
+    <p class="caption" style="margin-top:14px">Lockup minimum height: <span class="mono">48 px</span> digital, <span class="mono">0.4 in</span> print. Keyline thickness scales with badge height.</p>
+  </div>
+
+  <!-- FAVICONS / MARKS -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:8px">Reduction Mark — Favicon, App Icon, Stitch</h3>
+    <p style="max-width:62ch;margin-bottom:24px">At sizes below the badge minimum (favicons, app icons, breast embroidery, social profile pictures), use the <strong>Star Coin</strong> — the roundel from the badge, set on navy. It carries the brand at any size, down to <span class="mono">16 px</span>.</p>
+    <div class="fav-row">
+      <div class="fav">
+        <div class="star">
+          <svg viewBox="0 0 24 24" fill="#F4F1E8"><polygon points="12,2 14.59,8.36 21.51,8.64 16.18,13.14 17.91,19.86 12,16.27 6.09,19.86 7.82,13.14 2.49,8.64 9.41,8.36" /></svg>
+        </div>
+      </div>
+      <div class="fav fav-2">
+        <div class="star">
+          <svg viewBox="0 0 24 24" fill="#F4F1E8"><polygon points="12,2 14.59,8.36 21.51,8.64 16.18,13.14 17.91,19.86 12,16.27 6.09,19.86 7.82,13.14 2.49,8.64 9.41,8.36" /></svg>
+        </div>
+      </div>
+      <div class="fav fav-3">
+        <div class="star">
+          <svg viewBox="0 0 24 24" fill="#F4F1E8"><polygon points="12,2 14.59,8.36 21.51,8.64 16.18,13.14 17.91,19.86 12,16.27 6.09,19.86 7.82,13.14 2.49,8.64 9.41,8.36" /></svg>
+        </div>
+      </div>
+      <div style="width:1px;height:80px;background:var(--rule);margin:0 12px"></div>
+      <div class="fav alt">
+        <div class="star">
+          <svg viewBox="0 0 24 24" fill="#F4F1E8"><polygon points="12,2 14.59,8.36 21.51,8.64 16.18,13.14 17.91,19.86 12,16.27 6.09,19.86 7.82,13.14 2.49,8.64 9.41,8.36" /></svg>
+        </div>
+      </div>
+      <div style="font-size:14px;color:var(--steel);max-width:30ch;line-height:1.45">
+        <strong style="color:var(--navy);font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:13px">The Star Coin</strong><br/>
+        Navy field, brick roundel, brass ring, cream star. The inverted version (right) is for cream-on-dark situations.
+      </div>
+    </div>
+  </div>
+
+  <!-- DONTS -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:8px">What Not To Do</h3>
+    <p class="caption" style="margin-bottom:8px">Six ways to wreck the badge. Don't.</p>
+    <div class="donts">
+      <div class="dont recolor"><div class="visual"><img src="assets/fencepros-badge.png" alt="recolored"/></div><div class="l">01 · Don't recolor</div><div class="d">Navy, brick, brass, cream — those four. No teal experiments.</div></div>
+      <div class="dont stretch"><div class="visual"><img src="assets/fencepros-badge.png" alt="stretched"/></div><div class="l">02 · Don't stretch</div><div class="d">Always lock aspect ratio. The shield is a shield, not a flag.</div></div>
+      <div class="dont rotate"><div class="visual"><img src="assets/fencepros-badge.png" alt="rotated"/></div><div class="l">03 · Don't rotate or tilt</div><div class="d">The badge stands plumb. No jaunty angles, ever.</div></div>
+      <div class="dont glow"><div class="visual"><img src="assets/fencepros-badge.png" alt="glow"/></div><div class="l">04 · Don't add effects</div><div class="d">No drop-glows, bevels, embosses, neon, or gradients on the mark itself.</div></div>
+      <div class="dont busy"><div class="visual"><img src="assets/fencepros-badge.png" alt="busy bg"/></div><div class="l">05 · Don't place on busy backgrounds</div><div class="d">If the background competes, use a cream passport behind the badge.</div></div>
+      <div class="dont outline"><div class="visual"><img src="assets/fencepros-badge.png" alt="outline only"/></div><div class="l">06 · Don't redraw or outline</div><div class="d">Use the supplied master files only. Don't trace it. Don't simplify it.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= 05 — VOICE ========================= -->
+<section class="section" data-screen-label="07 Voice">
+  <div class="sec-head">
+    <div class="n">05<span>Voice &amp; Messaging</span></div>
+    <div class="h">
+      <h2>Calm Authority.<br/>No Shouting.</h2>
+      <p class="lede">FencePros sounds like the contractor a discerning homeowner is relieved to find: confident without bravado, warm without folksiness, technical without jargon. We finish sentences the way we finish fences — square, on time, and standing for years.</p>
+    </div>
+  </div>
+
+  <div class="voice-grid">
+    <div>
+      <h3 style="font-size:18px;margin-bottom:18px">Brand Voice</h3>
+      <p style="font-size:17px;line-height:1.6;max-width:54ch">We speak the way a fourth-generation Tulsa craftsman speaks to a neighbor who just lost a fence in last week's storm: matter-of-fact, fair, and quick to act. We tell the truth about timelines and materials. We don't oversell, but we never undersell our work either — because a FencePros fence is meant to outlast the homeowner who bought it. Heritage tone, modern delivery. Confidence that doesn't need to raise its voice.</p>
+    </div>
+
+    <div>
+      <h3 style="font-size:18px;margin-bottom:18px">Example Headlines</h3>
+      <div class="headline-list">
+        <div class="hl"><span class="ctx">Brand · General</span>The fence your grandkids will lean on.</div>
+        <div class="hl"><span class="ctx">Storm · Insurance</span>Storm took your fence. We've already got the supplier on the phone.</div>
+        <div class="hl"><span class="ctx">Real Estate</span>Close on Friday. Fence by Thursday.</div>
+        <div class="hl"><span class="ctx">Materials · Cedar</span>Tulsa-graded cedar. Concrete-set posts. Fifteen-year warranty.</div>
+        <div class="hl"><span class="ctx">Trust · Referral</span>Your roofer sent you here for a reason.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DO / DONT WORDS -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:18px">Words We Use · Words We Don't</h3>
+    <div class="wordlist">
+      <div class="col use">
+        <h4><span class="icn">+</span>USE — these words fit the brand</h4>
+        <ul>
+          <li>Built</li><li>Stands</li><li>Plumb</li><li>Square</li>
+          <li>Warranty</li><li>Concrete-set</li><li>Cedar-graded</li>
+          <li>Neighborly</li><li>Honest</li><li>Heritage</li>
+          <li>Storm-ready</li><li>Weatherproofed</li><li>Posts</li>
+          <li>Workmanship</li><li>Craft</li><li>Honored</li>
+          <li>Quoted</li><li>Scheduled</li><li>Installed</li>
+          <li>Family-owned</li><li>Tulsa</li><li>Oklahoma</li>
+          <li>Lifetime</li><li>Reliable</li><li>Premium</li>
+        </ul>
+      </div>
+      <div class="col avoid">
+        <h4><span class="icn">−</span>AVOID — these break the voice</h4>
+        <ul>
+          <li>Cheap</li><li>Affordable</li><li>Deal</li><li>Bargain</li>
+          <li>Sale</li><li>Discount</li><li>Hurry</li><li>Limited time!</li>
+          <li>Slay</li><li>Amazing</li><li>Awesome</li><li>Vibe</li>
+          <li>Disrupting</li><li>Game-changing</li><li>Solutions</li>
+          <li>Synergize</li><li>Best-in-class</li><li>World-class</li>
+          <li>Y'all</li><li>Howdy</li><li>Yeehaw</li>
+          <li>Lit</li><li>Pop</li><li>Crushing it</li>
+          <li>Cheaper than</li>
+        </ul>
+      </div>
+    </div>
+    <p class="caption" style="margin-top:14px">Note: "Tulsa-grown" and "Oklahoma" are welcome. Folksy clichés ("Howdy partner") are not. We're from here, we don't need to act it.</p>
+  </div>
+
+  <!-- TAGLINES -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:8px">Approved Taglines</h3>
+    <p class="caption" style="margin-bottom:18px">One primary lockup; three contextual variants. Never invent a new one without sign-off.</p>
+    <div class="taglines">
+      <div class="tline primary">
+        <div class="ctx">Primary · always</div>
+        <div class="t">Built Right.<br/>Stands Strong.</div>
+        <div class="caption" style="color:rgba(244,241,232,.7)">The default. Lives on the badge.</div>
+      </div>
+      <div class="tline">
+        <div class="ctx">Storm response</div>
+        <div class="t">After the storm,<br/>before the next.</div>
+        <div class="caption">Insurance-channel marketing, post-event SMS, emergency callouts.</div>
+      </div>
+      <div class="tline">
+        <div class="ctx">Premium materials</div>
+        <div class="t">Cedar that knows<br/>the Oklahoma sky.</div>
+        <div class="caption">Cedar privacy &amp; horizontal cedar lines. Showroom and showcase use.</div>
+      </div>
+      <div class="tline">
+        <div class="ctx">Warranty</div>
+        <div class="t">Fifteen years.<br/>One handshake.</div>
+        <div class="caption">Warranty cards, post-install thank-you, referral material.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= 06 — APPLICATIONS ========================= -->
+<section class="section" data-screen-label="08 Applications">
+  <div class="sec-head">
+    <div class="n">06<span>Brand Applications</span></div>
+    <div class="h">
+      <h2>The Badge,<br/>In the World.</h2>
+      <p class="lede">Six places the brand lives day to day. Each treatment is a starting point, not a rulebook — but the proportions, color hierarchy, and type pairings are non-negotiable.</p>
+    </div>
+  </div>
+
+  <!-- BUSINESS CARD -->
+  <h3 style="font-size:18px;margin-bottom:18px">Business Card · 3.5 × 2 in</h3>
+  <div class="cards-row">
+    <div class="bcard front">
+      <div class="top">
+        <img src="assets/fencepros-badge.png" alt="badge" />
+        <div style="text-align:right">
+          <div class="name">Marcus<br/>Whitaker</div>
+          <div class="role">Founder · Estimator</div>
+        </div>
+      </div>
+      <div class="info">
+        <div><div class="k">Mobile</div><div class="v">918 · 555 · 4810</div></div>
+        <div><div class="k">Office</div><div class="v">918 · 555 · 4800</div></div>
+        <div><div class="k">Email</div><div class="v"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="83eee2f1e0f6f0c3e5e6ede0e6f3f1ecf0ade0ec">[email&#160;protected]</a></div></div>
+        <div><div class="k">Web</div><div class="v">fencepros.co</div></div>
+        <div style="grid-column:1/-1"><div class="k">Yard</div><div class="v">4810 S. Memorial Dr · Tulsa, OK 74145</div></div>
+      </div>
+    </div>
+    <div class="bcard back">
+      <div style="position:relative;z-index:1">
+        <div class="tag">Built Right.<br/><span class="y">Stands Strong.</span></div>
+        <div class="sub">Licensed · Bonded · Insured</div>
+      </div>
+    </div>
+  </div>
+  <p class="caption" style="margin-top:14px">Stock: 16pt uncoated cream stock with spot-gold foil on the brass elements (front rule and back keyline). Soft-touch laminate optional.</p>
+
+  <!-- EMAIL SIGNATURE -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:18px">Email Signature · 600 px max width</h3>
+    <div class="esig">
+      <div class="sigwrap">
+        <img src="assets/fencepros-badge.png" alt="badge" />
+        <div class="div"></div>
+        <div>
+          <div class="name">Marcus Whitaker</div>
+          <div class="title">Founder · Estimator</div>
+          <div class="meta">
+            918 · 555 · 4810 · <a href="/cdn-cgi/l/email-protection#8de0ecffeef8fecdebe8e3eee8fdffe2fea3eee2"><span class="__cf_email__" data-cfemail="d2bfb3a0b1a7a192b4b7bcb1b7a2a0bda1fcb1bd">[email&#160;protected]</span></a><br/>
+            <a href="https://fencepros.co">fencepros.co</a> · 4810 S. Memorial Dr, Tulsa OK<br/>
+            <span class="gold">— Built Right. Stands Strong.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption" style="margin-top:14px">Use system-safe stack: <span class="mono">"Source Sans 3", Arial, Helvetica, sans-serif</span>. Host the badge image on the company CDN, not as an attachment. Keep total height ≤ 130 px.</p>
+  </div>
+
+  <!-- YARD SIGN -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:18px">Yard Sign · 24 × 24 in · Every Install Gets One</h3>
+    <div class="yard-wrap">
+      <div class="yard">
+        <img src="assets/fencepros-badge.png" alt="badge" />
+        <div class="pre">— Another Fence by —</div>
+        <div class="head">Fence<span class="y">Pros</span></div>
+        <div class="phone">918.555.4810</div>
+        <div class="url">fencepros.co</div>
+        <div class="stake"></div>
+      </div>
+      <div class="yard yard-alt">
+        <img src="assets/fencepros-badge.png" alt="badge" />
+        <div class="pre">— Built Right By —</div>
+        <div class="head">Fence<span class="y">Pros</span></div>
+        <div class="phone">918.555.4810</div>
+        <div class="url">fencepros.co</div>
+        <div class="stake"></div>
+      </div>
+    </div>
+    <p class="caption" style="margin-top:14px">Two variants: navy (primary, day-after install) and cream (premium reveal, used on homes with darker fascia). Coroplast 10mm, double-sided print, H-stake. Replace at 90 days or sooner if weathered.</p>
+  </div>
+
+  <!-- TRUCK -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:18px">Truck / Vehicle Decal · Driver-side Door</h3>
+    <div class="truck">
+      <div class="door">
+        <img src="assets/fencepros-badge.png" alt="badge" />
+        <div class="copy">
+          <div class="head">FENCE<span class="r">PROS</span></div>
+          <div class="sub">Built Right. Stands Strong.</div>
+          <div class="info">
+            <span class="gold">918 · 555 · 4810</span>
+            <span>fencepros.co</span>
+          </div>
+        </div>
+      </div>
+      <div class="wheel l"></div>
+      <div class="wheel r"></div>
+    </div>
+    <p class="caption" style="margin-top:14px">Spec: white truck body (Ford F-250 / RAM 2500). Badge applied at 18 in tall on driver and passenger doors. Wordmark and contact in vinyl cut on the box panel. Tailgate gets the badge centered at 24 in. No additional graphics, slogans, or service lists on the vehicle.</p>
+  </div>
+
+  <!-- POLO -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:18px">Uniform · Crew Polos &amp; Workwear</h3>
+    <div class="polo-row">
+      <div class="polo">
+        <svg class="shirt" viewBox="0 0 200 220" preserveAspectRatio="none">
+          <path d="M40,20 L80,5 Q100,30 120,5 L160,20 L185,60 L160,75 L160,210 L40,210 L40,75 L15,60 Z" fill="#1A2A4A" stroke="#101A30" stroke-width="1.5"/>
+          <path d="M80,5 Q100,30 120,5 L115,42 Q100,55 85,42 Z" fill="#152340"/>
+          <path d="M85,42 L100,55 L115,42" fill="none" stroke="#0D1428" stroke-width="1"/>
+          <path d="M100,55 L100,90" stroke="#0D1428" stroke-width="1"/>
+          <circle cx="100" cy="68" r="2" fill="#C8962E"/>
+          <circle cx="100" cy="82" r="2" fill="#C8962E"/>
+        </svg>
+        <img class="crest" src="assets/fencepros-badge.png" alt="crest" />
+        <span class="lbl">Navy Polo · Crew Standard</span>
+      </div>
+      <div class="polo cream">
+        <svg class="shirt" viewBox="0 0 200 220" preserveAspectRatio="none">
+          <path d="M40,20 L80,5 Q100,30 120,5 L160,20 L185,60 L160,75 L160,210 L40,210 L40,75 L15,60 Z" fill="#F4F1E8" stroke="#d9d4c2" stroke-width="1.5"/>
+          <path d="M80,5 Q100,30 120,5 L115,42 Q100,55 85,42 Z" fill="#EDE8D6"/>
+          <path d="M85,42 L100,55 L115,42" fill="none" stroke="#c2bca5" stroke-width="1"/>
+          <path d="M100,55 L100,90" stroke="#c2bca5" stroke-width="1"/>
+          <circle cx="100" cy="68" r="2" fill="#8B2332"/>
+          <circle cx="100" cy="82" r="2" fill="#8B2332"/>
+        </svg>
+        <img class="crest" src="assets/fencepros-badge.png" alt="crest" />
+        <span class="lbl">Cream Polo · Estimator / Office</span>
+      </div>
+      <div class="polo gray">
+        <svg class="shirt" viewBox="0 0 200 220" preserveAspectRatio="none">
+          <path d="M30,30 L60,15 L60,210 L40,210 Z" fill="#2c3038"/>
+          <path d="M170,30 L140,15 L140,210 L160,210 Z" fill="#2c3038"/>
+          <rect x="60" y="15" width="80" height="195" fill="#3a3f48"/>
+          <path d="M85,15 Q100,35 115,15" fill="none" stroke="#2c3038" stroke-width="2"/>
+          <rect x="68" y="60" width="34" height="42" fill="none" stroke="#2c3038" stroke-width="1"/>
+        </svg>
+        <img class="crest" src="assets/fencepros-badge.png" alt="crest" style="top:46%;width:90px"/>
+        <span class="lbl">Work Shirt · Install Crew</span>
+      </div>
+    </div>
+    <p class="caption" style="margin-top:14px">Badge embroidered, not screen-printed. Left chest, 3.25 in tall, badge bottom 6 in from shoulder seam. Thread match: navy DMC 823, brick DMC 814, brass DMC 783, cream DMC 712. Names embroidered on the right chest in Oswald 700, 14pt, navy thread.</p>
+  </div>
+
+  <!-- SOCIAL -->
+  <div style="margin-top:64px">
+    <h3 style="font-size:18px;margin-bottom:18px">Social — Profile &amp; Cover</h3>
+    <div class="social">
+      <div class="profile">
+        <div class="star-only">
+          <svg viewBox="0 0 24 24" fill="#F4F1E8"><polygon points="12,2 14.59,8.36 21.51,8.64 16.18,13.14 17.91,19.86 12,16.27 6.09,19.86 7.82,13.14 2.49,8.64 9.41,8.36" /></svg>
+        </div>
+      </div>
+      <div class="cover">
+        <img class="b" src="assets/fencepros-badge.png" alt="badge" />
+        <div class="copy">
+          <div class="h">Built <span class="r">Right.</span><br/>Stands <span class="y">Strong.</span></div>
+          <div class="sub">Tulsa · OK · Since 2024</div>
+        </div>
+        <div class="pickets"><span></span><span></span><span></span><span></span><span></span></div>
+      </div>
+    </div>
+    <p class="caption" style="margin-top:14px">Profile image: the Star Coin alone, on navy with a brass ring. Never the full badge — the shield doesn't crop cleanly into a circle. Cover image: the badge anchored left, type set right, with a brass-picket flourish in the lower-right corner. Spec dimensions: 1500 × 500 (Twitter/X), 1640 × 856 (Facebook), 1500 × 750 (LinkedIn) — adjust composition, not proportions.</p>
+  </div>
+</section>
+
+<!-- ========================= 07 — PHOTOGRAPHY ========================= -->
+<section class="section" data-screen-label="09 Photography">
+  <div class="sec-head">
+    <div class="n">07<span>Photography &amp; Imagery</span></div>
+    <div class="h">
+      <h2>Real Tulsa.<br/>Real Hands.</h2>
+      <p class="lede">Every photograph in the brand should look like it was taken on an actual Tulsa job — warm afternoon light, real homes, real crew, real cedar. We never use stock photography or AI-generated imagery for fences or job sites. Period.</p>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin-bottom:18px">The Three Shot Types</h3>
+  <div class="photo-grid">
+    <div class="photo p1"><div class="ph"></div><div class="meta"><div class="l">Type 01</div><div class="t">Hero — The Finished Run</div></div></div>
+    <div class="photo p2"><div class="ph"></div><div class="meta"><div class="l">Type 02</div><div class="t">Craft — Hands &amp; Materials</div></div></div>
+    <div class="photo p3"><div class="ph"></div><div class="meta"><div class="l">Type 03</div><div class="t">Place — The Tulsa Home</div></div></div>
+  </div>
+  <p class="caption" style="margin-top:14px">Placeholders shown — these will be replaced with commissioned photography from each install. Photographer brief: golden hour, 35mm or 50mm equivalent, no flash, no HDR.</p>
+
+  <div class="do-dont-photo">
+    <div class="panel" style="border-top:3px solid var(--navy)">
+      <h4>Photograph This</h4>
+      <ul>
+        <li>Real Tulsa homes — brick, stone, board-and-batten exteriors.</li>
+        <li>Warm, natural late-afternoon light. Long shadows are fine.</li>
+        <li>Cedar grain. Concrete pours. Plumb bobs. Levels.</li>
+        <li>The crew at work, in branded polos — backs and hands, not staged smiles.</li>
+        <li>Storm damage / before-and-after pairs (these earn trust faster than any tagline).</li>
+        <li>Picket close-ups with brass hardware catching light.</li>
+      </ul>
+    </div>
+    <div class="panel" style="border-top:3px solid var(--brick)">
+      <h4>Never Use</h4>
+      <ul>
+        <li>Stock photography of any kind — generic suburban lawns, smiling stock contractors, perfect blue skies.</li>
+        <li>AI-generated fences, homes, or crew.</li>
+        <li>Aggressive HDR, oversaturated grass, plastic-looking skies.</li>
+        <li>Drone shots that don't show a recognizable Tulsa-area neighborhood.</li>
+        <li>Photos of fences that aren't ours, even as "inspiration."</li>
+        <li>Vertical phone snaps for hero placements — book the photographer.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= 08 — STEWARDSHIP ========================= -->
+<section class="section" data-screen-label="10 Stewardship">
+  <div class="sec-head">
+    <div class="n">08<span>Stewardship</span></div>
+    <div class="h">
+      <h2>One Steward.<br/>One Source of Truth.</h2>
+      <p class="lede">Every new application of the FencePros brand — a new sign vendor, a new uniform supplier, a new yard sale of a partner channel — gets reviewed and approved by the brand steward before it goes to print or production.</p>
+    </div>
+  </div>
+
+  <div class="three">
+    <div class="panel">
+      <h4>Master Files</h4>
+      <ul>
+        <li>Badge — SVG, PNG @ 2000px, EPS, PDF</li>
+        <li>Star Coin — SVG, PNG @ 1024px</li>
+        <li>Horizontal lockup — SVG, PNG @ 2000px</li>
+        <li>Color profiles — sRGB (.icc), CMYK U1V2 (.icc)</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h4>Approvals</h4>
+      <ul>
+        <li>All printed collateral — steward sign-off before press</li>
+        <li>All vehicle wraps — proof + photo of finished vehicle</li>
+        <li>All co-branded material — proof to steward + partner brand lead</li>
+        <li>New tagline variants — exec approval, full document update</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h4>Contact</h4>
+      <ul>
+        <li class="mono" style="font-size:13px;list-style:none;margin-left:-18px"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="721000131c163214171c111702001d015c111d">[email&#160;protected]</a></li>
+        <li class="mono" style="font-size:13px;list-style:none;margin-left:-18px">918 · 555 · 4801</li>
+        <li class="mono" style="font-size:13px;list-style:none;margin-left:-18px">fencepros.co/brand</li>
+        <li style="margin-top:10px">Master files live on the company drive. Don't pull logos from Google Images. Ever.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+</div>
+
+<footer>
+  <div class="page">
+    <div class="row">
+      <div class="col">
+        <div class="dashes" style="color:var(--brass)">FencePros Brand System</div>
+        <h4 style="margin-top:14px;font-size:22px">Built Right. Stands Strong.</h4>
+        <p>This document is the working brand standard for FencePros, LLC. It supersedes any prior treatments, mock-ups, or vendor files. Last revised May 2026.</p>
+      </div>
+      <div class="col">
+        <h4>Document</h4>
+        <p class="meta">Version 1.0</p>
+        <p>Edition: Master<br/>Steward: FencePros Marketing<br/>Region: Tulsa Metro</p>
+      </div>
+      <div class="col">
+        <h4>Contact</h4>
+        <p class="meta"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="16746477787256707378757366647965387579">[email&#160;protected]</a></p>
+        <p>918 · 555 · 4801<br/>4810 S. Memorial Dr<br/>Tulsa, OK 74145</p>
+      </div>
+    </div>
+    <div class="pickets" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+  </div>
+</footer>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script></body>
+</html>

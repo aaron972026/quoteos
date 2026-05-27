@@ -4,23 +4,25 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
-  CalendarClock,
-  Loader2,
+  Check,
   Lock,
+  Loader2,
   Mail,
   Phone,
+  Star,
   TriangleAlert,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ProgressDots } from "@/components/ProgressDots";
-import { TierComparison } from "@/components/quote/TierComparison";
-import { ScopeSummary } from "@/components/quote/ScopeSummary";
+import { Header } from "@/components/brand/Header";
+import { Progress } from "@/components/brand/Progress";
+import { Eyebrow } from "@/components/brand/Eyebrow";
+import { Footer } from "@/components/brand/Footer";
+import { StarCoin } from "@/components/brand/StarCoin";
 import { QuoteCountdown } from "@/components/quote/QuoteCountdown";
 import { EmailSheet } from "@/components/quote/EmailSheet";
 import { WisetackWidget } from "@/components/quote/WisetackWidget";
-import { TrustStrip } from "@/components/TrustStrip";
-
-type Tier = "good" | "better" | "best";
+import { useT } from "@/lib/i18n/use-locale";
+import { BUSINESS, PHONE_HREF } from "@/lib/business";
+import { cn, formatCents } from "@/lib/utils";
 
 interface QuoteShape {
   id: string;
@@ -33,34 +35,37 @@ interface QuoteShape {
   demoType: "NONE" | "CEDAR" | "CHAIN" | "METAL" | "CONC" | null;
   demoRequired: boolean | null;
   skuCode: string | null;
-  tier: Tier | null;
-  heightUpgrade: boolean | null;
-  frenchGothic: boolean | null;
+  city: string | null;
   stainSeal: boolean | null;
   priceValidUntil: string | null;
+  gates?: Array<{ type: string; count: number }> | null;
+}
+
+interface PricingBreakdown {
+  base_fence_cents: number;
+  slope_surcharge_cents: number;
+  access_surcharge_cents: number;
+  steel_upgrade_cents: number;
+  cap_rail_cents: number;
+  match_vinyl_posts_cents: number;
+  gates_cents: number;
+  demo_cents: number;
+  stain_cents: number;
+  rock_drilling_cents: number;
+  tear_concrete_cents: number;
+  permit_cents: number;
 }
 
 interface PricingResponse {
-  subtotal_cents: number;
-  tiers: {
-    good: { total_cents: number; monthly_24mo_cents: number };
-    better: { total_cents: number; monthly_24mo_cents: number };
-    best: { total_cents: number; monthly_24mo_cents: number };
-  };
+  final_price_cents: number;
+  display_range_low_cents: number;
+  display_range_high_cents: number;
+  raw_subtotal_cents: number;
+  guards_applied: string[];
   deposit_cents: number;
+  monthly_24mo_cents: number;
   valid_until: string;
-  breakdown: {
-    base_fence: number;
-    height_upgrade: number;
-    french_gothic: number;
-    stain: number;
-    demo: number;
-    corners: number;
-    gates: number;
-    permit: number;
-    hoa_admin: number;
-    travel: number;
-  };
+  breakdown: PricingBreakdown;
   warnings: string[];
 }
 
@@ -68,32 +73,30 @@ interface SkuRow {
   code: string;
   family: string;
   familyName: string;
+  heightInches: number;
 }
 
 export default function QuotePage({ params }: { params: { id: string } }) {
+  const t = useT();
   const [quote, setQuote] = useState<QuoteShape | null>(null);
   const [pricing, setPricing] = useState<PricingResponse | null>(null);
   const [skuMeta, setSkuMeta] = useState<SkuRow | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tier, setTier] = useState<Tier>("better");
   const [isLocking, startLockIn] = useTransition();
   const [emailSheetOpen, setEmailSheetOpen] = useState(false);
 
-  // ── Initial data load ────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/v1/quotes/${params.id}`, { credentials: "include" })
       .then(async (r) => {
-        if (!r.ok) throw new Error(`Quote load failed (${r.status})`);
+        if (!r.ok) throw new Error(`${t.quote.loadFailed} (${r.status})`);
         return r.json();
       })
       .then(async (q: QuoteShape) => {
         if (cancelled) return;
         setQuote(q);
-        setTier(q.tier ?? "better");
-        if (!q.skuCode) throw new Error("Quote is missing a SKU");
+        if (!q.skuCode) throw new Error(t.quote.missingSku);
 
-        // Re-call pricing to get fresh 3-tier comparison + breakdown
         const priceR = await fetch("/api/v1/pricing/calculate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -104,40 +107,32 @@ export default function QuotePage({ params }: { params: { id: string } }) {
             corner_count: q.cornerCount ?? 0,
             slope_code: q.slopeCode ?? 0,
             demo_type: q.demoType ?? "NONE",
-            gates: [],
-            height_upgrade: !!q.heightUpgrade,
-            french_gothic: !!q.frenchGothic,
+            gates: q.gates ?? [],
             stain_seal: !!q.stainSeal,
+            city: q.city ?? "Tulsa",
           }),
         });
-        if (!priceR.ok) throw new Error("Pricing failed");
+        if (!priceR.ok) throw new Error(t.quote.pricingFailed);
         const p = (await priceR.json()) as PricingResponse;
         if (!cancelled) setPricing(p);
 
-        // Pull SKU meta to render the family name
         const skusR = await fetch("/api/v1/skus", { credentials: "include" });
         const skus = (await skusR.json()) as SkuRow[];
         const sku = skus.find((s) => s.code === q.skuCode) ?? null;
         if (!cancelled) setSkuMeta(sku);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Load failed");
+        if (!cancelled) setError(e instanceof Error ? e.message : t.quote.loadFailed);
       });
     return () => {
       cancelled = true;
     };
-  }, [params.id]);
-
-  function handleSelectTier(t: Tier) {
-    setTier(t);
-    // fire-and-forget save — the lock-in will re-set this anyway
-    fetch(`/api/v1/quotes/${params.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ tier: t }),
-    }).catch(() => {});
-  }
+  }, [
+    params.id,
+    t.quote.loadFailed,
+    t.quote.missingSku,
+    t.quote.pricingFailed,
+  ]);
 
   function handleLockIn() {
     setError(null);
@@ -147,162 +142,465 @@ export default function QuotePage({ params }: { params: { id: string } }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ tier }),
+          body: JSON.stringify({}),
         });
         const body = await r.json().catch(() => ({}));
         if (!r.ok) {
-          if (r.status === 503) {
-            throw new Error(
-              "Stripe isn't configured yet. Add STRIPE_SECRET_KEY to .env.local and restart the dev server."
-            );
-          }
-          throw new Error(body?.error?.message ?? "Could not start checkout");
+          if (r.status === 503) throw new Error(t.quote.stripeNotConfigured);
+          throw new Error(body?.error?.message ?? t.quote.checkoutFailed);
         }
         if (body.checkout_url) {
           window.location.href = body.checkout_url;
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Something went wrong");
+        setError(e instanceof Error ? e.message : t.quote.checkoutFailed);
       }
     });
   }
 
   if (error && !quote) {
     return (
-      <main className="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center px-6">
-        <TriangleAlert size={32} className="text-accent" />
-        <h1 className="mt-3 text-xl font-semibold text-navy">{error}</h1>
-        <Link href="/" className="mt-6 text-sm underline">
-          Start over
-        </Link>
-      </main>
+      <div className="flex min-h-dvh flex-col bg-paper">
+        <Header />
+        <main className="mx-auto flex max-w-2xl flex-1 flex-col items-center justify-center px-6 text-center">
+          <TriangleAlert size={32} className="text-brick" />
+          <h1 className="mt-3 font-display text-[20px] font-semibold uppercase tracking-eyebrow text-navy">
+            {error}
+          </h1>
+          <Link
+            href="/"
+            className="mt-6 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-brick underline-offset-4 hover:underline"
+          >
+            {t.common.startOver}
+          </Link>
+        </main>
+      </div>
     );
   }
 
   if (!quote || !pricing) {
     return (
-      <main className="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center px-6">
-        <Loader2 className="animate-spin text-navy/40" size={32} />
-        <p className="mt-3 text-sm text-navy/60">Loading your quote…</p>
-      </main>
+      <div className="flex min-h-dvh flex-col bg-paper">
+        <Header dark />
+        <Progress step={4} dark />
+        <main className="flex flex-1 flex-col items-center justify-center gap-3">
+          <StarCoin size={56} pulse />
+          <p className="font-mono text-[11px] uppercase tracking-spec text-steel">
+            {t.quote.loading}
+          </p>
+        </main>
+      </div>
     );
   }
 
   const lf = Number(quote.linearFeet ?? 0);
   const familyName = skuMeta?.familyName ?? "Fence";
+  const family = skuMeta?.family ?? "";
+  const heightLabel = skuMeta?.heightInches
+    ? `${Math.round(skuMeta.heightInches / 12)} FT`
+    : null;
+  const quoteRef = `FP-${quote.id.slice(0, 8).toUpperCase()}`;
+
+  // Family-aware override for the "Materials" trust-card row so we don't
+  // promise "Western Red Cedar" to a Budget Pine or Chain Link customer.
+  const materialsRow = (() => {
+    if (family === "BP") {
+      return {
+        title: "KDAT Pine, Hand-Selected",
+        body:
+          "Kiln-dried after treatment (KDAT) pine, hand-picked for straightness and grain. Backed by our 12-month no-warp guarantee.",
+      };
+    }
+    if (family === "CL") {
+      return {
+        title: "Galvanized + PVC-Coated Mesh",
+        body:
+          "Mill-fresh galvanized fabric or 9-gauge PVC-coated mesh — no rust streaks, no surprises at delivery.",
+      };
+    }
+    return t.quote.inclusions[1]; // default cedar-graded row
+  })();
+
+  const concreteRow = {
+    title: "Concrete-Set Posts, Plumb",
+    body:
+      "30-inch footings · ~100 lbs of 3,000-psi concrete per post. Checked twice with a 4-foot level.",
+  };
+
+  const inclusionsRendered = [
+    t.quote.inclusions[0],
+    materialsRow,
+    concreteRow,
+    t.quote.inclusions[3],
+    t.quote.inclusions[4],
+  ];
+
+  const low = pricing.display_range_low_cents;
+  const high = pricing.display_range_high_cents;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-white pb-16">
-      <header className="border-b border-navy/10 bg-white px-4 py-2">
-        <ProgressDots current="quote" />
-      </header>
+    <div className="flex min-h-dvh flex-col bg-paper">
+      <Header dark />
+      <Progress step={4} dark />
 
-      <main className="mx-auto w-full max-w-2xl px-4 pt-4 sm:px-6">
-        <div className="mb-4 flex items-center justify-between">
-          <Link
-            href={`/configure?q=${params.id}`}
-            className="inline-flex items-center gap-1 text-sm text-navy/60 hover:text-navy"
-          >
-            <ArrowLeft size={16} /> Edit options
-          </Link>
-          <QuoteCountdown validUntil={pricing.valid_until} />
-        </div>
-
-        <h1 className="text-2xl font-bold text-navy sm:text-3xl">
-          Your fence quote
-        </h1>
-        <p className="mt-1 text-sm text-navy/60">
-          {lf.toFixed(0)} LF {familyName} · {quote.addressLine}
-        </p>
-
-        <div className="mt-5">
-          <TierComparison
-            tiers={pricing.tiers}
-            selected={tier}
-            onSelect={handleSelectTier}
-          />
-        </div>
-
-        <div className="mt-6">
-          <ScopeSummary
-            linearFeet={lf}
-            cornerCount={quote.cornerCount ?? 0}
-            familyName={familyName}
-            tier={tier}
-            demoRequired={!!quote.demoRequired}
-            heightUpgrade={!!quote.heightUpgrade}
-            frenchGothic={!!quote.frenchGothic}
-            stainSeal={!!quote.stainSeal}
-            breakdown={pricing.breakdown}
-          />
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-navy/60">
-          <span className="inline-flex items-center gap-1.5">
-            <CalendarClock size={14} className="text-accent" />
-            Installed in 10–17 days from deposit
-          </span>
-        </div>
-
-        {error && (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
-            {error}
+      <section className="flex-1">
+        <div className="mx-auto max-w-[1280px] px-5 py-8 md:px-10 md:py-12">
+          {/* Spec line */}
+          <div className="font-mono text-[11px] uppercase tracking-spec text-brick">
+            QUOTE #{quoteRef} · {lf.toFixed(0)} LF · {familyName}
+            {heightLabel ? ` · ${heightLabel}` : ""}
+            {quote.skuCode ? ` · ${quote.skuCode}` : ""}
           </div>
-        )}
 
-        <div className="mt-6 space-y-3">
-          <Button
-            type="button"
-            size="lg"
-            className="w-full"
-            onClick={handleLockIn}
-            disabled={isLocking}
-          >
-            {isLocking ? (
-              <>
-                <Loader2 className="animate-spin" size={20} /> Starting checkout…
-              </>
-            ) : (
-              <>
-                <Lock size={18} /> Lock in my price — $99 (refundable)
-              </>
-            )}
-          </Button>
+          <div className="mt-6 grid items-start gap-10 lg:grid-cols-[1.1fr_1fr]">
+            {/* ── Left column ─────────────────────────────────── */}
+            <div>
+              <Eyebrow>{t.quote.eyebrow}</Eyebrow>
+              <h1 className="mt-3 font-display text-[44px] font-bold uppercase leading-[0.95] tracking-[0.01em] text-navy md:text-[60px]">
+                {t.quote.title1}
+                <br />
+                {t.quote.title2}
+              </h1>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="w-full"
-            onClick={() => setEmailSheetOpen(true)}
-          >
-            <Mail size={18} /> Email me this quote
-          </Button>
+              <div className="mt-8 overflow-hidden rounded-sm border border-navy/15 bg-cream shadow-card">
+                <div className="h-[3px] w-full bg-brass" />
+                <div className="px-7 py-7">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono text-[11px] uppercase tracking-spec text-steel">
+                      {t.quote.rangeLabel}
+                    </span>
+                    {pricing.valid_until && (
+                      <QuoteCountdown
+                        validUntil={pricing.valid_until}
+                        prefix={t.quote.countdownPrefix}
+                        expiredLabel={t.quote.countdownExpired}
+                      />
+                    )}
+                  </div>
 
-          <a
-            href="tel:+19185550100"
-            className="flex w-full items-center justify-center gap-2 py-2 text-sm text-navy/60 hover:text-navy"
-          >
-            <Phone size={14} /> Want to talk first? Call (918) 555-0100
-          </a>
+                  <div className="mt-3 flex flex-wrap items-baseline gap-3">
+                    <span className="font-display text-[56px] font-bold leading-none tabular-nums text-brick md:text-[72px]">
+                      {formatCents(low)}
+                    </span>
+                    <span className="font-display text-[40px] font-bold leading-none text-brick/40 md:text-[56px]">
+                      –
+                    </span>
+                    <span className="font-display text-[56px] font-bold leading-none tabular-nums text-brick md:text-[72px]">
+                      {formatCents(high)}
+                    </span>
+                  </div>
+
+                  <p className="mt-5 max-w-[52ch] font-body text-[14px] leading-[1.55] text-char">
+                    {t.quote.rangeHelper}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleLockIn}
+                disabled={isLocking}
+                className={cn(
+                  "mt-6 flex h-16 w-full items-center justify-center gap-2.5 rounded-sm bg-brick px-10",
+                  "font-display text-[15px] font-semibold uppercase tracking-eyebrow text-cream",
+                  "shadow-cta transition-colors hover:bg-brick-deep",
+                  "disabled:cursor-not-allowed disabled:bg-steel-soft"
+                )}
+              >
+                {isLocking ? (
+                  <>
+                    <Loader2 className="animate-spin" size={18} />
+                    {t.quote.lockingCta}
+                  </>
+                ) : (
+                  <>
+                    <Lock size={16} strokeWidth={2.5} />
+                    {t.quote.lockCta}
+                  </>
+                )}
+              </button>
+
+              <p className="mt-3 font-body text-[13px] leading-[1.5] text-steel">
+                {t.quote.refundNote}
+              </p>
+
+              {error && (
+                <div className="mt-4 rounded-sm border border-brick/30 bg-brick/5 px-3 py-2 text-sm text-brick">
+                  {error}
+                </div>
+              )}
+
+              <div className="mt-6 flex flex-wrap items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setEmailSheetOpen(true)}
+                  className="flex h-12 items-center gap-2 rounded-sm border border-navy/30 px-5 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:border-navy hover:bg-navy/5"
+                >
+                  <Mail size={14} strokeWidth={2.5} />
+                  {t.quote.emailCta}
+                </button>
+                <a
+                  href={PHONE_HREF}
+                  className="flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-steel hover:text-navy"
+                >
+                  <Phone size={14} strokeWidth={2.5} />
+                  {t.quote.callPrefix} {BUSINESS.phone}
+                </a>
+              </div>
+
+              <div className="mt-5">
+                <Link
+                  href={`/configure?q=${quote.id}`}
+                  className="inline-flex items-center gap-2 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-steel hover:text-navy"
+                >
+                  <ArrowLeft size={12} strokeWidth={2.5} />
+                  {t.quote.backLink}
+                </Link>
+              </div>
+
+              {/* Invoice — line items */}
+              <InvoiceCard
+                t={t}
+                lf={lf}
+                familyName={familyName}
+                breakdown={pricing.breakdown}
+                rawSubtotal={pricing.raw_subtotal_cents}
+                finalPrice={pricing.final_price_cents}
+              />
+
+              {/* Schedule preview */}
+              <div className="mt-10">
+                <div className="mb-4 flex items-center gap-3">
+                  <span className="font-mono text-[11px] uppercase tracking-spec text-brick">
+                    {t.quote.scheduleEyebrow}
+                  </span>
+                  <span className="h-px flex-1 bg-navy/15" />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {t.quote.scheduleCards.map((c) => (
+                    <div
+                      key={c.n}
+                      className="rounded-sm border border-navy/15 bg-cream px-5 py-5"
+                    >
+                      <div className="font-mono text-[11px] uppercase tracking-spec text-brick">
+                        {c.n}
+                      </div>
+                      <div className="mt-2 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-steel">
+                        {c.eyebrow}
+                      </div>
+                      <div className="mt-1 font-display text-[18px] font-bold uppercase leading-[1.1] tracking-[0.04em] text-navy">
+                        {c.title}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Wisetack financing — soft credit pull, monthly estimate. */}
+              <div className="mt-8">
+                <WisetackWidget
+                  monthly24moCents={pricing.monthly_24mo_cents}
+                />
+              </div>
+            </div>
+
+            {/* ── Right column ────────────────────────────────── */}
+            <aside className="space-y-5">
+              <div className="overflow-hidden rounded-sm border border-brass/30 bg-navy text-cream shadow-card-lg">
+                <div className="flex items-start justify-between gap-4 border-b border-cream/10 px-6 py-5">
+                  <div>
+                    <div className="font-mono text-[11px] uppercase tracking-spec text-brass">
+                      {t.quote.trustBlockEyebrow}
+                    </div>
+                    <div className="mt-1 font-display text-[20px] font-bold uppercase leading-[1] tracking-[0.04em] text-cream">
+                      {t.quote.trustBlockTitle}
+                    </div>
+                  </div>
+                  <StarCoin size={44} />
+                </div>
+
+                <ul className="px-6 py-5 space-y-4">
+                  {inclusionsRendered.map((row) => (
+                    <li key={row.title} className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-pill border-2 border-brass bg-navy text-brass">
+                        <Check size={12} strokeWidth={3} />
+                      </span>
+                      <div>
+                        <div className="font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream">
+                          {row.title}
+                        </div>
+                        <p className="mt-1 font-body text-[13px] leading-[1.5] text-cream/80">
+                          {row.body}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="relative bg-navy-deep px-6 py-4">
+                  <div className="text-center font-mono text-[11px] uppercase tracking-spec text-brass">
+                    {t.quote.trustTagline}
+                  </div>
+                  <div
+                    className="pickets pointer-events-none absolute bottom-1 left-1/2 -translate-x-1/2 opacity-50"
+                    aria-hidden="true"
+                  >
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <span key={i} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-sm border border-navy/15 bg-cream-deep px-6 py-5">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-0.5 text-brass">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} size={14} fill="currentColor" strokeWidth={0} />
+                    ))}
+                  </div>
+                  <span className="font-mono text-[10px] uppercase tracking-spec text-steel">
+                    {t.quote.reviewBadge}
+                  </span>
+                </div>
+                <p className="mt-3 font-body text-[14px] italic leading-[1.55] text-char">
+                  &ldquo;{t.quote.reviewQuote}&rdquo;
+                </p>
+                <p className="mt-3 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-navy">
+                  {t.quote.reviewAttribution}
+                </p>
+              </div>
+            </aside>
+          </div>
         </div>
+      </section>
 
-        <div className="mt-8">
-          <WisetackWidget
-            monthly24moCents={pricing.tiers[tier].monthly_24mo_cents}
-          />
-        </div>
-
-        <div className="mt-10 border-t border-navy/10 pt-6">
-          <TrustStrip compact />
-        </div>
-      </main>
+      <Footer />
 
       <EmailSheet
         quoteId={params.id}
         open={emailSheetOpen}
         onClose={() => setEmailSheetOpen(false)}
       />
+    </div>
+  );
+}
+
+interface InvoiceCardProps {
+  t: ReturnType<typeof useT>;
+  lf: number;
+  familyName: string;
+  breakdown: PricingBreakdown;
+  rawSubtotal: number;
+  finalPrice: number;
+}
+
+function InvoiceCard({
+  t,
+  lf,
+  familyName,
+  breakdown,
+  rawSubtotal,
+  finalPrice,
+}: InvoiceCardProps) {
+  const ratePerLf = lf > 0 ? breakdown.base_fence_cents / lf : 0;
+  // Guards (margin floor + min profit) are INTERNAL pricing protections.
+  // The customer never sees them as a labeled line item — instead the
+  // delta is absorbed into the base-fence line so the breakdown still
+  // sums to the displayed total. When a guard fires we also drop the
+  // "(LF × rate)" hint from the base-fence label, since the implied
+  // rate no longer matches once we've bumped the price.
+  const guardDelta = finalPrice - rawSubtotal;
+  const guardFired = guardDelta > 0;
+  const adjustedBaseFence = breakdown.base_fence_cents + guardDelta;
+
+  const baseFenceLabel = guardFired
+    ? `${familyName} · Base Fence`
+    : `${familyName} · ${t.quote.invoiceLineBase
+        .replace("{lf}", lf.toFixed(0))
+        .replace("{rate}", formatCents(Math.round(ratePerLf)))}`;
+
+  const lines: Array<{ label: string; cents: number }> = [
+    { label: baseFenceLabel, cents: adjustedBaseFence },
+    { label: "Steel post upgrade", cents: breakdown.steel_upgrade_cents },
+    { label: "Cap rail + trim", cents: breakdown.cap_rail_cents },
+    { label: "Black vinyl posts", cents: breakdown.match_vinyl_posts_cents },
+    { label: t.quote.invoiceLineGates, cents: breakdown.gates_cents },
+    { label: t.quote.invoiceLineDemo, cents: breakdown.demo_cents },
+    { label: t.quote.invoiceLineStain, cents: breakdown.stain_cents },
+    { label: "Rock drilling", cents: breakdown.rock_drilling_cents },
+    { label: "Concrete-post removal", cents: breakdown.tear_concrete_cents },
+  ].filter((l) => l.cents > 0);
+
+  // Permits + buried line inspection — both are baked into the total, but
+  // shown to the customer as "incl." so the $75 permit doesn't trigger
+  // pushback. The permit cost is absorbed into the fence subtotal display.
+  const inclusionRows = [
+    {
+      label: "Permits, pulled by us",
+      value: t.quote.invoiceLineLineLocateValue,
+    },
+    {
+      label: t.quote.invoiceLineLineLocate,
+      value: t.quote.invoiceLineLineLocateValue,
+    },
+  ];
+
+  return (
+    <div className="mt-8 overflow-hidden rounded-sm border border-navy/15 bg-paper">
+      <div className="flex items-center gap-3 border-b border-navy/10 bg-cream px-6 py-4">
+        <span className="font-mono text-[11px] uppercase tracking-spec text-brick">
+          {t.quote.invoiceEyebrow}
+        </span>
+        <span className="font-display text-[15px] font-semibold uppercase tracking-eyebrow text-navy">
+          {t.quote.invoiceTitle}
+        </span>
+      </div>
+
+      <div className="px-6 py-5">
+        <ul className="space-y-2.5">
+          {lines.map((line) => (
+            <li
+              key={line.label}
+              className="flex items-baseline justify-between gap-4 font-body text-[13.5px]"
+            >
+              <span className="text-char">{line.label}</span>
+              <span className="font-mono text-[13px] tabular-nums text-navy">
+                {formatCents(line.cents)}
+              </span>
+            </li>
+          ))}
+          {/* Permits + OK811 line locate — both absorbed into the total but
+              shown as "incl." so the customer reads them as bundled service,
+              not separate add-ons. */}
+          {inclusionRows.map((row) => (
+            <li
+              key={row.label}
+              className="flex items-baseline justify-between gap-4 font-body text-[13.5px]"
+            >
+              <span className="text-char">{row.label}</span>
+              <span className="font-mono text-[12px] uppercase tracking-spec text-steel">
+                {row.value}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-4 border-t-2 border-navy/20 pt-4">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="font-display text-[15px] font-semibold uppercase tracking-eyebrow text-navy">
+              {t.quote.invoiceTotal}
+            </span>
+            <span className="font-display text-[24px] font-bold tabular-nums text-brick">
+              {formatCents(finalPrice)}
+            </span>
+          </div>
+        </div>
+
+        <p className="mt-4 font-body text-[11.5px] leading-[1.5] text-steel-soft">
+          {t.quote.invoiceFooter}
+        </p>
+      </div>
     </div>
   );
 }

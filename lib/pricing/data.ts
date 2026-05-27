@@ -1,240 +1,322 @@
-import type { DemoType, GateType, Tier } from "./types";
+// ─── Pricing Engine Constants ─────────────────────────────────────────
+// Source of truth: _pricing/FencePros_Pricing_Model.csv-* sheets.
+// All money in CENTS (integer). Last synced: 2026-05-26.
+
+import type { DemoType, GateType, SkuFamily, MarginFlag } from "./types";
+
+// ─── Global assumptions ───────────────────────────────────────────────
+// Reflects the "assumptions" sheet. Cents stored as integers, pcts as decimals.
+
+export interface PricingAssumptions {
+  target_margin_pct: number;       // 0.45 — derives SKU base $/LF
+  margin_floor_pct: number;        // 0.38 — hard min, engine raises price if below
+  min_job_profit_cents: number;    // 80000 ($800) — engine raises price if below
+  material_waste_pct: number;      // 0.05 — adds to material cost for overage
+  overhead_per_lf_cents: number;   // 300 ($3/LF)
+  range_swing_pct: number;         // 0.05 — display range = clamp(swing_pct × total, low, high)
+  range_swing_min_cents: number;   // 20000 ($200)
+  range_swing_max_cents: number;   // 120000 ($1200)
+  round_to_cents: number;          // 5000 ($50) — final price rounded to nearest
+  lf_min: number;                  // 20  — below this, warn "short_run"
+  lf_max: number;                  // 1000 — above this, warn "long_run"
+  margin_warn_pct: number;         // 0.45 — display margin flag = warn below this
+}
+
+export const ASSUMPTIONS: PricingAssumptions = {
+  target_margin_pct: 0.45,
+  margin_floor_pct: 0.38,
+  min_job_profit_cents: 80000,
+  material_waste_pct: 0.05,
+  overhead_per_lf_cents: 300,
+  range_swing_pct: 0.05,
+  range_swing_min_cents: 20000,
+  range_swing_max_cents: 120000,
+  round_to_cents: 5000,
+  lf_min: 20,
+  lf_max: 1000,
+  margin_warn_pct: 0.45,
+};
 
 // ─── SKUs ─────────────────────────────────────────────────────────────
-// 5 families × 3 tiers = 15 SKUs. base_price and material_cost in cents.
+// 11 SKUs across 4 families. Each SKU is its own price point.
+// Per spec: SKU IS the tier — no good/better/best multiplier.
 
 export interface SkuData {
   code: string;
-  family: "CP" | "HC" | "CL" | "OR" | "RR";
+  family: SkuFamily;
   family_name: string;
-  tier: Tier;
+  /** Customer-friendly variant name shown on /configure (not the SKU code). */
+  display_name: string;
   description: string;
   height_inches: number;
+  material_cost_per_lf_cents: number; // raw material before waste
+  labor_cost_per_lf_cents: number;    // sub-labor — dollars per LF, not %
+  /** Pre-computed at target margin (= 45%). Engine uses this as the base. */
   base_price_per_lf_cents: number;
-  material_cost_per_lf_cents: number;
-  sub_labor_pct: number; // 0..1
+  market_max_per_lf_cents: number;    // sanity cap from competitor scan
+  market_flag: "ok" | "ABOVE_MKT";    // if base > market_max, surfaces as warning
   spec_bullets: string[];
   hero_image_url: string | null;
   sort_order: number;
+  /** Cedar wood OR Galv line — drives "steel post upgrade" availability. */
+  posts_standard: "cedar_wood" | "galv_line";
 }
 
-export const SKUS: SkuData[] = [
-  // ── Cedar Privacy ──────────────────────────────────────────────────
+/**
+ * Compute base price/LF at the target margin.
+ * Formula: price = (material × (1 + waste) + labor + overhead) / (1 - margin)
+ *
+ * Materialized at module load so the engine doesn't have to recompute on every
+ * call. Re-deriving from raw inputs guarantees the SKUs stay in sync with the
+ * ASSUMPTIONS table if those change.
+ */
+function pricePerLfCents(matCents: number, laborCents: number): number {
+  const wasteAdj = matCents * (1 + ASSUMPTIONS.material_waste_pct);
+  const totalCost = wasteAdj + laborCents + ASSUMPTIONS.overhead_per_lf_cents;
+  return Math.round(totalCost / (1 - ASSUMPTIONS.target_margin_pct));
+}
+
+interface SkuSeed {
+  code: string;
+  family: SkuFamily;
+  family_name: string;
+  display_name: string;
+  description: string;
+  height_inches: number;
+  material_dollars_per_lf: number;
+  labor_dollars_per_lf: number;
+  market_max_dollars_per_lf: number;
+  market_flag: "ok" | "ABOVE_MKT";
+  spec_bullets: string[];
+  sort_order: number;
+  posts_standard: "cedar_wood" | "galv_line";
+}
+
+// Standard warranty bullet shown on every SKU card. Reflects the FencePros
+// Limited Warranty doc — 2-year workmanship + 5-year cedar post (or 15-year
+// with the steel-post upgrade purchased on /configure).
+const STD_WARRANTY_BULLET = "2-Year workmanship · 5-Year cedar post";
+
+const SKU_SEEDS: SkuSeed[] = [
+  // ── Budget Pine Fence (1 variant — its own family) ──────────────────
+  // Pine is kept separate from cedar so the customer doesn't confuse the
+  // entry-level pine with our cedar product line. KDAT (kiln-dried after
+  // treatment) is the only pine we'll build with — see warranty doc.
   {
-    code: "CP-G",
-    family: "CP",
-    family_name: "Cedar Privacy",
-    tier: "good",
-    description: 'Standard 6\' cedar privacy with #2 grade pickets',
+    code: "BP-STD",
+    family: "BP",
+    family_name: "Budget Pine",
+    display_name: "KDAT Premium Pine",
+    description: "KDAT pine, hand-selected, 3-rail framing.",
     height_inches: 72,
-    base_price_per_lf_cents: 4200,
-    material_cost_per_lf_cents: 1300,
-    sub_labor_pct: 0.23,
-    spec_bullets: ["6' tall", "Standard #2 cedar", "2-rail framing", "5-year workmanship"],
-    hero_image_url: null,
-    sort_order: 10,
+    material_dollars_per_lf: 9.5,
+    labor_dollars_per_lf: 6.5,
+    market_max_dollars_per_lf: 40,
+    market_flag: "ok",
+    spec_bullets: [
+      "6' tall · 3-rail framing",
+      "KDAT pine, hand-selected",
+      "Wood posts, concrete-set",
+      "12-Month no-warp guarantee",
+      STD_WARRANTY_BULLET,
+    ],
+    sort_order: 5,
+    posts_standard: "cedar_wood",
   },
+
+  // ── Cedar Privacy Fence (2 variants) ────────────────────────────────
   {
-    code: "CP-B",
-    family: "CP",
+    code: "CPF-PRM",
+    family: "CPF",
     family_name: "Cedar Privacy",
-    tier: "better",
-    description: '6\' cedar privacy with premium pickets and 3-rail frame',
+    display_name: "Cedar Premium",
+    description: "#1 cedar, dog-ear top, 3-rail framing.",
     height_inches: 72,
-    base_price_per_lf_cents: 5200,
-    material_cost_per_lf_cents: 1600,
-    sub_labor_pct: 0.23,
-    spec_bullets: ["6' tall", "Premium select cedar", "3-rail framing", "10-year workmanship"],
-    hero_image_url: null,
-    sort_order: 11,
-  },
-  {
-    code: "CP-X",
-    family: "CP",
-    family_name: "Cedar Privacy",
-    tier: "best",
-    description: '6\' cedar privacy with hand-picked pickets and steel posts',
-    height_inches: 72,
-    base_price_per_lf_cents: 6800,
-    material_cost_per_lf_cents: 2100,
-    sub_labor_pct: 0.23,
-    spec_bullets: ["6' tall", "Hand-picked clear cedar", "Steel posts in concrete", "Lifetime workmanship"],
-    hero_image_url: null,
+    material_dollars_per_lf: 13,
+    labor_dollars_per_lf: 8,
+    market_max_dollars_per_lf: 64,
+    market_flag: "ok",
+    spec_bullets: [
+      "6' tall · 3-rail framing",
+      "#1 cedar, dog-ear top",
+      "Wood posts, concrete-set",
+      STD_WARRANTY_BULLET,
+    ],
     sort_order: 12,
+    posts_standard: "cedar_wood",
   },
-  // ── Horizontal Cedar ───────────────────────────────────────────────
   {
-    code: "HC-G",
-    family: "HC",
-    family_name: "Horizontal Cedar",
-    tier: "good",
-    description: 'Modern horizontal cedar slats, standard cedar',
+    code: "CPF-EST",
+    family: "CPF",
+    family_name: "Cedar Privacy",
+    display_name: "Cedar Estate",
+    description: "#1/BTR cedar, board-on-board, kickboard, cap + trim.",
     height_inches: 72,
-    base_price_per_lf_cents: 5800,
-    material_cost_per_lf_cents: 1900,
-    sub_labor_pct: 0.24,
-    spec_bullets: ["6' tall", "1×6 horizontal slats", "Wood posts", "5-year workmanship"],
-    hero_image_url: null,
+    material_dollars_per_lf: 17,
+    labor_dollars_per_lf: 9,
+    market_max_dollars_per_lf: 80,
+    market_flag: "ok",
+    spec_bullets: [
+      "6' tall · 3-rail framing",
+      "#1/BTR cedar, board-on-board",
+      "Kickboard + cap + trim",
+      "Wood posts, concrete-set",
+      STD_WARRANTY_BULLET,
+    ],
+    sort_order: 13,
+    posts_standard: "cedar_wood",
+  },
+
+  // ── Horizontal Cedar Fence (2 variants) ──────────────────────────────
+  {
+    code: "HCF-STD",
+    family: "HCF",
+    family_name: "Horizontal Cedar",
+    display_name: "Horizontal Cedar",
+    description: "1×6 cedar slats, modern horizontal layout.",
+    height_inches: 72,
+    material_dollars_per_lf: 15,
+    labor_dollars_per_lf: 9,
+    market_max_dollars_per_lf: 62,
+    market_flag: "ok",
+    spec_bullets: [
+      "6' tall",
+      "1×6 cedar horizontal slats",
+      "Wood posts, concrete-set",
+      STD_WARRANTY_BULLET,
+    ],
     sort_order: 20,
+    posts_standard: "cedar_wood",
   },
   {
-    code: "HC-B",
-    family: "HC",
+    code: "HCF-PRM",
+    family: "HCF",
     family_name: "Horizontal Cedar",
-    tier: "better",
-    description: 'Premium horizontal cedar with steel posts',
+    display_name: "Horizontal Premium",
+    description: "1×6 #1 cedar, mitered corners, hidden fasteners.",
     height_inches: 72,
-    base_price_per_lf_cents: 7200,
-    material_cost_per_lf_cents: 2400,
-    sub_labor_pct: 0.24,
-    spec_bullets: ["6' tall", "1×6 premium cedar", "Powder-coated steel posts", "10-year workmanship"],
-    hero_image_url: null,
+    material_dollars_per_lf: 18.5,
+    labor_dollars_per_lf: 10.5,
+    market_max_dollars_per_lf: 84,
+    market_flag: "ok",
+    spec_bullets: [
+      "6' tall",
+      "1×6 #1 cedar, mitered corners",
+      "Hidden fasteners",
+      "Wood posts, concrete-set",
+      STD_WARRANTY_BULLET,
+    ],
     sort_order: 21,
+    posts_standard: "cedar_wood",
   },
+
+  // ── Chain Link (2 variants) ──────────────────────────────────────────
   {
-    code: "HC-X",
-    family: "HC",
-    family_name: "Horizontal Cedar",
-    tier: "best",
-    description: 'Designer horizontal cedar with hidden fasteners',
-    height_inches: 72,
-    base_price_per_lf_cents: 9200,
-    material_cost_per_lf_cents: 3000,
-    sub_labor_pct: 0.24,
-    spec_bullets: ["6' tall", "Clear cedar, hidden fasteners", "Architectural posts", "Lifetime workmanship"],
-    hero_image_url: null,
-    sort_order: 22,
-  },
-  // ── Chain Link ─────────────────────────────────────────────────────
-  {
-    code: "CL-G",
+    code: "CL-RES",
     family: "CL",
     family_name: "Chain Link",
-    tier: "good",
-    description: '4\' galvanized chain link, basic',
+    display_name: "Galvanized Residential",
+    description: "Galvanized residential chain link with top rail.",
     height_inches: 48,
-    base_price_per_lf_cents: 1800,
-    material_cost_per_lf_cents: 600,
-    sub_labor_pct: 0.20,
-    spec_bullets: ["4' tall", "Galvanized 11.5 ga", "Top rail", "3-year workmanship"],
-    hero_image_url: null,
+    material_dollars_per_lf: 5.5,
+    labor_dollars_per_lf: 4.5,
+    market_max_dollars_per_lf: 26,
+    market_flag: "ok",
+    spec_bullets: [
+      "4' tall",
+      "Galvanized residential gauge",
+      "Galv line posts + top rail",
+      "2-Year workmanship",
+    ],
     sort_order: 30,
+    posts_standard: "galv_line",
   },
   {
-    code: "CL-B",
+    code: "CL-VIN",
     family: "CL",
     family_name: "Chain Link",
-    tier: "better",
-    description: '5\' galvanized chain link with bottom tension',
+    display_name: "Vinyl-Coated Black",
+    description: "Black PVC-coated mesh, residential gauge.",
     height_inches: 60,
-    base_price_per_lf_cents: 2400,
-    material_cost_per_lf_cents: 850,
-    sub_labor_pct: 0.20,
-    spec_bullets: ["5' tall", "Galvanized 9 ga", "Top + bottom rail", "5-year workmanship"],
-    hero_image_url: null,
+    material_dollars_per_lf: 8,
+    labor_dollars_per_lf: 5,
+    market_max_dollars_per_lf: 36,
+    market_flag: "ok",
+    spec_bullets: [
+      "5' tall",
+      "Black PVC-coated mesh",
+      "Galv line posts + top rail",
+      "2-Year workmanship",
+    ],
     sort_order: 31,
+    posts_standard: "galv_line",
   },
+
+  // ── Ranch Rail (2 variants — 3-rail is the new entry point) ─────────
   {
-    code: "CL-X",
-    family: "CL",
-    family_name: "Chain Link",
-    tier: "best",
-    description: '6\' black-vinyl chain link, commercial grade',
-    height_inches: 72,
-    base_price_per_lf_cents: 3200,
-    material_cost_per_lf_cents: 1100,
-    sub_labor_pct: 0.20,
-    spec_bullets: ["6' tall", "Black PVC-coated 9 ga", "Commercial grade", "10-year workmanship"],
-    hero_image_url: null,
-    sort_order: 32,
-  },
-  // ── Ornamental ─────────────────────────────────────────────────────
-  {
-    code: "OR-G",
-    family: "OR",
-    family_name: "Ornamental Steel",
-    tier: "good",
-    description: '4\' ornamental aluminum, residential grade',
+    code: "RR-3",
+    family: "RR",
+    family_name: "Ranch Rail",
+    display_name: "3-Rail Ranch",
+    description: "3-rail cedar split rail, open-property feel.",
     height_inches: 48,
-    base_price_per_lf_cents: 4800,
-    material_cost_per_lf_cents: 1700,
-    sub_labor_pct: 0.22,
-    spec_bullets: ["4' tall", "Aluminum, powder coat", "3-rail design", "5-year workmanship"],
-    hero_image_url: null,
-    sort_order: 40,
-  },
-  {
-    code: "OR-B",
-    family: "OR",
-    family_name: "Ornamental Steel",
-    tier: "better",
-    description: '5\' ornamental steel with decorative top',
-    height_inches: 60,
-    base_price_per_lf_cents: 6200,
-    material_cost_per_lf_cents: 2200,
-    sub_labor_pct: 0.22,
-    spec_bullets: ["5' tall", "Steel powder coat", "Decorative finials", "10-year workmanship"],
-    hero_image_url: null,
+    material_dollars_per_lf: 8.5,
+    labor_dollars_per_lf: 4.5,
+    market_max_dollars_per_lf: 30,
+    market_flag: "ok",
+    spec_bullets: [
+      "4' tall",
+      "3-rail cedar",
+      "Wood posts, concrete-set",
+      STD_WARRANTY_BULLET,
+    ],
     sort_order: 41,
+    posts_standard: "cedar_wood",
   },
   {
-    code: "OR-X",
-    family: "OR",
-    family_name: "Ornamental Steel",
-    tier: "best",
-    description: '6\' wrought iron-look steel, commercial grade',
-    height_inches: 72,
-    base_price_per_lf_cents: 8200,
-    material_cost_per_lf_cents: 2900,
-    sub_labor_pct: 0.22,
-    spec_bullets: ["6' tall", "Heavy-gauge steel", "Commercial grade", "Lifetime workmanship"],
-    hero_image_url: null,
+    code: "RR-4",
+    family: "RR",
+    family_name: "Ranch Rail",
+    display_name: "4-Rail Ranch + Mesh",
+    description: "4-rail cedar with welded-wire mesh insert.",
+    height_inches: 54,
+    material_dollars_per_lf: 10.5,
+    labor_dollars_per_lf: 5,
+    market_max_dollars_per_lf: 34,
+    market_flag: "ABOVE_MKT",
+    spec_bullets: [
+      "4.5' tall",
+      "4-rail cedar",
+      "Welded-wire mesh insert",
+      "Wood posts, concrete-set",
+      STD_WARRANTY_BULLET,
+    ],
     sort_order: 42,
-  },
-  // ── Ranch Rail ─────────────────────────────────────────────────────
-  {
-    code: "RR-G",
-    family: "RR",
-    family_name: "Ranch Rail",
-    tier: "good",
-    description: '3-rail cedar split rail, standard',
-    height_inches: 42,
-    base_price_per_lf_cents: 2200,
-    material_cost_per_lf_cents: 750,
-    sub_labor_pct: 0.21,
-    spec_bullets: ["3.5' tall", "Cedar split rail", "3-rail", "3-year workmanship"],
-    hero_image_url: null,
-    sort_order: 50,
-  },
-  {
-    code: "RR-B",
-    family: "RR",
-    family_name: "Ranch Rail",
-    tier: "better",
-    description: '4-rail cedar with mesh insert',
-    height_inches: 48,
-    base_price_per_lf_cents: 2800,
-    material_cost_per_lf_cents: 950,
-    sub_labor_pct: 0.21,
-    spec_bullets: ["4' tall", "Cedar 4-rail", "Galvanized mesh insert", "5-year workmanship"],
-    hero_image_url: null,
-    sort_order: 51,
-  },
-  {
-    code: "RR-X",
-    family: "RR",
-    family_name: "Ranch Rail",
-    tier: "best",
-    description: 'Premium 4-rail with steel posts and mesh',
-    height_inches: 48,
-    base_price_per_lf_cents: 3600,
-    material_cost_per_lf_cents: 1250,
-    sub_labor_pct: 0.21,
-    spec_bullets: ["4' tall", "Premium cedar", "Steel posts + mesh", "10-year workmanship"],
-    hero_image_url: null,
-    sort_order: 52,
+    posts_standard: "cedar_wood",
   },
 ];
+
+export const SKUS: SkuData[] = SKU_SEEDS.map((s) => {
+  const matCents = Math.round(s.material_dollars_per_lf * 100);
+  const laborCents = Math.round(s.labor_dollars_per_lf * 100);
+  return {
+    code: s.code,
+    family: s.family,
+    family_name: s.family_name,
+    display_name: s.display_name,
+    description: s.description,
+    height_inches: s.height_inches,
+    material_cost_per_lf_cents: matCents,
+    labor_cost_per_lf_cents: laborCents,
+    base_price_per_lf_cents: pricePerLfCents(matCents, laborCents),
+    market_max_per_lf_cents: Math.round(s.market_max_dollars_per_lf * 100),
+    market_flag: s.market_flag,
+    spec_bullets: s.spec_bullets,
+    hero_image_url: null,
+    sort_order: s.sort_order,
+    posts_standard: s.posts_standard,
+  };
+});
 
 export const SKU_BY_CODE: Record<string, SkuData> = SKUS.reduce(
   (acc, s) => ({ ...acc, [s.code]: s }),
@@ -242,81 +324,150 @@ export const SKU_BY_CODE: Record<string, SkuData> = SKUS.reduce(
 );
 
 // ─── Slope adjustments ────────────────────────────────────────────────
-// Multiplier applied to base_fence only (not adders).
+// Slope surcharge applies to fence subtotal only. Slope-4 ("severe") uses
+// the slope-3 percentage but emits a "slope_review_required" warning.
 
-export const SLOPE: Record<number, { label: string; multiplier: number }> = {
-  0: { label: "Flat (<5%)", multiplier: 1.0 },
-  1: { label: "Mild (5–10%)", multiplier: 1.05 },
-  2: { label: "Moderate (10–20%)", multiplier: 1.1 },
-  3: { label: "Severe (20%+)", multiplier: 1.15 },
-  4: { label: "Extreme", multiplier: 1.2 },
+export const SLOPE: Record<number, { label: string; surcharge_pct: number; review_required: boolean }> = {
+  0: { label: "Flat (<5%)",         surcharge_pct: 0,    review_required: false },
+  1: { label: "Mild (5–10%)",       surcharge_pct: 0.05, review_required: false },
+  2: { label: "Moderate (10–20%)",  surcharge_pct: 0.12, review_required: false },
+  3: { label: "Steep (20%+)",       surcharge_pct: 0.18, review_required: false },
+  4: { label: "Severe (review)",    surcharge_pct: 0.18, review_required: true  },
 };
 
 // ─── Demo rates (cents per LF) ────────────────────────────────────────
+// Range was $3-5/LF in the CSV. Per spec: lock to low end.
 
 export const DEMO_RATES: Record<DemoType, number> = {
   NONE: 0,
-  CEDAR: 550,   // $5.50/LF
-  CHAIN: 350,   // $3.50/LF
-  METAL: 750,   // $7.50/LF
-  CONC: 1500,   // $15.00/LF
+  CEDAR: 300,   // $3.00/LF
+  CHAIN: 300,
+  METAL: 300,
+  CONC: 300,
 };
 
 // ─── Gate prices (cents each) ─────────────────────────────────────────
 
 export const GATE_PRICES: Record<GateType, { price_cents: number; label: string }> = {
-  "SW-4": { price_cents: 30000,  label: "4' single walk" },
-  "SW-5": { price_cents: 35000,  label: "5' single walk" },
-  "DD-10": { price_cents: 65000, label: "10' double drive" },
-  "DD-12": { price_cents: 80000, label: "12' double drive" },
-  "DD-14": { price_cents: 95000, label: "14' double drive" },
+  W4:  { price_cents: 35000,  label: "4' walk gate"          },
+  W5:  { price_cents: 42500,  label: "5' walk gate"          },
+  D10: { price_cents: 85000,  label: "10' single-leaf drive" },
+  D12: { price_cents: 110000, label: "12' single-leaf drive" },
+  D16: { price_cents: 175000, label: "16' double-leaf drive" },
 };
 
-// ─── Tier multipliers ─────────────────────────────────────────────────
-
-export const TIER_MULTIPLIERS: Record<Tier, number> = {
-  good: 1.0,
-  better: 1.18,
-  best: 1.45,
-};
-
-// ─── Add-ons & misc constants (cents) ─────────────────────────────────
+// ─── Add-ons ──────────────────────────────────────────────────────────
 
 export const ADDONS = {
-  STAIN_PER_LF_CENTS: 325,           // $3.25/LF
-  FRENCH_GOTHIC_PER_LF_CENTS: 200,   // $2.00/LF
-  HEIGHT_UPGRADE_PCT: 0.18,          // +18% on base_fence (CP/HC only)
-  CORNER_FREE: 4,                    // first 4 corners free
-  CORNER_OVER_CENTS: 2500,           // $25 each beyond
-  PERMIT_FLAT_CENTS: 15000,          // $150
-  HOA_ADMIN_FLAT_CENTS: 7500,        // $75
-  TRAVEL_PER_MILE_CENTS: 750,        // $7.50/mile over 25
-  GATE_MATERIAL_PCT: 0.30,           // 30% of gate revenue is material
-  OVERHEAD_PCT: 0.05,                // 5% of subtotal (better-tier basis)
+  STEEL_UPGRADE_PER_LF_CENTS: 500,     // $5/LF — wood post → steel post
+  STAIN_PER_LF_CENTS: 800,             // $8/LF
+  CAP_RAIL_PER_LF_CENTS: 400,          // $4/LF — cap rail + decorative trim (wood-picket families)
+  MATCH_VINYL_POSTS_PER_LF_CENTS: 300, // $3/LF — black PVC-coated posts (CL-VIN only)
+  ROCK_PER_POST_CENTS: 2500,           // $25/post (rock/hard-clay drilling)
+  TEAR_CONCRETE_PER_POST_CENTS: 2000,  // $20/post for old concrete-set posts
+  ACCESS_SURCHARGE_PCT: 0.08,          // +8% on fence subtotal for difficult access
+} as const;
+
+// ─── Permits by city (cents) ──────────────────────────────────────────
+// Tulsa confirmed at $75. BA/Bixby/Jenks TBD — default to $75 (Tulsa parity)
+// until your city contacts confirm. Owasso confirmed at $0.
+
+export const PERMITS: Record<string, number> = {
+  Tulsa: 7500,
+  "Broken Arrow": 7500,
+  Bixby: 7500,
+  Jenks: 7500,
+  Owasso: 0,
+};
+
+export const PERMIT_DEFAULT_CENTS = 7500;
+
+// ─── Cost-of-revenue ratios per add-on (for internal margin math) ─────
+// The CSV doesn't itemize cost on add-ons, so we apply ratios derived from
+// industry standards. These determine `internal_margin.total_cost_cents`.
+// Tunable per future calibration against actual job data.
+
+export const COST_RATIOS = {
+  GATE: 0.50,            // 50% of gate revenue is material+sub-labor cost
+  DEMO: 0.60,            // demo is mostly sub-labor
+  STAIN: 0.45,           // stain materials + labor
+  STEEL_UPGRADE: 0.55,
+  CAP_RAIL: 0.50,        // cap rail trim — equal split material + labor
+  MATCH_VINYL_POSTS: 0.60, // black PVC posts cost-up slightly more than galv
+  ROCK_DRILLING: 0.55,
+  TEAR_CONCRETE: 0.55,
+  ACCESS: 0,             // pure margin add (no incremental cost in our model)
+  PERMIT: 1.0,           // pass-through (we pay the city)
 } as const;
 
 // ─── Financing ────────────────────────────────────────────────────────
 
 export const FINANCING = {
-  APR: 0.0999,         // 9.99% Wisetack-equivalent
+  APR: 0.0999,
   MONTHS: 24,
-  DEPOSIT_CENTS: 9900, // $99 hold
+  DEPOSIT_CENTS: 9900,
   QUOTE_VALID_DAYS: 7,
 } as const;
 
-// ─── Margin thresholds ────────────────────────────────────────────────
+// ─── Margin display thresholds ────────────────────────────────────────
+// Independent of the floor guard — used for admin "this job ran low" UI.
 
 export const MARGIN_THRESHOLDS = {
-  LOW: 0.4,    // <40% gross margin → "low"
-  WARN: 0.45,  // <45% → "warn"
+  LOW: ASSUMPTIONS.margin_floor_pct, // = 0.38
+  WARN: ASSUMPTIONS.margin_warn_pct, // = 0.45
 } as const;
 
-// ─── Service area limits (LF guardrails for instant quote) ───────────
+// Families that allow steel-post upgrade. Chain Link already has galv posts;
+// wood-post families (cedar, horizontal cedar, budget pine) can upgrade
+// wood → steel for the 15-year structural warranty.
+export const STEEL_UPGRADE_FAMILIES: Set<SkuFamily> = new Set<SkuFamily>([
+  "CPF",
+  "HCF",
+  "BP",
+]);
 
-export const LF_LIMITS = {
-  MIN: 20,    // below this: warn, push to call
-  MAX: 1000,  // above this: warn, push to call
-} as const;
+// Families that allow cap rail + decorative trim. Same wood-picket set as
+// steel upgrade today — kept as a separate constant so the two toggles can
+// diverge if cap-rail support narrows.
+export const CAP_RAIL_FAMILIES: Set<SkuFamily> = new Set<SkuFamily>([
+  "CPF",
+  "HCF",
+  "BP",
+]);
 
-// Families that allow 6'→8' height upgrade
-export const HEIGHT_UPGRADE_FAMILIES: Set<string> = new Set(["CP", "HC"]);
+// ─── Pricing config bundle (injected into calculatePrice) ─────────────
+
+export interface PricingConfig {
+  assumptions: PricingAssumptions;
+  skuByCode: Record<string, SkuData>;
+  slope: typeof SLOPE;
+  demoRates: typeof DEMO_RATES;
+  gatePrices: typeof GATE_PRICES;
+  addons: typeof ADDONS;
+  permits: typeof PERMITS;
+  permitDefaultCents: number;
+  costRatios: typeof COST_RATIOS;
+  financing: typeof FINANCING;
+  marginThresholds: typeof MARGIN_THRESHOLDS;
+  steelUpgradeFamilies: Set<SkuFamily>;
+  capRailFamilies: Set<SkuFamily>;
+}
+
+export const DEFAULT_PRICING_CONFIG: PricingConfig = {
+  assumptions: ASSUMPTIONS,
+  skuByCode: SKU_BY_CODE,
+  slope: SLOPE,
+  demoRates: DEMO_RATES,
+  gatePrices: GATE_PRICES,
+  addons: ADDONS,
+  permits: PERMITS,
+  permitDefaultCents: PERMIT_DEFAULT_CENTS,
+  costRatios: COST_RATIOS,
+  financing: FINANCING,
+  marginThresholds: MARGIN_THRESHOLDS,
+  steelUpgradeFamilies: STEEL_UPGRADE_FAMILIES,
+  capRailFamilies: CAP_RAIL_FAMILIES,
+};
+
+// Re-export MarginFlag for callers importing from data
+export type { MarginFlag };

@@ -1,6 +1,6 @@
-import { ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { formatCents } from "@/lib/utils";
+import { Check } from "lucide-react";
+import { cn, formatCents } from "@/lib/utils";
+import { FenceSketch } from "./FenceSketch";
 
 interface Props {
   family: string;
@@ -9,14 +9,19 @@ interface Props {
   description: string;
   selected: boolean;
   onSelect: () => void;
+  fromLabel?: string;
+  perLF?: string;
 }
 
 export function FamilyCard({
+  family,
   familyName,
   startingAtCents,
   description,
   selected,
   onSelect,
+  fromLabel = "FROM",
+  perLF = "/LF",
 }: Props) {
   return (
     <button
@@ -24,37 +29,45 @@ export function FamilyCard({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        "group flex w-full items-center gap-4 rounded-xl border p-4 text-left transition-all",
+        "group relative flex w-full flex-col rounded-sm border p-5 text-left transition-all",
         selected
-          ? "border-accent bg-accent/5 shadow-sm"
-          : "border-navy/10 bg-white hover:border-navy/30"
+          ? "border-navy bg-cream shadow-card-lg ring-2 ring-brass/40"
+          : "border-navy/15 bg-paper hover:border-navy/40"
       )}
     >
-      {/* Hero placeholder — swap to actual photos in admin/SKU manager later */}
+      {selected && (
+        <span className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-pill bg-brass text-navy shadow-card-lg">
+          <Check size={14} strokeWidth={3} />
+        </span>
+      )}
+
       <div
         className={cn(
-          "h-16 w-16 flex-shrink-0 rounded-lg",
-          selected ? "bg-accent/20" : "bg-navy/5"
+          "mb-4 flex h-[60px] w-[80px] items-center justify-center rounded-sm border",
+          selected ? "border-navy/30 bg-paper text-navy" : "border-navy/15 bg-navy/5 text-navy/60"
         )}
-      />
-      <div className="min-w-0 flex-1">
-        <div className="font-semibold text-navy">{familyName}</div>
-        <div className="truncate text-xs text-navy/60">{description}</div>
-        <div className="mt-1 text-sm text-navy/70">
-          Starting at{" "}
-          <span className="font-semibold text-navy">
-            {formatCents(startingAtCents)}
-          </span>
-          /LF
-        </div>
+      >
+        <FenceSketch family={family} />
       </div>
-      <ChevronRight
-        size={20}
-        className={cn(
-          "flex-shrink-0 transition-colors",
-          selected ? "text-accent" : "text-navy/30"
-        )}
-      />
+
+      <div className="font-display text-[13px] font-semibold uppercase tracking-eyebrow text-navy">
+        {familyName}
+      </div>
+      <p className="mt-2 line-clamp-2 font-body text-[12.5px] leading-[1.45] text-steel">
+        {description}
+      </p>
+
+      <div className="mt-4 flex items-baseline gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-spec text-steel">
+          {fromLabel}
+        </span>
+        <span className="font-display text-[20px] font-bold tabular-nums text-brick">
+          {formatCents(startingAtCents)}
+        </span>
+        <span className="font-mono text-[10px] uppercase tracking-spec text-steel">
+          {perLF}
+        </span>
+      </div>
     </button>
   );
 }

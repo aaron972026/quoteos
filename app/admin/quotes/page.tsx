@@ -106,9 +106,8 @@ export default async function AdminQuotesPage({
       zip: quotes.zip,
       linearFeet: quotes.linearFeet,
       skuCode: quotes.skuCode,
-      tier: quotes.tier,
       selectedTierCents: quotes.selectedTierCents,
-      tierBetterCents: quotes.tierBetterCents,
+      subtotalCents: quotes.subtotalCents,
       marginFlag: quotes.marginFlag,
       createdAt: quotes.createdAt,
     })
@@ -124,7 +123,7 @@ export default async function AdminQuotesPage({
       total: sql<number>`count(*)::int`,
       paid: sql<number>`count(*) filter (where status = 'deposit_paid')::int`,
       lowMargin: sql<number>`count(*) filter (where margin_flag = 'low')::int`,
-      avgTicket: sql<number>`coalesce(avg(coalesce(selected_tier_cents, tier_better_cents)), 0)::int`,
+      avgTicket: sql<number>`coalesce(avg(coalesce(selected_tier_cents, subtotal_cents)), 0)::int`,
     })
     .from(quotes)
     .where(whereClause);

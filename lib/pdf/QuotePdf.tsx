@@ -1,15 +1,19 @@
 import {
   Document,
+  Image,
   Page,
   Text,
   View,
   StyleSheet,
 } from "@react-pdf/renderer";
+import { BUSINESS } from "@/lib/business";
+import { getBrandLogoBuffer } from "./brand-logo";
 
-const NAVY = "#1F3A5F";
-const ACCENT = "#F4A623";
-const MUTED = "#1F3A5F99";
-const LINE = "#1F3A5F26";
+const NAVY = "#1A2A4A";
+const BRICK = "#8B2332";
+const BRASS = "#C8962E";
+const MUTED = "#1A2A4A99";
+const LINE = "#1A2A4A26";
 
 const styles = StyleSheet.create({
   page: { padding: 36, fontSize: 11, color: NAVY, fontFamily: "Helvetica" },
@@ -19,9 +23,10 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     gap: 6,
   },
+  brandLogo: { height: 28, width: "auto" },
   brandBadge: {
     backgroundColor: NAVY,
-    color: ACCENT,
+    color: BRASS,
     fontWeight: "bold",
     fontSize: 12,
     paddingHorizontal: 6,
@@ -29,6 +34,13 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   brandCity: { fontSize: 10, color: MUTED },
+  spec: {
+    fontSize: 9,
+    color: BRICK,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
   h1: { fontSize: 22, fontWeight: "bold", color: NAVY, marginBottom: 2 },
   sub: { fontSize: 11, color: MUTED, marginBottom: 16 },
   sectionLabel: {
@@ -39,33 +51,30 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 6,
   },
-  tierGrid: { flexDirection: "row", gap: 8, marginTop: 4 },
-  tierCard: {
-    flex: 1,
+  priceCard: {
     borderWidth: 1,
     borderColor: LINE,
-    borderRadius: 6,
-    padding: 10,
+    borderTopWidth: 3,
+    borderTopColor: BRASS,
+    padding: 16,
+    marginTop: 4,
   },
-  tierCardSelected: { borderColor: ACCENT, borderWidth: 2 },
-  tierLabel: {
-    fontSize: 8,
+  priceRangeLabel: {
+    fontSize: 9,
+    color: MUTED,
     textTransform: "uppercase",
     letterSpacing: 1,
-    color: MUTED,
   },
-  tierPrice: { fontSize: 16, fontWeight: "bold", color: NAVY, marginTop: 4 },
-  tierMonthly: { fontSize: 9, color: MUTED, marginTop: 2 },
-  popular: {
-    backgroundColor: ACCENT,
-    color: NAVY,
-    fontSize: 7,
-    fontWeight: "bold",
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    alignSelf: "flex-start",
-    marginBottom: 4,
+  priceRangeRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    marginTop: 6,
+    gap: 8,
   },
+  priceLow: { fontSize: 28, fontWeight: "bold", color: BRICK },
+  priceDash: { fontSize: 22, color: MUTED },
+  priceHigh: { fontSize: 28, fontWeight: "bold", color: BRICK },
+  priceHelper: { fontSize: 9, color: MUTED, marginTop: 8 },
   scopeRow: {
     flexDirection: "row",
     borderBottomWidth: 0.5,
@@ -77,6 +86,15 @@ const styles = StyleSheet.create({
   bdRow: { flexDirection: "row", paddingVertical: 2 },
   bdLabel: { flex: 1, color: MUTED, fontSize: 10 },
   bdValue: { color: NAVY, fontSize: 10 },
+  totalRow: {
+    flexDirection: "row",
+    paddingTop: 6,
+    marginTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: LINE,
+  },
+  totalLabel: { flex: 1, color: NAVY, fontWeight: "bold", fontSize: 11 },
+  totalValue: { color: BRICK, fontWeight: "bold", fontSize: 14 },
   footer: {
     position: "absolute",
     bottom: 24,
@@ -99,13 +117,6 @@ function fmt(cents: number): string {
   }).format(cents / 100);
 }
 
-const TIER_META = {
-  good: { label: "Good" },
-  better: { label: "Better" },
-  best: { label: "Best" },
-} as const;
-type Tier = keyof typeof TIER_META;
-
 export interface QuotePdfData {
   quoteNumber: string | null;
   addressLine: string | null;
@@ -114,23 +125,29 @@ export interface QuotePdfData {
   zip: string | null;
   linearFeet: number;
   cornerCount: number;
+  skuCode: string;
   familyName: string;
-  selectedTier: Tier;
   demoRequired: boolean;
   heightUpgrade: boolean;
   frenchGothic: boolean;
   stainSeal: boolean;
-  tiers: Record<Tier, { total_cents: number; monthly_24mo_cents: number }>;
+  steelPostUpgrade?: boolean;
+  finalPriceCents: number;
+  displayRangeLowCents: number;
+  displayRangeHighCents: number;
   breakdown: {
-    base_fence: number;
-    height_upgrade: number;
-    french_gothic: number;
-    stain: number;
-    demo: number;
-    corners: number;
-    gates: number;
+    base_fence_cents: number;
+    slope_surcharge_cents: number;
+    access_surcharge_cents: number;
+    steel_upgrade_cents: number;
+    gates_cents: number;
+    demo_cents: number;
+    stain_cents: number;
+    rock_drilling_cents: number;
+    tear_concrete_cents: number;
+    permit_cents: number;
   };
-  validUntil: string; // ISO
+  validUntil: string;
 }
 
 export function QuotePdf({ data }: { data: QuotePdfData }) {
@@ -146,55 +163,62 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
   });
   const breakdownItems = (
     [
-      ["Fence", data.breakdown.base_fence],
-      ["Height upgrade", data.breakdown.height_upgrade],
-      ["French Gothic", data.breakdown.french_gothic],
-      ["Stain & seal", data.breakdown.stain],
-      ["Demo / tear-out", data.breakdown.demo],
-      ["Corners (over 4)", data.breakdown.corners],
-      ["Gates", data.breakdown.gates],
+      ["Base fence", data.breakdown.base_fence_cents],
+      ["Steel post upgrade", data.breakdown.steel_upgrade_cents],
+      ["Gates", data.breakdown.gates_cents],
+      ["Tear-out & haul", data.breakdown.demo_cents],
+      ["Stain & seal", data.breakdown.stain_cents],
+      ["Rock drilling", data.breakdown.rock_drilling_cents],
+      ["Concrete-post removal", data.breakdown.tear_concrete_cents],
+      ["Permit", data.breakdown.permit_cents],
     ] as Array<[string, number]>
   ).filter(([, v]) => v > 0);
+
+  const logo = getBrandLogoBuffer();
+  const specLine = [
+    data.quoteNumber ? `QUOTE #${data.quoteNumber}` : null,
+    `${data.linearFeet.toFixed(0)} LF`,
+    data.familyName.toUpperCase(),
+    data.skuCode,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <Document>
       <Page size="LETTER" style={styles.page}>
         <View style={styles.brand}>
-          <Text style={styles.brandBadge}>FENCEPROS</Text>
-          <Text style={styles.brandCity}>TULSA</Text>
+          {logo ? (
+            // eslint-disable-next-line jsx-a11y/alt-text
+            <Image src={logo} style={styles.brandLogo} />
+          ) : (
+            <>
+              <Text style={styles.brandBadge}>FENCEPROS</Text>
+              <Text style={styles.brandCity}>TULSA</Text>
+            </>
+          )}
         </View>
 
+        <Text style={styles.spec}>{specLine}</Text>
         <Text style={styles.h1}>Your fence quote</Text>
         <Text style={styles.sub}>
-          {data.linearFeet.toFixed(0)} LF {data.familyName}
-          {data.addressLine ? ` · ${data.addressLine}` : ""}
+          {data.addressLine ?? ""}
           {data.city ? `, ${data.city}` : ""}
           {data.state ? `, ${data.state}` : ""}
           {data.zip ? ` ${data.zip}` : ""}
         </Text>
 
-        <Text style={styles.sectionLabel}>Three options</Text>
-        <View style={styles.tierGrid}>
-          {(["good", "better", "best"] as Tier[]).map((t) => {
-            const tier = data.tiers[t];
-            const isSelected = data.selectedTier === t;
-            return (
-              <View
-                key={t}
-                style={[
-                  styles.tierCard,
-                  ...(isSelected ? [styles.tierCardSelected] : []),
-                ]}
-              >
-                {t === "better" && <Text style={styles.popular}>POPULAR</Text>}
-                <Text style={styles.tierLabel}>{TIER_META[t].label}</Text>
-                <Text style={styles.tierPrice}>{fmt(tier.total_cents)}</Text>
-                <Text style={styles.tierMonthly}>
-                  or {fmt(tier.monthly_24mo_cents)}/mo
-                </Text>
-              </View>
-            );
-          })}
+        <View style={styles.priceCard}>
+          <Text style={styles.priceRangeLabel}>Your range</Text>
+          <View style={styles.priceRangeRow}>
+            <Text style={styles.priceLow}>{fmt(data.displayRangeLowCents)}</Text>
+            <Text style={styles.priceDash}>–</Text>
+            <Text style={styles.priceHigh}>{fmt(data.displayRangeHighCents)}</Text>
+          </View>
+          <Text style={styles.priceHelper}>
+            Final price falls inside this range after a quick site verification — and
+            won&apos;t exceed the maximum. If we measure shorter, you pay less.
+          </Text>
         </View>
 
         <Text style={styles.sectionLabel}>Scope</Text>
@@ -207,7 +231,7 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
         <View style={styles.scopeRow}>
           <Text style={styles.scopeLabel}>Style</Text>
           <Text style={styles.scopeValue}>
-            {data.familyName} · {TIER_META[data.selectedTier].label}
+            {data.familyName} · {data.skuCode}
           </Text>
         </View>
         {data.heightUpgrade && (
@@ -220,6 +244,12 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
           <View style={styles.scopeRow}>
             <Text style={styles.scopeLabel}>Top</Text>
             <Text style={styles.scopeValue}>French Gothic</Text>
+          </View>
+        )}
+        {data.steelPostUpgrade && (
+          <View style={styles.scopeRow}>
+            <Text style={styles.scopeLabel}>Posts</Text>
+            <Text style={styles.scopeValue}>Steel-post upgrade (15-yr structural)</Text>
           </View>
         )}
         {data.stainSeal && (
@@ -237,19 +267,25 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
 
         {breakdownItems.length > 0 && (
           <>
-            <Text style={styles.sectionLabel}>Price breakdown ({TIER_META[data.selectedTier].label} tier basis)</Text>
+            <Text style={styles.sectionLabel}>Itemized breakdown</Text>
             {breakdownItems.map(([label, cents]) => (
               <View key={label} style={styles.bdRow}>
                 <Text style={styles.bdLabel}>{label}</Text>
                 <Text style={styles.bdValue}>{fmt(cents)}</Text>
               </View>
             ))}
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalValue}>{fmt(data.finalPriceCents)}</Text>
+            </View>
           </>
         )}
 
         <Text style={styles.footer}>
-          Issued {issuedAt} · Price valid through {validDate} · FencePros Tulsa ·
-          Licensed & insured · {data.quoteNumber ?? "(quote draft)"}
+          Issued {issuedAt} · Price valid through {validDate} ·{" "}
+          {BUSINESS.legalName} · Licensed & insured ·{" "}
+          {BUSINESS.phone} · {BUSINESS.domain} ·{" "}
+          {data.quoteNumber ?? "(quote draft)"}
         </Text>
       </Page>
     </Document>

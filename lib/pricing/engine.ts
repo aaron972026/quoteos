@@ -1,174 +1,346 @@
-import {
-  ADDONS,
-  DEMO_RATES,
-  FINANCING,
-  GATE_PRICES,
-  HEIGHT_UPGRADE_FAMILIES,
-  LF_LIMITS,
-  MARGIN_THRESHOLDS,
-  SKU_BY_CODE,
-  SLOPE,
-  TIER_MULTIPLIERS,
-} from "./data";
+import { DEFAULT_PRICING_CONFIG, type PricingConfig } from "./data";
 import {
   type InternalMargin,
   type MarginFlag,
   PricingError,
   type PricingInput,
   type PricingResult,
-  type Tier,
 } from "./types";
 
 /**
- * Pure pricing engine. Same input → same output, no side effects.
- * Money in cents (integer). Single source of truth — see spec §5.
+ * Pricing engine — cost-up to target margin with floor/profit guards.
+ *
+ * Pure function: same input → same output, no side effects, no I/O.
+ *
+ * Math (matches _pricing/FencePros_Pricing_Model.csv-job-estimator):
+ *   1. fence/LF = SKU.base_price (pre-derived at 45% target margin)
+ *   2. fence/LF × slope_mul × access_mul × LF = fence_subtotal
+ *   3. + steel_upgrade ($5/LF if toggled, cedar families only)
+ *   4. + gates (sum of count × price by type)
+ *   5. + demo ($3/LF when demo_type != NONE)
+ *   6. + stain ($8/LF if toggled)
+ *   7. + rock drilling ($25/post)
+ *   8. + tear concrete ($20/post)
+ *   9. + permit (city-specific, baked in)
+ *   = raw_subtotal
+ *
+ *   Guards (raise price, never lower):
+ *     - margin floor: price ≥ cost / (1 - 0.38)
+ *     - min profit:   price ≥ cost + $800
+ *
+ *   Round final price to nearest $50.
+ *   Display range = [final - swing, final]
+ *     where swing = clamp(5% × final, $200, $1200)
  */
-export function calculatePrice(input: PricingInput): PricingResult {
-  const warnings: string[] = [];
-  const sku = SKU_BY_CODE[input.sku_code];
-  if (!sku) throw new PricingError("UNKNOWN_SKU", `SKU not found: ${input.sku_code}`);
+export function calculatePrice(
+  input: PricingInput,
+  config: PricingConfig = DEFAULT_PRICING_CONFIG
+): PricingResult {
+  const sku = config.skuByCode[input.sku_code];
+  if (!sku) {
+    throw new PricingError("UNKNOWN_SKU", `SKU not found: ${input.sku_code}`);
+  }
 
   // ─── Validation ───────────────────────────────────────────────────
   if (!Number.isFinite(input.linear_feet) || input.linear_feet <= 0) {
     throw new PricingError("INVALID_LF", "linear_feet must be > 0");
   }
-  if (input.corner_count < 0 || !Number.isInteger(input.corner_count)) {
-    throw new PricingError("INVALID_CORNERS", "corner_count must be a non-negative integer");
+  if (!(input.slope_code in config.slope)) {
+    throw new PricingError(
+      "INVALID_SLOPE",
+      `slope_code ${input.slope_code} not recognized`
+    );
   }
-  if (!(input.slope_code in SLOPE)) {
-    throw new PricingError("INVALID_SLOPE", `slope_code ${input.slope_code} not recognized`);
-  }
-  if (!(input.demo_type in DEMO_RATES)) {
-    throw new PricingError("INVALID_DEMO", `demo_type ${input.demo_type} not recognized`);
-  }
-
-  if (input.linear_feet < LF_LIMITS.MIN) {
-    warnings.push(`SHORT_RUN: ${input.linear_feet} LF below minimum ${LF_LIMITS.MIN} — recommend in-home estimate`);
-  }
-  if (input.linear_feet > LF_LIMITS.MAX) {
-    warnings.push(`LONG_RUN: ${input.linear_feet} LF above max ${LF_LIMITS.MAX} — recommend in-home estimate`);
-  }
-  if (input.height_upgrade && !HEIGHT_UPGRADE_FAMILIES.has(sku.family)) {
-    warnings.push(`HEIGHT_UPGRADE_IGNORED: not available for family ${sku.family}`);
+  if (!(input.demo_type in config.demoRates)) {
+    throw new PricingError(
+      "INVALID_DEMO",
+      `demo_type ${input.demo_type} not recognized`
+    );
   }
 
-  // ─── Buildup (cents, kept in floats for now, rounded at the end) ──
-  const slopeMul = SLOPE[input.slope_code].multiplier;
-  const demoRate = DEMO_RATES[input.demo_type];
+  const warnings: string[] = [];
+  const { assumptions, costRatios, addons } = config;
 
-  const baseFenceRaw = input.linear_feet * sku.base_price_per_lf_cents * slopeMul;
-  const heightUpgradeRaw =
-    input.height_upgrade && HEIGHT_UPGRADE_FAMILIES.has(sku.family)
-      ? baseFenceRaw * ADDONS.HEIGHT_UPGRADE_PCT
-      : 0;
-  const frenchGothicRaw = input.french_gothic
-    ? input.linear_feet * ADDONS.FRENCH_GOTHIC_PER_LF_CENTS
-    : 0;
-  const stainRaw = input.stain_seal ? input.linear_feet * ADDONS.STAIN_PER_LF_CENTS : 0;
-  const demoRaw = input.linear_feet * demoRate;
-  const cornersRaw =
-    Math.max(0, input.corner_count - ADDONS.CORNER_FREE) * ADDONS.CORNER_OVER_CENTS;
+  // ─── Surcharge multipliers (slope + difficult access) ──────────────
+  const slopeEntry = config.slope[input.slope_code];
+  const slopeMul = 1 + slopeEntry.surcharge_pct;
+  if (slopeEntry.review_required) warnings.push("slope_review_required");
 
-  let gatesRaw = 0;
+  const accessMul = input.difficult_access ? 1 + addons.ACCESS_SURCHARGE_PCT : 1;
+
+  // ─── Fence subtotal (post-slope, post-access) ──────────────────────
+  // Compute deltas so the breakdown can surface slope + access contributions
+  // separately while keeping them inside `base_fence_cents`.
+  const baseFenceFlat = sku.base_price_per_lf_cents * input.linear_feet;
+  const fenceWithSlope = baseFenceFlat * slopeMul;
+  const fenceWithBoth = fenceWithSlope * accessMul;
+
+  const baseFenceCents = Math.round(fenceWithBoth);
+  const slopeSurchargeCents = Math.round(fenceWithSlope - baseFenceFlat);
+  const accessSurchargeCents = Math.round(fenceWithBoth - fenceWithSlope);
+
+  // ─── Steel post upgrade ($5/LF, wood-post families only) ───────────
+  let steelUpgradeCents = 0;
+  if (input.steel_post_upgrade) {
+    if (config.steelUpgradeFamilies.has(sku.family)) {
+      steelUpgradeCents = input.linear_feet * addons.STEEL_UPGRADE_PER_LF_CENTS;
+    } else {
+      warnings.push("steel_upgrade_ignored");
+    }
+  }
+
+  // ─── Cap rail + trim ($4/LF, wood-picket families only) ────────────
+  let capRailCents = 0;
+  if (input.cap_rail_trim) {
+    if (config.capRailFamilies.has(sku.family)) {
+      capRailCents = input.linear_feet * addons.CAP_RAIL_PER_LF_CENTS;
+    } else {
+      warnings.push("cap_rail_ignored");
+    }
+  }
+
+  // ─── Match black vinyl posts ($3/LF, CL-VIN only) ──────────────────
+  let matchVinylPostsCents = 0;
+  if (input.match_vinyl_posts) {
+    if (sku.code === "CL-VIN") {
+      matchVinylPostsCents =
+        input.linear_feet * addons.MATCH_VINYL_POSTS_PER_LF_CENTS;
+    } else {
+      warnings.push("match_vinyl_posts_ignored");
+    }
+  }
+
+  // ─── Gates ─────────────────────────────────────────────────────────
+  let gatesCents = 0;
   for (const g of input.gates) {
-    if (!(g.type in GATE_PRICES)) {
-      throw new PricingError("INVALID_GATE", `gate type ${g.type} not recognized`);
+    if (!(g.type in config.gatePrices)) {
+      throw new PricingError(
+        "INVALID_GATE",
+        `gate type ${g.type} not recognized`
+      );
     }
     if (!Number.isInteger(g.count) || g.count < 0) {
-      throw new PricingError("INVALID_GATE_COUNT", "gate count must be a non-negative integer");
+      throw new PricingError(
+        "INVALID_GATE_COUNT",
+        "gate count must be a non-negative integer"
+      );
     }
-    gatesRaw += g.count * GATE_PRICES[g.type].price_cents;
+    gatesCents += g.count * config.gatePrices[g.type].price_cents;
   }
 
-  const permitRaw = input.permit_required ? ADDONS.PERMIT_FLAT_CENTS : 0;
-  const hoaAdminRaw = input.hoa_admin ? ADDONS.HOA_ADMIN_FLAT_CENTS : 0;
-  const travelRaw = (input.travel_miles_over_25 ?? 0) * ADDONS.TRAVEL_PER_MILE_CENTS;
+  // ─── Demo (per LF) ─────────────────────────────────────────────────
+  const demoRate = config.demoRates[input.demo_type];
+  const demoLf =
+    input.demo_type === "NONE"
+      ? 0
+      : input.demo_lf != null
+        ? input.demo_lf
+        : input.linear_feet;
+  const demoCents = Math.round(demoLf * demoRate);
 
-  // Round each breakdown line for display, then re-sum for tier basis
-  const breakdown = {
-    base_fence: Math.round(baseFenceRaw),
-    height_upgrade: Math.round(heightUpgradeRaw),
-    french_gothic: Math.round(frenchGothicRaw),
-    stain: Math.round(stainRaw),
-    demo: Math.round(demoRaw),
-    corners: Math.round(cornersRaw),
-    gates: Math.round(gatesRaw),
-    permit: Math.round(permitRaw),
-    hoa_admin: Math.round(hoaAdminRaw),
-    travel: Math.round(travelRaw),
-  };
+  // ─── Stain & seal ($8/LF) ──────────────────────────────────────────
+  const stainCents = input.stain_seal
+    ? input.linear_feet * addons.STAIN_PER_LF_CENTS
+    : 0;
 
-  const baseTotal = Object.values(breakdown).reduce((a, b) => a + b, 0); // = good tier
+  // ─── Rock drilling + tear concrete ─────────────────────────────────
+  const rockPosts = input.rock_drilling_posts ?? 0;
+  const tearPosts = input.tear_concrete_posts ?? 0;
+  if (rockPosts < 0 || !Number.isInteger(rockPosts)) {
+    throw new PricingError(
+      "INVALID_ROCK_POSTS",
+      "rock_drilling_posts must be a non-negative integer"
+    );
+  }
+  if (tearPosts < 0 || !Number.isInteger(tearPosts)) {
+    throw new PricingError(
+      "INVALID_TEAR_POSTS",
+      "tear_concrete_posts must be a non-negative integer"
+    );
+  }
+  const rockDrillingCents = rockPosts * addons.ROCK_PER_POST_CENTS;
+  const tearConcreteCents = tearPosts * addons.TEAR_CONCRETE_PER_POST_CENTS;
 
-  // ─── Tier prices ──────────────────────────────────────────────────
-  const goodTotal = Math.round(baseTotal * TIER_MULTIPLIERS.good);
-  const betterTotal = Math.round(baseTotal * TIER_MULTIPLIERS.better);
-  const bestTotal = Math.round(baseTotal * TIER_MULTIPLIERS.best);
+  // ─── Permit (city-keyed) ───────────────────────────────────────────
+  const city = input.city ?? "Tulsa";
+  const permitCents = config.permits[city] ?? config.permitDefaultCents;
 
-  // ─── Monthly payment per tier (PMT formula) ──────────────────────
-  const monthlyGood = pmtCents(goodTotal, FINANCING.APR, FINANCING.MONTHS);
-  const monthlyBetter = pmtCents(betterTotal, FINANCING.APR, FINANCING.MONTHS);
-  const monthlyBest = pmtCents(bestTotal, FINANCING.APR, FINANCING.MONTHS);
+  // ─── Raw subtotal (pre-guards) ─────────────────────────────────────
+  const rawSubtotal =
+    baseFenceCents +
+    steelUpgradeCents +
+    capRailCents +
+    matchVinylPostsCents +
+    gatesCents +
+    demoCents +
+    stainCents +
+    rockDrillingCents +
+    tearConcreteCents +
+    permitCents;
 
-  // ─── Internal margin (better-tier basis) ──────────────────────────
-  // subtotal == better tier total — that's the anchor and the most-likely sale.
-  const subtotalForMargin = betterTotal;
-  const materialCost = Math.round(input.linear_feet * sku.material_cost_per_lf_cents);
-  const gateMaterialCost = Math.round(breakdown.gates * ADDONS.GATE_MATERIAL_PCT);
-  const subLaborCost = Math.round(subtotalForMargin * sku.sub_labor_pct);
-  const overheadCost = Math.round(subtotalForMargin * ADDONS.OVERHEAD_PCT);
-  const totalCost = materialCost + gateMaterialCost + subLaborCost + overheadCost + breakdown.permit;
-  const grossProfit = subtotalForMargin - totalCost;
-  const grossMarginPct = subtotalForMargin > 0 ? grossProfit / subtotalForMargin : 0;
+  // ─── Internal cost estimate ────────────────────────────────────────
+  // Fence cost = (material + waste + labor + overhead) × LF — this is the
+  // SKU's own total_cost/LF, derived in data.ts. We re-derive here to keep
+  // engine self-contained.
+  const wasteAdjMaterial =
+    sku.material_cost_per_lf_cents * (1 + assumptions.material_waste_pct);
+  const fencePerLfCost =
+    wasteAdjMaterial +
+    sku.labor_cost_per_lf_cents +
+    assumptions.overhead_per_lf_cents;
+  const fenceCostCents = Math.round(fencePerLfCost * input.linear_feet);
+
+  // Material vs labor split for the internal_margin breakdown
+  const materialCostCents = Math.round(wasteAdjMaterial * input.linear_feet);
+  const laborCostCents = Math.round(
+    sku.labor_cost_per_lf_cents * input.linear_feet
+  );
+  const overheadCostCents = Math.round(
+    assumptions.overhead_per_lf_cents * input.linear_feet
+  );
+
+  // Add-on costs use industry-derived ratios (see data.ts:COST_RATIOS)
+  const gateCost = Math.round(gatesCents * costRatios.GATE);
+  const demoCost = Math.round(demoCents * costRatios.DEMO);
+  const stainCost = Math.round(stainCents * costRatios.STAIN);
+  const steelCost = Math.round(steelUpgradeCents * costRatios.STEEL_UPGRADE);
+  const capRailCost = Math.round(capRailCents * costRatios.CAP_RAIL);
+  const matchVinylCost = Math.round(
+    matchVinylPostsCents * costRatios.MATCH_VINYL_POSTS
+  );
+  const rockCost = Math.round(rockDrillingCents * costRatios.ROCK_DRILLING);
+  const tearCost = Math.round(tearConcreteCents * costRatios.TEAR_CONCRETE);
+  const permitCost = Math.round(permitCents * costRatios.PERMIT);
+
+  const totalCostCents =
+    fenceCostCents +
+    gateCost +
+    demoCost +
+    stainCost +
+    steelCost +
+    capRailCost +
+    matchVinylCost +
+    rockCost +
+    tearCost +
+    permitCost;
+
+  // ─── Margin guards (raise price only, never lower) ─────────────────
+  let postGuardPrice = rawSubtotal;
+  const guards: string[] = [];
+
+  // Margin floor: price ≥ cost / (1 - margin_floor_pct)
+  const floorMin = Math.round(
+    totalCostCents / (1 - assumptions.margin_floor_pct)
+  );
+  if (postGuardPrice < floorMin) {
+    postGuardPrice = floorMin;
+    guards.push("margin_floor");
+  }
+
+  // Min profit: price ≥ cost + min_job_profit
+  const profitMin = totalCostCents + assumptions.min_job_profit_cents;
+  if (postGuardPrice < profitMin) {
+    postGuardPrice = profitMin;
+    if (!guards.includes("min_profit")) guards.push("min_profit");
+  }
+
+  // ─── Round to nearest $50 ──────────────────────────────────────────
+  const finalPriceCents =
+    Math.round(postGuardPrice / assumptions.round_to_cents) *
+    assumptions.round_to_cents;
+
+  // ─── Display range (swing scales with job size) ────────────────────
+  const swingRaw = Math.round(
+    finalPriceCents * assumptions.range_swing_pct
+  );
+  const swingCents = Math.max(
+    assumptions.range_swing_min_cents,
+    Math.min(assumptions.range_swing_max_cents, swingRaw)
+  );
+  const displayLowCents = Math.max(0, finalPriceCents - swingCents);
+
+  // ─── Final margin (post-round) ─────────────────────────────────────
+  const grossProfitCents = finalPriceCents - totalCostCents;
+  const grossMarginPct =
+    finalPriceCents > 0 ? grossProfitCents / finalPriceCents : 0;
 
   let marginFlag: MarginFlag = "ok";
-  if (grossMarginPct < MARGIN_THRESHOLDS.LOW) marginFlag = "low";
-  else if (grossMarginPct < MARGIN_THRESHOLDS.WARN) marginFlag = "warn";
+  if (grossMarginPct < config.marginThresholds.LOW) marginFlag = "low";
+  else if (grossMarginPct < config.marginThresholds.WARN) marginFlag = "warn";
+
+  // ─── Sanity warnings ───────────────────────────────────────────────
+  if (sku.market_flag === "ABOVE_MKT") warnings.push("above_market");
+  if (input.linear_feet < assumptions.lf_min) warnings.push("short_run");
+  if (input.linear_feet > assumptions.lf_max) warnings.push("long_run");
 
   const internal_margin: InternalMargin = {
-    material_cost_cents: materialCost,
-    gate_material_cost_cents: gateMaterialCost,
-    sub_labor_cost_cents: subLaborCost,
-    overhead_cost_cents: overheadCost,
-    total_cost_cents: totalCost,
-    gross_profit_cents: grossProfit,
+    material_cost_cents: materialCostCents,
+    labor_cost_cents: laborCostCents,
+    overhead_cost_cents: overheadCostCents,
+    total_cost_cents: totalCostCents,
+    gross_profit_cents: grossProfitCents,
     gross_margin_pct: round4(grossMarginPct),
     margin_flag: marginFlag,
   };
 
+  const monthly24moCents = pmtCents(
+    finalPriceCents,
+    config.financing.APR,
+    config.financing.MONTHS
+  );
+
   return {
-    subtotal_cents: betterTotal, // default tier
-    tiers: {
-      good:   { total_cents: goodTotal,   monthly_24mo_cents: monthlyGood },
-      better: { total_cents: betterTotal, monthly_24mo_cents: monthlyBetter },
-      best:   { total_cents: bestTotal,   monthly_24mo_cents: monthlyBest },
+    final_price_cents: finalPriceCents,
+    display_range_low_cents: displayLowCents,
+    display_range_high_cents: finalPriceCents,
+    deposit_cents: config.financing.DEPOSIT_CENTS,
+    monthly_24mo_cents: monthly24moCents,
+    valid_until: new Date(
+      Date.now() + config.financing.QUOTE_VALID_DAYS * 86400_000
+    ).toISOString(),
+    breakdown: {
+      base_fence_cents: baseFenceCents,
+      slope_surcharge_cents: slopeSurchargeCents,
+      access_surcharge_cents: accessSurchargeCents,
+      steel_upgrade_cents: steelUpgradeCents,
+      cap_rail_cents: capRailCents,
+      match_vinyl_posts_cents: matchVinylPostsCents,
+      gates_cents: gatesCents,
+      demo_cents: demoCents,
+      stain_cents: stainCents,
+      rock_drilling_cents: rockDrillingCents,
+      tear_concrete_cents: tearConcreteCents,
+      permit_cents: permitCents,
     },
-    deposit_cents: FINANCING.DEPOSIT_CENTS,
-    valid_until: new Date(Date.now() + FINANCING.QUOTE_VALID_DAYS * 86400_000).toISOString(),
-    breakdown,
+    raw_subtotal_cents: rawSubtotal,
+    guards_applied: guards,
     internal_margin,
     warnings,
+    effective_per_lf_cents:
+      input.linear_feet > 0
+        ? Math.round(finalPriceCents / input.linear_feet)
+        : 0,
   };
 }
 
 /**
- * Strip internal-margin block for client-facing responses.
- * Customer-facing endpoints MUST run output through this.
+ * Strip internal-margin from a result for public/customer-facing responses.
+ * Server boundary helper — call this before returning to non-admin clients.
  */
-export function stripInternal(result: PricingResult): Omit<PricingResult, "internal_margin"> {
+export function stripInternal(
+  result: PricingResult
+): Omit<PricingResult, "internal_margin"> {
   const safe = { ...result } as Partial<PricingResult>;
   delete safe.internal_margin;
   return safe as Omit<PricingResult, "internal_margin">;
 }
 
-/**
- * Standard amortization formula: M = P·r / (1 − (1+r)^−n)
- * @param principalCents loan amount in cents
- * @param apr annual percentage rate as decimal (e.g. 0.0999 for 9.99%)
- * @param months term length in months
- * @returns monthly payment in cents (rounded)
- */
-export function pmtCents(principalCents: number, apr: number, months: number): number {
+/** Standard amortization: M = P·r / (1 − (1+r)^−n) */
+export function pmtCents(
+  principalCents: number,
+  apr: number,
+  months: number
+): number {
   if (principalCents <= 0 || months <= 0) return 0;
   if (apr === 0) return Math.round(principalCents / months);
   const r = apr / 12;
@@ -176,13 +348,6 @@ export function pmtCents(principalCents: number, apr: number, months: number): n
   return Math.round(monthly);
 }
 
-/** Round to 4 decimal places (for percentages stored as decimals) */
 function round4(n: number): number {
   return Math.round(n * 10000) / 10000;
-}
-
-/** Pick the right SKU based on family + tier — handy for UI pickers */
-export function getSkuCode(family: string, tier: Tier): string {
-  const tierSuffix = tier === "good" ? "G" : tier === "better" ? "B" : "X";
-  return `${family}-${tierSuffix}`;
 }

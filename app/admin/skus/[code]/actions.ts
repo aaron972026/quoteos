@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db/client";
 import { pricingVersions, skus } from "@/lib/db/schema";
+import { invalidatePricingConfigCache } from "@/lib/pricing/load-config";
 
 const Schema = z.object({
   description: z.string().min(1).max(512),
@@ -42,10 +43,8 @@ export interface UpdateSkuResult {
 /**
  * Server action invoked by SkuEditForm. Validates, writes the change, and
  * appends a pricing_versions audit row with before+after for trail purposes.
- *
- * NB: the pricing engine still reads `lib/pricing/data.ts` at runtime — this
- * action persists the change to DB + audit log but does not affect live
- * quoting yet. Engine-DB wiring is a separate slice.
+ * Cache busted after the write so the next quote calculation sees the new
+ * SKU values — see lib/pricing/load-config.ts.
  */
 export async function updateSku(
   code: string,
@@ -116,6 +115,10 @@ export async function updateSku(
     },
     effectiveAt: new Date(),
   });
+
+  // Bust the engine config cache so the next quote sees the new SKU values
+  // immediately (otherwise the change would take up to CACHE_TTL_MS to land).
+  invalidatePricingConfigCache();
 
   revalidatePath("/admin/skus");
   revalidatePath(`/admin/skus/${code}/edit`);

@@ -1,17 +1,14 @@
 // ─── Pricing Engine Types ─────────────────────────────────────────────
-// All money is in CENTS (integer). Never floats.
+// All money in CENTS (integer). Never floats for monetary fields.
+//
+// Model: cost-up to target gross margin (45%), with margin-floor (38%)
+// and min-profit ($800) guard rails, $50 rounding, and a job-size-scaled
+// display range. Each SKU is its own price point — no tier multiplier.
+// See _pricing/FencePros_Pricing_Model.csv-* for the source of truth.
 
+export type GateType = "W4" | "W5" | "D10" | "D12" | "D16";
 export type DemoType = "NONE" | "CEDAR" | "CHAIN" | "METAL" | "CONC";
-
-export type GateType =
-  | "SW-4"  //  4' single walk
-  | "SW-5"  //  5' single walk
-  | "DD-10" // 10' double drive
-  | "DD-12" // 12' double drive
-  | "DD-14"; // 14' double drive
-
-export type SkuFamily = "CP" | "HC" | "CL" | "OR" | "RR";
-export type Tier = "good" | "better" | "best";
+export type SkuFamily = "CPF" | "HCF" | "CL" | "RR" | "BP";
 export type MarginFlag = "ok" | "warn" | "low";
 
 // ─── Inputs ───────────────────────────────────────────────────────────
@@ -22,60 +19,64 @@ export interface PricingGate {
 }
 
 export interface PricingInput {
-  sku_code: string;          // e.g. "CP-B"
-  linear_feet: number;       // post-rounding from drawing
-  corner_count: number;      // total corners on the line
-  slope_code: number;        // 0..4
-  demo_type: DemoType;
+  sku_code: string;             // e.g. "CPF-PRM"
+  linear_feet: number;          // total LF of fence
+  corner_count?: number;        // informational only — engine ignores in MVP
+  slope_code: number;           // 0..4 (4 = "review required" — uses 22% multiplier and emits warning)
+  demo_type: DemoType;          // "NONE" if no existing fence to remove
+  demo_lf?: number;             // LF needing demo; defaults to linear_feet when demo_type != NONE
   gates: PricingGate[];
-  height_upgrade?: boolean;  // 6'→8' for CP / HC families only
-  french_gothic?: boolean;   // premium top: +$2/LF
-  stain_seal?: boolean;      // +$3.25/LF
-  permit_required?: boolean; // flat $150
-  hoa_admin?: boolean;       // flat $75
-  travel_miles_over_25?: number; // $7.50/mile
-  zip?: string;              // for service-zone lookup (informational)
+  stain_seal?: boolean;         // +$8/LF
+  steel_post_upgrade?: boolean; // +$5/LF (wood-post families: CPF/HCF/BP — ignored elsewhere with warning)
+  cap_rail_trim?: boolean;      // +$4/LF (Cedar Privacy + Horizontal Cedar + Budget Pine — wood-picket families)
+  match_vinyl_posts?: boolean;  // +$3/LF (CL-VIN only — black PVC-coated posts to match the mesh)
+  rock_drilling_posts?: number; // +$25/post
+  tear_concrete_posts?: number; // +$20/post for old concrete-set post removal
+  difficult_access?: boolean;   // +8% surcharge on fence subtotal
+  city?: string;                // "Tulsa" | "Broken Arrow" | "Bixby" | "Jenks" | "Owasso"
+  zip?: string;                 // informational (service-zone lookup)
 }
 
 // ─── Outputs ──────────────────────────────────────────────────────────
 
-export interface TierTotal {
-  total_cents: number;
-  monthly_24mo_cents: number;
-}
-
 export interface PricingBreakdown {
-  base_fence: number;
-  height_upgrade: number;
-  french_gothic: number;
-  stain: number;
-  demo: number;
-  corners: number;
-  gates: number;
-  permit: number;
-  hoa_admin: number;
-  travel: number;
+  base_fence_cents: number;          // fence subtotal AFTER slope + access surcharges
+  slope_surcharge_cents: number;     // delta from slope mul (already inside base_fence)
+  access_surcharge_cents: number;    // delta from access (already inside base_fence)
+  steel_upgrade_cents: number;
+  cap_rail_cents: number;            // +$4/LF cap rail + trim (wood-picket families)
+  match_vinyl_posts_cents: number;   // +$3/LF black PVC posts (CL-VIN only)
+  gates_cents: number;
+  demo_cents: number;
+  stain_cents: number;
+  rock_drilling_cents: number;
+  tear_concrete_cents: number;
+  permit_cents: number;
 }
 
 export interface InternalMargin {
-  material_cost_cents: number;
-  gate_material_cost_cents: number;
-  sub_labor_cost_cents: number;
-  overhead_cost_cents: number;
-  total_cost_cents: number;
-  gross_profit_cents: number;
-  gross_margin_pct: number;
+  material_cost_cents: number;       // SKU material + waste, × LF
+  labor_cost_cents: number;          // SKU labor × LF + ancillary labor on add-ons
+  overhead_cost_cents: number;       // overhead/LF × LF
+  total_cost_cents: number;          // sum of all cost lines (incl. permit pass-through)
+  gross_profit_cents: number;        // final_price - total_cost
+  gross_margin_pct: number;          // 0..1
   margin_flag: MarginFlag;
 }
 
 export interface PricingResult {
-  subtotal_cents: number; // = better-tier total (default selected)
-  tiers: { good: TierTotal; better: TierTotal; best: TierTotal };
-  deposit_cents: number;
-  valid_until: string; // ISO 8601
-  breakdown: PricingBreakdown; // dollar amounts at "good" (pre-tier) base
+  final_price_cents: number;            // post-guards, post-rounding
+  display_range_low_cents: number;      // = final - swing (swing = clamp(5% × final, $200, $1200))
+  display_range_high_cents: number;     // = final
+  deposit_cents: number;                // $99 refundable hold
+  monthly_24mo_cents: number;           // 24-mo amortized at FINANCING.APR (for Wisetack messaging)
+  valid_until: string;                  // ISO 8601
+  breakdown: PricingBreakdown;
+  raw_subtotal_cents: number;           // pre-guards, pre-rounding (sum of breakdown lines)
+  guards_applied: string[];             // [] or subset of ["margin_floor", "min_profit"]
   internal_margin: InternalMargin;
-  warnings: string[];
+  warnings: string[];                   // e.g. "slope_review_required", "above_market"
+  effective_per_lf_cents: number;       // final_price / linear_feet, rounded
 }
 
 // ─── Errors ───────────────────────────────────────────────────────────

@@ -1,0 +1,45 @@
+/* fonts.css — drop into app/layout.tsx <head> via next/font OR include this stylesheet
+   For Next.js the preferred path is next/font (see app/layout.tsx example in README) */
+
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --font-display: 'Oswald', 'Arial Narrow', sans-serif;
+  --font-body:    'Source Sans 3', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+}
+
+html, body {
+  background: #FBF8F0;
+  color: #15161A;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Brand utility: eyebrow dashes flourish */
+.dashes {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: #C8962E;
+  text-transform: uppercase;
+  letter-spacing: .18em;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.dashes .d        { display: inline-block; height: 1.5px; background: #C8962E; flex: none; }
+.dashes .d.short  { width: 8px; }
+.dashes .d.long   { width: 28px; }
+.dashes.tight .d.long { width: 20px; }
+
+/* Brand utility: brass picket motif */
+.pickets        { display: inline-flex; align-items: flex-end; gap: 5px; height: 22px; }
+.pickets span   { display: block; width: 8px; height: 18px; background: #C8962E;
+                  clip-path: polygon(0 22%, 50% 0, 100% 22%, 100% 100%, 0 100%); }
+.pickets span:nth-child(odd) { height: 22px; }
+
+/* Tabular numerals (price, footage) */
+.tnum { font-variant-numeric: tabular-nums; letter-spacing: .04em; }

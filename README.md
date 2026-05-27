@@ -168,7 +168,7 @@ npm run test:run lib/pricing/engine.test.ts
 
 **Quotes** flow through statuses: `draft` → `finalized` → `deposit_paid` → `won` / `lost` / `expired`. The same row carries the geometry, SKU, options, and computed pricing snapshot — so admin can re-render any quote on a map after the fact.
 
-**Pricing engine** is intentionally a pure function with no DB access. The seed script puts the data into Postgres for the admin panel to edit, but at runtime the engine reads from `lib/pricing/data.ts`. To swap to DB-driven config later, replace those imports with a cached DB lookup — same interface.
+**Pricing engine** is a pure function taking `(input, config)`. The config bundles SKUs, slope/demo/gate/addon tables, financing, and limits. API routes load a DB-backed config via `lib/pricing/load-config.ts` (60s in-process cache, busted on admin SKU writes) so admin edits to the `skus` table flow into live quoting. Tests and the default code path still use the in-file `DEFAULT_PRICING_CONFIG` from `lib/pricing/data.ts` — same numbers, no DB dependency in unit tests.
 
 **Rate limits** are in-memory token-buckets ([lib/api/rate-limit.ts](lib/api/rate-limit.ts)) per spec §8: 30/min for pricing, 5/min for quote save, 1/min for deposit. For multi-instance deployment swap to Upstash Redis (same `checkLimit` signature).
 

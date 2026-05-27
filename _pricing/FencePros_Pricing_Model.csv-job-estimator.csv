@@ -1,0 +1,44 @@
+﻿JOB ESTIMATOR,,,,
+Model any job. Change BLUE cells. Mirrors QuoteOS engine incl. $800 min-profit + margin-floor guards.,,,,
+,,,,
+SELECTED SKU,CPF-PRM,,RATE TABLE (edit blue),
+Linear feet,150,,Walk gate each,$450
+Slope code (0-4),1,,Drive gate each,"$1,200"
+City,Tulsa,,Demo $/LF,$4
+Walk gates (#),1,,Stain $/LF,$10
+Drive gates (#),0,,Slope 1 surcharge,5.0%
+Demo LF,0,,Slope 2 surcharge,12.0%
+Stain LF,0,,Slope 3 surcharge,22.0%
+Steel post upgrade LF,0,,Permit (this job),$75
+,,,Steel upgrade $/LF,$10
+,,,,
+CALCULATION,,,,
+Base price $/LF (SKU),$44.82,,,
+Base cost $/LF (SKU),$24.65,,,
+Slope surcharge %,5.0%,,,
+Price $/LF after slope,$47.06,,,
+Fence subtotal,"$7,059",,,
+Steel upgrade subtotal,$0,,,
+Gates subtotal,$450,,,
+Demo subtotal,$0,,,
+Stain subtotal,$0,,,
+Permit,$75,,,
+RAW SUBTOTAL,"$7,584",,,
+,,,,
+Total job COST (est.),"$3,962",,,
+Gross profit (raw),"$3,622",,,
+Gross margin (raw),47.8%,,,
+,,,,
+Margin floor check,ok,,,
+Min-profit check,ok,,,
+Price after floor guard,"$7,584",,,
+Price after min-profit guard,"$7,584",,,
+"FINAL PRICE (max, rounded)","$7,600",,,
+Display range LOW,#VALUE!,,,
+Display range HIGH,"$7,600",,,
+Final profit,"$3,639",,,
+Final margin,47.9%,,,
+Effective $/LF,$50.67,,,
+,,,,
+,,,,
+CUSTOMER SEES:,#VALUE!,,,

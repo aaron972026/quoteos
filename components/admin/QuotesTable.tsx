@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { formatCents } from "@/lib/utils";
 
-type Tier = "good" | "better" | "best" | null;
 type MarginFlag = "ok" | "warn" | "low" | null;
 
 export interface QuoteRow {
@@ -15,9 +14,8 @@ export interface QuoteRow {
   zip: string | null;
   linearFeet: string | number | null;
   skuCode: string | null;
-  tier: Tier;
   selectedTierCents: number | null;
-  tierBetterCents: number | null;
+  subtotalCents: number | null;
   marginFlag: MarginFlag;
   createdAt: Date | string;
 }
@@ -79,7 +77,7 @@ export function QuotesTable({ rows }: Props) {
           </thead>
           <tbody className="divide-y divide-navy/5">
             {rows.map((r) => {
-              const price = r.selectedTierCents ?? r.tierBetterCents;
+              const price = r.selectedTierCents ?? r.subtotalCents;
               return (
                 <tr key={r.id} className="hover:bg-navy/[0.02]">
                   <td className="px-4 py-2.5 font-mono text-xs text-navy/80">

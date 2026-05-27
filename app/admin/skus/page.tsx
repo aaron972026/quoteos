@@ -4,6 +4,7 @@ import { CheckCircle2 } from "lucide-react";
 import { db } from "@/lib/db/client";
 import { skus } from "@/lib/db/schema";
 import { formatCents } from "@/lib/utils";
+import { MaterialIndexBanner } from "@/components/admin/MaterialIndexBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,11 @@ export default async function AdminSkusPage({
             <code className="rounded bg-navy/5 px-1 font-mono">pricing_versions</code>.
           </p>
         </div>
+      </div>
+
+      <div className="mt-4">
+        {/* Async server component — awaits FRED + filters to flagged signals. */}
+        <MaterialIndexBanner />
       </div>
 
       {searchParams.saved && (
@@ -71,7 +77,7 @@ export default async function AdminSkusPage({
                   <td className="px-4 py-2.5 text-navy">{s.familyName}</td>
                   <td className="px-4 py-2.5">
                     <span className="rounded bg-navy/5 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-navy/70">
-                      {s.tier}
+                      {s.tier ?? "—"}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-navy">
@@ -98,11 +104,10 @@ export default async function AdminSkusPage({
       </div>
 
       <p className="mt-4 text-xs italic text-navy/50">
-        Note: the live pricing engine currently reads from{" "}
-        <code className="rounded bg-navy/5 px-1 font-mono">lib/pricing/data.ts</code>{" "}
-        at runtime, so admin edits persist + audit here but don&rsquo;t affect
-        new quotes until the engine is rewired to read from the DB
-        (Phase 1.5).
+        Edits here flow into live quoting via{" "}
+        <code className="rounded bg-navy/5 px-1 font-mono">lib/pricing/load-config.ts</code>
+        ; the in-process cache is busted on save so the next quote API call
+        picks up the new values immediately.
       </p>
     </div>
   );

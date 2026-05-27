@@ -15,10 +15,11 @@ import {
 import { LIMITS, checkLimit } from "@/lib/api/rate-limit";
 import { getCurrentSessionId } from "@/lib/api/session-helper";
 import { calculatePrice } from "@/lib/pricing/engine";
-import { PricingError } from "@/lib/pricing/types";
+import { loadPricingConfig } from "@/lib/pricing/load-config";
+import { PricingError, type GateType, type DemoType } from "@/lib/pricing/types";
 
 const GateSchema = z.object({
-  type: z.enum(["SW-4", "SW-5", "DD-10", "DD-12", "DD-14"]),
+  type: z.enum(["W4", "W5", "D10", "D12", "D16"]),
   count: z.number().int().min(0).max(20),
   position: z.object({ lat: z.number(), lng: z.number() }).optional(),
 });
@@ -31,12 +32,20 @@ const PatchBody = z.object({
   slope_self_reported: z.boolean().optional(),
   demo_required: z.boolean().optional(),
   demo_type: z.enum(["NONE", "CEDAR", "CHAIN", "METAL", "CONC"]).optional(),
+  demo_lf: z.number().min(0).max(10000).optional(),
   sku_code: z.string().min(2).max(16).optional(),
-  tier: z.enum(["good", "better", "best"]).optional(),
   height_upgrade: z.boolean().optional(),
   french_gothic: z.boolean().optional(),
   stain_seal: z.boolean().optional(),
+  steel_post_upgrade: z.boolean().optional(),
+  cap_rail_trim: z.boolean().optional(),
+  match_vinyl_posts: z.boolean().optional(),
+  rock_drilling_posts: z.number().int().min(0).max(500).optional(),
+  tear_concrete_posts: z.number().int().min(0).max(500).optional(),
+  difficult_access: z.boolean().optional(),
+  city: z.string().min(2).max(64).optional(),
   gates: z.array(GateSchema).max(10).optional(),
+  ownership: z.enum(["owner", "consent"]).optional(),
 });
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -51,7 +60,6 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   if (!row) return notFound("Quote not found");
 
-  // Strip internal-margin fields from client response
   const safe = { ...row };
   delete (safe as Partial<typeof row>).estimatedMaterialCostCents;
   delete (safe as Partial<typeof row>).estimatedSubCostCents;
@@ -78,11 +86,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!parsed.success) return fromZod(parsed.error);
     const d = parsed.data;
 
-    // Confirm ownership + load the existing row in full. We need it both to
-    // gate locked statuses AND to merge with the PATCH body so we can compute
-    // pricing using whatever fields are now available — Screen 4 only sends
-    // sku/tier/addons in the body, but linear_feet/corner_count/slope_code/
-    // demo_type were saved on Screen 3 and are already on the row.
     const [existing] = await db
       .select()
       .from(quotes)
@@ -93,58 +96,74 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return badRequest("LOCKED", "Quote is locked and cannot be modified");
     }
 
-    // Merge body with existing row so pricing computes from the full picture
+    // Merge body with existing row so pricing computes from the full picture.
+    // The /configure screen sends sku/addons; LF/slope/demo/gates were saved on /draw.
     const merged = {
       sku_code: d.sku_code ?? existing.skuCode,
       linear_feet:
         d.linear_feet ??
         (existing.linearFeet != null ? Number(existing.linearFeet) : null),
-      corner_count: d.corner_count ?? existing.cornerCount,
+      corner_count: d.corner_count ?? existing.cornerCount ?? 0,
       slope_code: d.slope_code ?? existing.slopeCode,
       demo_type: d.demo_type ?? existing.demoType,
-      height_upgrade: d.height_upgrade ?? !!existing.heightUpgrade,
-      french_gothic: d.french_gothic ?? !!existing.frenchGothic,
       stain_seal: d.stain_seal ?? !!existing.stainSeal,
+      steel_post_upgrade: d.steel_post_upgrade ?? false,
+      cap_rail_trim: d.cap_rail_trim ?? false,
+      match_vinyl_posts: d.match_vinyl_posts ?? false,
+      difficult_access: d.difficult_access ?? false,
+      rock_drilling_posts: d.rock_drilling_posts ?? 0,
+      tear_concrete_posts: d.tear_concrete_posts ?? 0,
+      city: d.city ?? existing.city ?? "Tulsa",
       gates:
         d.gates ??
-        (existing.gates as
-          | Array<{ type: "SW-4" | "SW-5" | "DD-10" | "DD-12" | "DD-14"; count: number }>
-          | null) ??
+        (existing.gates as Array<{ type: GateType; count: number }> | null) ??
         [],
     };
 
-    // If we have enough info, compute pricing snapshot inline
     let pricingPatch: Partial<typeof quotes.$inferInsert> = {};
     const hasPricingInputs =
       merged.sku_code &&
       merged.linear_feet != null &&
-      merged.corner_count != null &&
       merged.slope_code != null &&
       merged.demo_type;
 
     if (hasPricingInputs) {
       try {
-        const priced = calculatePrice({
-          sku_code: merged.sku_code!,
-          linear_feet: merged.linear_feet!,
-          corner_count: merged.corner_count!,
-          slope_code: merged.slope_code!,
-          demo_type: merged.demo_type!,
-          gates: merged.gates.map((g) => ({ type: g.type, count: g.count })),
-          height_upgrade: merged.height_upgrade,
-          french_gothic: merged.french_gothic,
-          stain_seal: merged.stain_seal,
-        });
+        const config = await loadPricingConfig();
+        const priced = calculatePrice(
+          {
+            sku_code: merged.sku_code!,
+            linear_feet: merged.linear_feet!,
+            corner_count: merged.corner_count,
+            slope_code: merged.slope_code!,
+            demo_type: merged.demo_type as DemoType,
+            gates: merged.gates.map((g) => ({ type: g.type, count: g.count })),
+            stain_seal: merged.stain_seal,
+            steel_post_upgrade: merged.steel_post_upgrade,
+            cap_rail_trim: merged.cap_rail_trim,
+            match_vinyl_posts: merged.match_vinyl_posts,
+            difficult_access: merged.difficult_access,
+            rock_drilling_posts: merged.rock_drilling_posts,
+            tear_concrete_posts: merged.tear_concrete_posts,
+            city: merged.city,
+          },
+          config
+        );
+        // Map new engine result → existing DB columns. The legacy tier-tier
+        // columns get the same final price (the table will be cleaned up in
+        // a future schema slice). `subtotalCents` carries the customer-facing
+        // total = `final_price_cents`.
         pricingPatch = {
-          subtotalCents: priced.subtotal_cents,
-          tierGoodCents: priced.tiers.good.total_cents,
-          tierBetterCents: priced.tiers.better.total_cents,
-          tierBestCents: priced.tiers.best.total_cents,
+          subtotalCents: priced.final_price_cents,
+          tierGoodCents: priced.final_price_cents,
+          tierBetterCents: priced.final_price_cents,
+          tierBestCents: priced.final_price_cents,
+          selectedTierCents: priced.final_price_cents,
           depositCents: priced.deposit_cents,
-          monthly24moCents: priced.tiers.better.monthly_24mo_cents,
+          monthly24moCents: priced.monthly_24mo_cents,
           priceValidUntil: new Date(priced.valid_until),
           estimatedMaterialCostCents: priced.internal_margin.material_cost_cents,
-          estimatedSubCostCents: priced.internal_margin.sub_labor_cost_cents,
+          estimatedSubCostCents: priced.internal_margin.labor_cost_cents,
           estimatedGrossMarginPct: priced.internal_margin.gross_margin_pct.toString(),
           marginFlag: priced.internal_margin.margin_flag,
         };
@@ -167,11 +186,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         demoRequired: d.demo_required,
         demoType: d.demo_type,
         skuCode: d.sku_code,
-        tier: d.tier,
+        // tier column is legacy — pricing v2 uses SKU code as the variant.
         heightUpgrade: d.height_upgrade,
         frenchGothic: d.french_gothic,
         stainSeal: d.stain_seal,
         gates: d.gates,
+        ...(d.ownership !== undefined
+          ? {
+              ownership: d.ownership,
+              ownershipConfirmedAt: new Date(),
+            }
+          : {}),
         ...pricingPatch,
         updatedAt: new Date(),
       })
