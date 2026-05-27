@@ -37,20 +37,23 @@ export function TrustBar({
   return (
     <div
       className={cn(
-        "grid grid-cols-2 gap-x-6 gap-y-3 border-t py-4 md:grid-cols-4",
+        "grid grid-cols-2 gap-x-4 gap-y-4 border-t py-4 sm:gap-x-6 md:grid-cols-4",
         wrapBorder,
         className
       )}
     >
       {items.map((it) => (
-        <div key={it.label} className="flex items-center gap-3">
+        <div
+          key={it.label}
+          className="flex items-center justify-center gap-2.5 text-center sm:gap-3 sm:text-left"
+        >
           <Star
             size={16}
             strokeWidth={1.5}
             className={cn("flex-shrink-0", labelColor)}
             fill="none"
           />
-          <div className="leading-tight">
+          <div className="min-w-0 leading-tight">
             <div
               className={cn(
                 "font-display text-[11px] font-semibold uppercase tracking-eyebrow",
@@ -59,7 +62,12 @@ export function TrustBar({
             >
               {it.label}
             </div>
-            <div className={cn("font-body text-[12px]", detailColor)}>
+            <div
+              className={cn(
+                "font-body text-[12px] leading-[1.35]",
+                detailColor
+              )}
+            >
               {it.detail}
             </div>
           </div>
