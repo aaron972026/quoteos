@@ -145,31 +145,36 @@ export default function AddressPage() {
                 {t.address.lead}
               </p>
 
-              {/* Address input shell ────────────────────────── */}
+              {/* Address input shell — input + CTA stack on mobile, side-by-
+                  side at sm:+ where the row has room. Mobile inputs share full
+                  width so the placeholder isn't truncated and the tap target
+                  is big. */}
               <div className="relative mx-auto mt-10 max-w-[640px]">
                 <div
                   className={cn(
-                    "flex items-stretch bg-paper transition-all",
-                    "rounded-md border-2 shadow-card-lg",
+                    "flex flex-col items-stretch gap-2 bg-paper transition-all sm:flex-row sm:gap-0",
+                    "rounded-md border-2 p-1.5 shadow-card-lg sm:p-0",
                     "border-navy/30 focus-within:border-navy focus-within:ring-[5px] focus-within:ring-navy/12"
                   )}
                 >
-                  <div className="flex items-center pl-5 pr-2 text-brick">
-                    <MapPin size={22} strokeWidth={2} />
-                  </div>
-                  <div className="flex-1 self-center qos-address-input-host">
-                    <AddressAutocomplete
-                      onSelect={handleSelect}
-                      placeholder={t.address.inputPlaceholder}
-                      autoFocus
-                    />
+                  <div className="flex flex-1 items-center gap-2 sm:gap-0">
+                    <div className="flex items-center pl-3 pr-1 text-brick sm:pl-5 sm:pr-2">
+                      <MapPin size={22} strokeWidth={2} />
+                    </div>
+                    <div className="qos-address-input-host min-w-0 flex-1 self-center">
+                      <AddressAutocomplete
+                        onSelect={handleSelect}
+                        placeholder={t.address.inputPlaceholder}
+                        autoFocus
+                      />
+                    </div>
                   </div>
                   <button
                     type="button"
                     onClick={handleConfirm}
                     disabled={!canProceed}
                     className={cn(
-                      "m-1.5 flex items-center gap-2 rounded-sm px-6 md:px-8",
+                      "flex h-12 w-full items-center justify-center gap-2 rounded-sm px-6 sm:m-1.5 sm:h-auto sm:w-auto sm:px-6 md:px-8",
                       "font-display text-[14px] font-semibold uppercase tracking-eyebrow",
                       "transition-colors",
                       canProceed

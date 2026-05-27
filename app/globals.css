@@ -21,6 +21,10 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-feature-settings: "ss01", "cv11";
+  /* Safety net — no section should ever bleed off the viewport on mobile.
+     Individual sections still need their own width discipline; this catches
+     anything that slips through. */
+  overflow-x: hidden;
 }
 
 @layer utilities {
@@ -43,13 +47,14 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  max-width: 100%;
   font-family: var(--font-display), "Oswald", "Arial Narrow", sans-serif;
   font-weight: 600;
   color: #C8962E;
   text-transform: uppercase;
   letter-spacing: .18em;
   font-size: 12px;
-  white-space: nowrap;
 }
 .dashes .d { display: inline-block; height: 1.5px; background: #C8962E; flex: none; }
 .dashes .d.short { width: 8px; }

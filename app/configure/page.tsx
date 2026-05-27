@@ -354,22 +354,23 @@ function ConfigurePageInner() {
 
       <section className="flex-1">
         <div className="mx-auto max-w-[1280px] px-5 py-8 md:px-10 md:py-12">
-          {/* Header row */}
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <Eyebrow>{t.configure.eyebrow}</Eyebrow>
-              <h2 className="mt-3 font-display text-[36px] font-bold uppercase leading-[1] tracking-[0.01em] text-navy md:text-[44px]">
-                {t.configure.title}
-              </h2>
-              <p className="mt-3 max-w-[64ch] font-body text-[15px] leading-[1.55] text-char">
-                {helperLine}
-              </p>
-            </div>
+          {/* Header row — chip stacks above the heading on mobile so the
+              wrapping lead paragraph never visually collides with it. */}
+          <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
             {quoteId && (
-              <div className="font-mono text-[11px] uppercase tracking-spec text-brick">
+              <div className="order-first font-mono text-[11px] uppercase tracking-spec text-brick md:order-last">
                 QUOTE-IN-PROGRESS · {quoteId.slice(0, 8).toUpperCase()}
               </div>
             )}
+            <div className="min-w-0 flex-1">
+              <Eyebrow>{t.configure.eyebrow}</Eyebrow>
+              <h2 className="mt-3 font-display text-[32px] font-bold uppercase leading-[1] tracking-[0.01em] text-navy sm:text-[36px] md:text-[44px]">
+                {t.configure.title}
+              </h2>
+              <p className="mt-3 max-w-[64ch] font-body text-[14.5px] leading-[1.55] text-char sm:text-[15px]">
+                {helperLine}
+              </p>
+            </div>
           </div>
 
           <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_360px]">

@@ -364,6 +364,19 @@ function DrawPageInner() {
 
       <section className="flex-1">
         <div className="mx-auto grid max-w-[1280px] gap-6 px-5 py-6 md:px-10 md:py-10 lg:grid-cols-[1fr_360px]">
+          {/* Mobile-only intro — sits above the map so customers see the
+              core instruction before the satellite. Hidden on desktop where
+              the right column carries the same content. */}
+          <div className="order-1 lg:hidden">
+            <Eyebrow>{t.draw.eyebrow}</Eyebrow>
+            <h2 className="mt-3 font-display text-[26px] font-bold uppercase leading-[1.05] tracking-[0.01em] text-navy">
+              {t.draw.panelTitle}
+            </h2>
+            <p className="mt-2 font-body text-[14px] leading-[1.5] text-char">
+              {t.draw.panelHelp}
+            </p>
+          </div>
+
           {/* ── Map column ───────────────────────────────────────── */}
           <div className="order-2 lg:order-1">
             <div
@@ -498,17 +511,22 @@ function DrawPageInner() {
           </div>
 
           {/* ── Right panel ─────────────────────────────────────── */}
-          <div className="order-1 lg:order-2">
-            <Eyebrow>{t.draw.eyebrow}</Eyebrow>
-            <h2 className="mt-3 font-display text-[32px] font-bold uppercase leading-[1] tracking-[0.01em] text-navy md:text-[36px]">
-              {t.draw.panelTitle}
-            </h2>
-            <p className="mt-3 max-w-[42ch] font-body text-[14px] leading-[1.55] text-char">
-              {t.draw.panelHelp}
-            </p>
+          <div className="order-3 lg:order-2">
+            {/* Desktop intro — hidden on mobile because the mobile-only
+                intro above the map already shows this content. */}
+            <div className="hidden lg:block">
+              <Eyebrow>{t.draw.eyebrow}</Eyebrow>
+              <h2 className="mt-3 font-display text-[32px] font-bold uppercase leading-[1] tracking-[0.01em] text-navy md:text-[36px]">
+                {t.draw.panelTitle}
+              </h2>
+              <p className="mt-3 max-w-[42ch] font-body text-[14px] leading-[1.55] text-char">
+                {t.draw.panelHelp}
+              </p>
+            </div>
 
-            {/* Live readout */}
-            <div className="mt-6 grid grid-cols-3 gap-3 rounded-sm border border-navy/15 bg-cream px-4 py-4">
+            {/* Live readout — first thing the mobile customer sees beneath
+                the map; updates as they tap corners. */}
+            <div className="grid grid-cols-3 gap-3 rounded-sm border border-navy/15 bg-cream px-4 py-4 lg:mt-6">
               <div>
                 <div className="font-display text-[28px] font-bold leading-none tabular-nums tnum text-brick">
                   {stats.linear_feet.toFixed(0)}

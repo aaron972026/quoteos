@@ -498,7 +498,7 @@ const en: Dictionary = {
       {
         title: "Permits & Line Inspection",
         body:
-          "We pull every permit and call OK811 for the buried-line inspection. HOA approval coordinated where needed. All included.",
+          "We pull every permit and call OK811 for the buried-line inspection. All included on every job.",
       },
       {
         title: "Western Red Cedar, Graded",
@@ -822,7 +822,7 @@ const es: Dictionary = {
       {
         title: "Permisos e inspección de líneas",
         body:
-          "Tramitamos cada permiso y llamamos a OK811 para la inspección de líneas subterráneas. Coordinamos la aprobación HOA cuando aplica. Todo incluido.",
+          "Tramitamos cada permiso y llamamos a OK811 para la inspección de líneas subterráneas. Todo incluido en cada trabajo.",
       },
       {
         title: "Cedro rojo del oeste, seleccionado",

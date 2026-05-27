@@ -9,8 +9,11 @@ const buttonVariants = cva(
     variants: {
       variant: {
         // Brand v1.0 primary — brick on cream, Oswald uppercase. Default CTA.
+        // Disabled state intentionally swaps to muted steel-soft (not just
+        // opacity-50) so gated CTAs read as truly non-interactive — required
+        // for ownership gates and other preconditioned actions.
         display:
-          "bg-brick text-cream font-display uppercase tracking-eyebrow hover:bg-brick-deep active:translate-y-px focus-visible:ring-brick shadow-cta",
+          "bg-brick text-cream font-display uppercase tracking-eyebrow hover:bg-brick-deep active:translate-y-px focus-visible:ring-brick shadow-cta disabled:opacity-100 disabled:bg-steel-soft disabled:text-cream/80 disabled:shadow-none disabled:cursor-not-allowed",
         // Brand v1.0 secondary — navy outline, neutral background.
         outline:
           "border border-navy/30 bg-transparent text-navy hover:border-navy hover:bg-navy/5 focus-visible:ring-navy font-display uppercase tracking-eyebrow",

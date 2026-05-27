@@ -71,7 +71,7 @@ export function NeighborPanel({ neighbors }: Props) {
         ))}
       </ul>
       <p className="mt-1 text-[10px] text-navy/45">
-        Shared boundaries may need HOA approval or cost-split conversations.
+        Shared property lines are worth a quick word with your neighbor.
       </p>
     </div>
   );
