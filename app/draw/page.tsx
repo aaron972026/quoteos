@@ -108,6 +108,11 @@ function DrawPageInner() {
   const [adjacentBoundaries, setAdjacentBoundaries] = useState<ParcelBoundary[]>([]);
   const [isPending, startTransition] = useTransition();
   const [helpOpen, setHelpOpen] = useState(false);
+  // One-time "Tap a corner to begin" coachmark — shows on first visit until
+  // the user taps anywhere on the map (= first vertex placed) or hits Help,
+  // then never reappears in the session. Replaces the persistent
+  // "Tap To Start" card that used to live in the map's bottom-left corner.
+  const [coachmarkVisible, setCoachmarkVisible] = useState(true);
 
   const mapRef = useRef<FenceMapHandle>(null);
 
@@ -125,6 +130,14 @@ function DrawPageInner() {
       // localStorage can throw in private mode — just skip the onboarding
     }
   }, []);
+
+  // Dismiss the coachmark the moment the first vertex lands. It's a one-shot
+  // nudge — the user has demonstrated they understand the gesture.
+  useEffect(() => {
+    if (stats.linear_feet > 0 && coachmarkVisible) {
+      setCoachmarkVisible(false);
+    }
+  }, [stats.linear_feet, coachmarkVisible]);
 
   useEffect(() => {
     if (!quoteId) {
@@ -378,12 +391,65 @@ function DrawPageInner() {
             </p>
           </div>
 
-          {/* ── Map column ───────────────────────────────────────── */}
+          {/* ── Map column — three zones top-to-bottom on mobile:
+                Zone 2 mode toggle / Zone 3 map / Zone 4 action bar.
+                The map itself stays clean — no floating chrome competing
+                with the satellite or covering parcel labels. ──────── */}
           <div className="order-2 lg:order-1">
+            {/* Zone 2 — Mode toggle (above map, full-width 50/50 split).
+                Two items only, so ADD GATE can never clip. */}
+            <div className="mb-3 grid grid-cols-2 overflow-hidden rounded-sm border border-navy/25 bg-paper shadow-card">
+              <button
+                type="button"
+                onClick={() => {
+                  setGateMode(false);
+                  setPendingGatePoint(null);
+                }}
+                className={cn(
+                  "flex h-12 items-center justify-center gap-2 font-display text-[13px] font-semibold uppercase tracking-eyebrow transition-colors",
+                  !gateMode
+                    ? "bg-navy text-cream"
+                    : "text-navy hover:bg-navy/5"
+                )}
+                aria-pressed={!gateMode}
+              >
+                <Spline size={14} strokeWidth={2.5} />
+                {t.draw.toolFenceLine}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (stats.linear_feet === 0) return;
+                  setGateMode((m) => !m);
+                  setPendingGatePoint(null);
+                }}
+                disabled={stats.linear_feet === 0}
+                className={cn(
+                  "flex h-12 items-center justify-center gap-2 border-l border-navy/25 font-display text-[13px] font-semibold uppercase tracking-eyebrow transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                  gateMode
+                    ? "bg-brick text-cream"
+                    : "text-navy hover:bg-navy/5"
+                )}
+                aria-pressed={gateMode}
+              >
+                <DoorOpen size={14} strokeWidth={2.5} />
+                {t.draw.toolAddGate}
+                {gates.length > 0 && (
+                  <span className="ml-1 rounded-pill bg-brass px-1.5 text-[10px] font-bold text-navy">
+                    {gates.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Zone 3 — Map (satellite + drawing only). Single zoom control
+                lives in the map's bottom-right via FenceMap; nothing else
+                floats. Overlays here are limited to: one-time coachmark,
+                gate-mode pulse, and the bottom-pinned error banner. */}
             <div
               className={cn(
                 "relative overflow-hidden rounded-md border-2 border-brass/40 bg-navy/5 shadow-card-lg",
-                "h-[60vh] min-h-[420px] lg:h-[calc(100dvh-220px)]"
+                "h-[60vh] min-h-[420px] lg:h-[calc(100dvh-280px)]"
               )}
             >
               <MapErrorBoundary>
@@ -402,122 +468,82 @@ function DrawPageInner() {
                 />
               </MapErrorBoundary>
 
-              {/* Top-left toolbar: mode toggle */}
-              <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-wrap gap-2">
-                <div className="pointer-events-auto flex overflow-hidden rounded-sm border border-navy/20 bg-navy/95 shadow-card-lg backdrop-blur">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGateMode(false);
-                      setPendingGatePoint(null);
-                    }}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3.5 py-2 font-display text-[11px] font-semibold uppercase tracking-eyebrow transition-colors",
-                      !gateMode
-                        ? "bg-brass text-navy"
-                        : "text-cream hover:bg-navy-soft"
-                    )}
-                    aria-pressed={!gateMode}
-                  >
-                    <Spline size={14} strokeWidth={2.5} />
-                    {t.draw.toolFenceLine}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (stats.linear_feet === 0) return;
-                      setGateMode((m) => !m);
-                      setPendingGatePoint(null);
-                    }}
-                    disabled={stats.linear_feet === 0}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3.5 py-2 font-display text-[11px] font-semibold uppercase tracking-eyebrow transition-colors",
-                      "border-l border-navy-soft",
-                      gateMode
-                        ? "bg-brass text-navy"
-                        : "text-cream hover:bg-navy-soft disabled:cursor-not-allowed disabled:opacity-50"
-                    )}
-                    aria-pressed={gateMode}
-                  >
-                    <DoorOpen size={14} strokeWidth={2.5} />
-                    {t.draw.toolAddGate}
-                    {gates.length > 0 && (
-                      <span className="ml-1 rounded-pill bg-brick px-1.5 text-[10px] font-bold text-cream">
-                        {gates.length}
-                      </span>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Top-right toolbar: undo / clear / help */}
-              <div className="pointer-events-none absolute right-3 top-3 z-10 flex gap-2">
-                <div className="pointer-events-auto flex overflow-hidden rounded-sm border border-navy/20 bg-navy/95 shadow-card-lg backdrop-blur">
-                  <button
-                    type="button"
-                    onClick={() => mapRef.current?.undo()}
-                    disabled={stats.linear_feet === 0}
-                    className="flex items-center gap-1.5 px-3 py-2 font-display text-[11px] font-semibold uppercase tracking-eyebrow text-cream transition-colors hover:bg-navy-soft disabled:cursor-not-allowed disabled:opacity-40"
-                    aria-label={t.draw.toolUndo}
-                  >
-                    <Undo2 size={14} strokeWidth={2.5} />
-                    <span className="hidden sm:inline">{t.draw.toolUndo}</span>
-                  </button>
-                  {/* Always-visible Start Over — label shown at every viewport
-                      so a stuck user (CRIT-1 spec) never has to refresh.
-                      Becomes brick-fill once they have something to clear. */}
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    disabled={stats.linear_feet === 0 && gates.length === 0}
-                    className={cn(
-                      "flex items-center gap-1.5 border-l border-navy-soft px-3 py-2 font-display text-[11px] font-semibold uppercase tracking-eyebrow transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-                      stats.linear_feet > 0 || gates.length > 0
-                        ? "bg-brick text-cream hover:bg-brick-deep"
-                        : "text-cream hover:bg-navy-soft"
-                    )}
-                    aria-label={t.draw.toolClear}
-                  >
-                    <RotateCcw size={14} strokeWidth={2.5} />
-                    {t.draw.toolClear}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setHelpOpen(true)}
-                    className="flex items-center gap-1.5 border-l border-navy-soft px-3 py-2 font-display text-[11px] font-semibold uppercase tracking-eyebrow text-cream transition-colors hover:bg-navy-soft"
-                    aria-label={t.draw.toolHelp}
-                  >
-                    <HelpCircle size={14} strokeWidth={2.5} />
-                    <span className="hidden sm:inline">{t.draw.toolHelp}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Self-intersect banner — brick, centered top */}
-              {crossesItself && (
-                <div className="pointer-events-none absolute left-1/2 top-16 z-10 w-[90%] max-w-[420px] -translate-x-1/2 rounded-sm border border-brick bg-brick px-4 py-2 text-center text-[12px] font-semibold text-cream shadow-card-lg">
-                  {t.draw.crossesItself}
+              {/* One-time coachmark — slim pill, dismisses on first vertex. */}
+              {coachmarkVisible && stats.linear_feet === 0 && !gateMode && (
+                <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-pill border border-brass/50 bg-navy/95 px-4 py-1.5 shadow-card-lg backdrop-blur">
+                  <span className="font-display text-[11px] font-semibold uppercase tracking-eyebrow text-cream">
+                    {t.draw.emptyEyebrow} ·{" "}
+                  </span>
+                  <span className="font-body text-[12px] text-cream/85">
+                    Tap a corner to begin
+                  </span>
                 </div>
               )}
 
-              {/* Empty-state hint */}
-              {stats.linear_feet === 0 && !gateMode && (
-                <div className="pointer-events-none absolute bottom-4 left-4 z-10 max-w-[300px] rounded-sm border border-brass/35 bg-navy/95 px-4 py-3 text-cream shadow-card-lg backdrop-blur">
-                  <div className="font-mono text-[10px] uppercase tracking-spec text-brass">
-                    {t.draw.emptyEyebrow}
-                  </div>
-                  <p className="mt-1 font-body text-[13px] leading-[1.45]">
-                    {t.draw.emptyBody}
-                  </p>
-                </div>
-              )}
-
-              {/* Gate-mode floating hint */}
+              {/* Gate-mode pulse — only while picking, slim pill at top. */}
               {gateMode && !pendingGatePoint && (
-                <div className="pointer-events-none absolute left-1/2 top-16 z-10 -translate-x-1/2 animate-pulse rounded-pill bg-brass px-5 py-2 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-navy shadow-card-lg">
+                <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 animate-pulse rounded-pill bg-brass px-5 py-2 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-navy shadow-card-lg">
                   Tap the fence line to drop a gate
                 </div>
               )}
+
+              {/* Self-intersect banner — pinned to the map's BOTTOM edge so
+                  it never covers the mode toggle or controls. Inline
+                  "Undo Last Corner" button so the fix lives in the same
+                  place as the error. */}
+              {crossesItself && (
+                <div className="absolute bottom-3 left-1/2 z-10 flex w-[92%] max-w-[460px] -translate-x-1/2 items-center justify-between gap-3 rounded-sm border border-brick bg-brick px-3 py-2 text-cream shadow-card-lg">
+                  <div className="flex items-center gap-2 font-display text-[11px] font-semibold uppercase tracking-eyebrow">
+                    <TriangleAlert size={14} strokeWidth={2.5} className="flex-shrink-0" />
+                    <span className="truncate">{t.draw.crossesItself}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => mapRef.current?.undo()}
+                    className="flex h-8 flex-shrink-0 items-center gap-1.5 rounded-sm bg-cream px-3 font-display text-[11px] font-semibold uppercase tracking-eyebrow text-brick transition-colors hover:bg-paper"
+                  >
+                    <Undo2 size={12} strokeWidth={2.5} />
+                    Undo
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Zone 4 — Action bar (below map). Undo · Clear All · Help.
+                Three items, ≥44px tap targets, evenly spaced. Clear flips
+                to brick-fill once there's something to clear. */}
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => mapRef.current?.undo()}
+                disabled={stats.linear_feet === 0}
+                className="flex h-12 items-center justify-center gap-2 rounded-sm border border-navy/25 bg-paper font-display text-[12px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:border-navy hover:bg-navy/5 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Undo2 size={14} strokeWidth={2.5} />
+                {t.draw.toolUndo}
+              </button>
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={stats.linear_feet === 0 && gates.length === 0}
+                className={cn(
+                  "flex h-12 items-center justify-center gap-2 rounded-sm border font-display text-[12px] font-semibold uppercase tracking-eyebrow transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                  stats.linear_feet > 0 || gates.length > 0
+                    ? "border-brick bg-brick text-cream hover:bg-brick-deep"
+                    : "border-navy/25 bg-paper text-navy hover:border-navy hover:bg-navy/5"
+                )}
+              >
+                <RotateCcw size={14} strokeWidth={2.5} />
+                {t.draw.toolClear}
+              </button>
+              <button
+                type="button"
+                onClick={() => setHelpOpen(true)}
+                className="flex h-12 items-center justify-center gap-2 rounded-sm border border-navy/25 bg-paper font-display text-[12px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:border-navy hover:bg-navy/5"
+              >
+                <HelpCircle size={14} strokeWidth={2.5} />
+                {t.draw.toolHelp}
+              </button>
             </div>
           </div>
 

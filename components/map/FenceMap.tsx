@@ -270,14 +270,22 @@ export default function FenceMap({
     });
     if (containerRef.current) ro.observe(containerRef.current);
 
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+    // Zoom in bottom-right (per /draw mobile layout spec — keeps the map
+    // clean and away from where labels + draw controls would crowd).
+    map.addControl(
+      new mapboxgl.NavigationControl({ showCompass: false }),
+      "bottom-right"
+    );
     map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-left");
 
     let draw: MapboxDraw;
     try {
       draw = new MapboxDraw({
+        // displayControlsDefault: false + empty controls = no MapboxDraw
+        // right-rail stack. All draw controls live in our own zone above
+        // and below the map; the in-map surface stays clean.
         displayControlsDefault: false,
-        controls: { line_string: true, polygon: true, trash: true },
+        controls: {},
         defaultMode: "draw_line_string",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         styles: fenceDrawStyles as any,
