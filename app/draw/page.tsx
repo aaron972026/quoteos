@@ -34,6 +34,7 @@ import type {
   ParcelBoundary,
   PlacedGate,
 } from "@/components/map/FenceMap";
+import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 import {
   NeighborPanel,
   type NeighborSummary,
@@ -385,19 +386,21 @@ function DrawPageInner() {
                 "h-[60vh] min-h-[420px] lg:h-[calc(100dvh-220px)]"
               )}
             >
-              <FenceMap
-                handleRef={mapRef}
-                centerLat={lat}
-                centerLng={lng}
-                onChange={setStats}
-                gates={gates}
-                gatePlacementMode={gateMode}
-                onGatePointPicked={setPendingGatePoint}
-                onGateMove={handleGateMove}
-                onGateDelete={handleGateDelete}
-                parcelBoundary={parcelBoundary}
-                adjacentBoundaries={adjacentBoundaries}
-              />
+              <MapErrorBoundary>
+                <FenceMap
+                  handleRef={mapRef}
+                  centerLat={lat}
+                  centerLng={lng}
+                  onChange={setStats}
+                  gates={gates}
+                  gatePlacementMode={gateMode}
+                  onGatePointPicked={setPendingGatePoint}
+                  onGateMove={handleGateMove}
+                  onGateDelete={handleGateDelete}
+                  parcelBoundary={parcelBoundary}
+                  adjacentBoundaries={adjacentBoundaries}
+                />
+              </MapErrorBoundary>
 
               {/* Top-left toolbar: mode toggle */}
               <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-wrap gap-2">
@@ -460,15 +463,23 @@ function DrawPageInner() {
                     <Undo2 size={14} strokeWidth={2.5} />
                     <span className="hidden sm:inline">{t.draw.toolUndo}</span>
                   </button>
+                  {/* Always-visible Start Over — label shown at every viewport
+                      so a stuck user (CRIT-1 spec) never has to refresh.
+                      Becomes brick-fill once they have something to clear. */}
                   <button
                     type="button"
                     onClick={handleReset}
                     disabled={stats.linear_feet === 0 && gates.length === 0}
-                    className="flex items-center gap-1.5 border-l border-navy-soft px-3 py-2 font-display text-[11px] font-semibold uppercase tracking-eyebrow text-cream transition-colors hover:bg-navy-soft disabled:cursor-not-allowed disabled:opacity-40"
+                    className={cn(
+                      "flex items-center gap-1.5 border-l border-navy-soft px-3 py-2 font-display text-[11px] font-semibold uppercase tracking-eyebrow transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                      stats.linear_feet > 0 || gates.length > 0
+                        ? "bg-brick text-cream hover:bg-brick-deep"
+                        : "text-cream hover:bg-navy-soft"
+                    )}
                     aria-label={t.draw.toolClear}
                   >
                     <RotateCcw size={14} strokeWidth={2.5} />
-                    <span className="hidden sm:inline">{t.draw.toolClear}</span>
+                    {t.draw.toolClear}
                   </button>
                   <button
                     type="button"

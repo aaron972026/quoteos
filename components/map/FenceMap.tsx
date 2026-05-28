@@ -198,10 +198,18 @@ export default function FenceMap({
     }
     mapRef.current = map;
 
+    // Mapbox emits "error" for both fatal init failures AND transient tile
+    // fetch failures. Setting the terminal error overlay on every tile blip
+    // would kill the map for a single tile that didn't load. Only treat the
+    // error as fatal if the style itself failed to load — tile fetches that
+    // fail mid-session retry on their own.
     map.on("error", (e) => {
       const m = e?.error?.message ?? "Map error";
+      const isTileFetch = /tile|HTTP/i.test(m);
       console.error("[FenceMap] map error:", e);
-      setErrorMsg(m);
+      if (!isTileFetch) {
+        setErrorMsg(m);
+      }
     });
     map.on("load", () => {
       console.info("[FenceMap] style loaded");
@@ -303,6 +311,47 @@ export default function FenceMap({
     map.on("draw.modechange", emitStats);
     // Live update during drawing — covers mid-line tap before "create" fires
     map.on("draw.render", emitStats);
+
+    // CRIT-1 fix: mapbox-gl-draw silently exits draw_line_string into
+    // simple_select on a variety of user actions (double-tap, tap on/near
+    // an existing vertex, even some rapid taps). The user sees "tapping
+    // stopped working" because they're now in select mode with no visual
+    // cue. We listen for that mode flip and bounce back to draw mode if
+    // the current feature isn't actually finished — i.e., they didn't
+    // intend to stop drawing.
+    //
+    // "Finished" heuristic: ≥4 vertices for a line, ≥3 for a polygon
+    // (enough to be a real fence layout). Below that, treat any
+    // simple_select as accidental.
+    map.on("draw.modechange", (e: { mode: string }) => {
+      try {
+        if (e.mode !== "simple_select") return;
+        const fc = draw.getAll();
+        const feature = fc.features[fc.features.length - 1];
+        if (!feature) {
+          // Nothing drawn — restore drawing mode so the next tap places
+          // the first vertex.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (draw as any).changeMode("draw_line_string");
+          return;
+        }
+        const geom = feature.geometry;
+        if (geom.type === "LineString" && geom.coordinates.length < 4) {
+          // Mid-draw line — resume from the last vertex.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (draw as any).changeMode("draw_line_string", {
+            featureId: feature.id,
+            from: geom.coordinates[geom.coordinates.length - 1],
+          });
+        } else if (geom.type === "Polygon" && geom.coordinates[0].length < 4) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (draw as any).changeMode("draw_polygon", { featureId: feature.id });
+        }
+      } catch (err) {
+        // Never let a recovery attempt itself break the map.
+        console.warn("[FenceMap] modechange recovery failed", err);
+      }
+    });
 
     // Right-click to finish the current line/polygon. Without this the
     // phantom cursor-vertex keeps tracking the mouse and there's no way to
@@ -658,17 +707,28 @@ export default function FenceMap({
         aria-label="Fence drawing map"
       />
       {errorMsg && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/95 p-6">
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-paper/95 p-6">
           <div className="max-w-sm text-center">
-            <div className="text-sm font-semibold text-navy">
-              Couldn&rsquo;t load the map
+            <div className="font-display text-[18px] font-bold uppercase tracking-eyebrow text-navy">
+              Map Didn&rsquo;t Load
             </div>
-            <div className="mt-1 text-xs text-navy/60">{errorMsg}</div>
-            <div className="mt-3 text-[11px] text-navy/40">
-              Open DevTools console for details. Common fixes: bad
-              NEXT_PUBLIC_MAPBOX_TOKEN, URL restrictions excluding
-              localhost, or missing scopes on the token.
-            </div>
+            <p className="mt-2 font-body text-[13px] leading-[1.5] text-char">
+              Looks like a network hiccup. Tap below to try again — your
+              progress on the rest of the quote is saved.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                // Hard reload — fresh map init, fresh tile fetch.
+                if (typeof window !== "undefined") window.location.reload();
+              }}
+              className="mt-5 inline-flex h-12 items-center gap-2 rounded-sm bg-brick px-6 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream shadow-cta transition-colors hover:bg-brick-deep"
+            >
+              Try Again
+            </button>
+            <p className="mt-3 font-mono text-[10px] uppercase tracking-spec text-steel">
+              {errorMsg}
+            </p>
           </div>
         </div>
       )}
