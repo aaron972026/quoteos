@@ -300,7 +300,7 @@ export default function FenceMap({
     );
     map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-left");
 
-    // Custom "static" mode — features are rendered but no clicks, no
+    // Custom "place_gate" mode — features are rendered but no clicks, no
     // selection, no vertex-drag. Used during gate placement so our own
     // click handler is the only thing reacting to taps. Without this,
     // gl-draw's simple_select kept flipping into direct_select on every
@@ -313,7 +313,7 @@ export default function FenceMap({
     // feature renders invisibly — symptom: "fence line disappears
     // when I switch to gate mode."
     /* eslint-disable @typescript-eslint/no-explicit-any */
-    const StaticMode = {
+    const PlaceGateMode = {
       onSetup() {
         return {};
       },
@@ -350,7 +350,7 @@ export default function FenceMap({
         modes: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ...((MapboxDraw as any).modes),
-          static: StaticMode,
+          place_gate: PlaceGateMode,
         },
       });
     } catch (err) {
@@ -422,7 +422,7 @@ export default function FenceMap({
         if (e.mode === "direct_select") {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (draw as any).changeMode(
-            gatePlacementModeRef.current ? "static" : "simple_select"
+            gatePlacementModeRef.current ? "place_gate" : "simple_select"
           );
           return;
         }
@@ -672,12 +672,13 @@ export default function FenceMap({
       return;
     }
 
-    // Entering placement mode — switch to our custom static mode so
+    // Entering placement mode — switch to our custom place_gate mode so
     // gl-draw stops reacting to taps entirely. Our own map.on('click')
     // is the only handler that runs; no risk of accidental selection
-    // or vertex-drag.
+    // or vertex-drag. (Mode name deliberately NOT "static" — the existing
+    // fenceDrawStyles filter the static mode out as invisible.)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (draw as any).changeMode("static");
+    (draw as any).changeMode("place_gate");
 
     // Visual cue: the map cursor turns to crosshair while in placement mode
     // so the user understands "tap somewhere" rather than the default arrow.

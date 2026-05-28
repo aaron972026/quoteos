@@ -132,6 +132,7 @@ These were in the original Phase 2 ideas list. Not blocking launch.
 
 ## L4 — Known-but-not-urgent
 
+- **Address-input keyboard switches back to letters after first digit on mobile.** Best-effort fix in place (MutationObserver re-applies `inputmode=text` + `autocapitalize=words` + `autocomplete=street-address` + `enterkeyhint=search` + `type=text` whenever Google's `<gmp-place-autocomplete>` resets them). On some Android/iOS combos the OS keyboard still flips between digit and letter keyboards when typing `100 N Main St` — appears to be either a Google web-component internal handler that resets attributes synchronously during input events, or browser auto-detection that overrides `inputmode`. Real fix is probably to ditch the web component and use the legacy Google Places JS API with our own `<input>`. ~Half-day rewrite. Live with the minor annoyance until a customer flags it.
 - **Vercel CLI install** — would help with `vercel logs` for production debugging. Skip until first prod incident.
 - **Cloudflare Pages / Netlify alt-host options** — only relevant if Vercel becomes a budget issue.
 - **Admin: in-app `/admin/dashboard` overview page** — rolls up funnel + quotes + revenue into one landing. Currently you have to bounce between `/admin/funnel` and `/admin/quotes` to read top-line.
