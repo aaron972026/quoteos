@@ -44,21 +44,29 @@ export class MapErrorBoundary extends Component<Props, State> {
         <div className="flex h-full min-h-[420px] items-center justify-center bg-paper/95 p-6">
           <div className="max-w-sm text-center">
             <div className="font-display text-[18px] font-bold uppercase tracking-eyebrow text-navy">
-              {this.props.title ?? "Map Didn’t Load"}
+              {this.props.title ?? "Map Crashed"}
             </div>
             <p className="mt-2 font-body text-[13px] leading-[1.5] text-char">
               {this.props.description ??
-                "Looks like a network hiccup. Tap below to try again — your progress on the rest of the quote is saved."}
+                "Something inside the map threw an error. Try again first; if it persists, re-enter your address."}
             </p>
-            <button
-              type="button"
-              onClick={() => {
-                if (typeof window !== "undefined") window.location.reload();
-              }}
-              className="mt-5 inline-flex h-12 items-center gap-2 rounded-sm bg-brick px-6 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream shadow-cta transition-colors hover:bg-brick-deep"
-            >
-              Try Again
-            </button>
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== "undefined") window.location.reload();
+                }}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-sm bg-brick px-6 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream shadow-cta transition-colors hover:bg-brick-deep"
+              >
+                Try Again
+              </button>
+              <a
+                href="/address"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-sm border border-navy/30 px-4 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:border-navy hover:bg-navy/5"
+              >
+                Re-enter Address
+              </a>
+            </div>
             {this.state.message && (
               <p className="mt-3 font-mono text-[10px] uppercase tracking-spec text-steel">
                 {this.state.message}

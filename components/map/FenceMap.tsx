@@ -129,6 +129,11 @@ export default function FenceMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const drawRef = useRef<MapboxDraw | null>(null);
+  const initLogRef = useRef<string[]>([]);
+  const logInit = (line: string) => {
+    initLogRef.current.push(line);
+    console.info("[FenceMap]", line);
+  };
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onGatePointPickedRef = useRef(onGatePointPicked);
@@ -137,19 +142,29 @@ export default function FenceMap({
   onGateMoveRef.current = onGateMove;
   const onGateDeleteRef = useRef(onGateDelete);
   onGateDeleteRef.current = onGateDelete;
+  // Mirror the gatePlacementMode prop into a ref so the modechange listener
+  // (defined inside the mount-once effect) can read the current value. The
+  // listener uses this to skip its CRIT-1 auto-revert when the customer is
+  // intentionally in simple_select for gate placement.
+  const gatePlacementModeRef = useRef(!!gatePlacementMode);
+  gatePlacementModeRef.current = !!gatePlacementMode;
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
+    logInit(`mount centerLat=${centerLat} centerLng=${centerLng}`);
+
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
     if (!token) {
       const msg = "NEXT_PUBLIC_MAPBOX_TOKEN is not set in .env.local";
+      logInit(`FAIL: ${msg}`);
       console.error("[FenceMap]", msg);
       setErrorMsg(msg);
       return;
     }
+    logInit(`token present (len=${token.length})`);
     mapboxgl.accessToken = token;
 
     // Diagnostic: log container dimensions before init. If width or height is
@@ -157,13 +172,20 @@ export default function FenceMap({
     // skips tile fetches — which is exactly the symptom of a "loaded but
     // blank" map.
     const rect = containerRef.current.getBoundingClientRect();
-    console.info(
-      `[FenceMap] container size at init: ${rect.width.toFixed(0)} × ${rect.height.toFixed(0)}`
+    logInit(
+      `container size at init: ${rect.width.toFixed(0)} × ${rect.height.toFixed(0)}`
     );
     if (rect.width < 10 || rect.height < 10) {
       console.warn(
         "[FenceMap] container is near-zero — map will be blank. Parent layout may not have settled."
       );
+    }
+    if (!Number.isFinite(centerLat) || !Number.isFinite(centerLng)) {
+      const msg = `Invalid coordinates from quote (lat=${centerLat}, lng=${centerLng}). Re-enter the address to fix.`;
+      logInit(`FAIL: ${msg}`);
+      console.error("[FenceMap]", msg);
+      setErrorMsg(msg);
+      return;
     }
 
     let map: mapboxgl.Map;
@@ -301,14 +323,29 @@ export default function FenceMap({
 
     function emitStats() {
       const fc = draw.getAll();
-      const feature = (fc.features[fc.features.length - 1] as Feature<
-        LineString | Polygon
-      >) ?? null;
+      // Prefer the feature with the most coordinates over "the most recent
+      // feature". Edge cases (mode-thrash, accidental new feature start)
+      // can leave a 1-vertex stub as the latest entry, which would zero out
+      // linear_feet and grey the Undo/Clear buttons even though there's
+      // a real drawn fence elsewhere in the collection.
+      let primary: Feature<LineString | Polygon> | null = null;
+      let primaryCoordCount = -1;
+      for (const f of fc.features) {
+        const g = f.geometry;
+        let coordCount = 0;
+        if (g.type === "LineString") coordCount = g.coordinates.length;
+        else if (g.type === "Polygon") coordCount = g.coordinates[0].length;
+        else continue;
+        if (coordCount > primaryCoordCount) {
+          primaryCoordCount = coordCount;
+          primary = f as Feature<LineString | Polygon>;
+        }
+      }
       const stats: FenceGeometryStats = {
-        feature,
-        linear_feet: feature ? geometryLF(feature) : 0,
-        corner_count: feature ? cornerCount(feature) : 0,
-        closed: feature?.geometry.type === "Polygon",
+        feature: primary,
+        linear_feet: primary ? geometryLF(primary) : 0,
+        corner_count: primary ? cornerCount(primary) : 0,
+        closed: primary?.geometry.type === "Polygon",
       };
       onChangeRef.current(stats);
     }
@@ -320,20 +357,22 @@ export default function FenceMap({
     // Live update during drawing — covers mid-line tap before "create" fires
     map.on("draw.render", emitStats);
 
-    // CRIT-1 fix: mapbox-gl-draw silently exits draw_line_string into
-    // simple_select on a variety of user actions (double-tap, tap on/near
-    // an existing vertex, even some rapid taps). The user sees "tapping
-    // stopped working" because they're now in select mode with no visual
-    // cue. We listen for that mode flip and bounce back to draw mode if
-    // the current feature isn't actually finished — i.e., they didn't
-    // intend to stop drawing.
-    //
-    // "Finished" heuristic: ≥4 vertices for a line, ≥3 for a polygon
-    // (enough to be a real fence layout). Below that, treat any
-    // simple_select as accidental.
+    // CRIT-1 auto-recovery: mapbox-gl-draw silently exits draw_line_string
+    // into simple_select on certain user gestures (double-tap, tap near
+    // an existing vertex). The user sees "tapping stopped working"
+    // because they're now in select mode with no visual cue. We listen
+    // for that flip and bounce back to draw mode — but ONLY when:
+    //   1) the customer is NOT in gate-placement mode (that mode
+    //      intentionally uses simple_select; bouncing out breaks gate
+    //      placement and was the cause of the gate-cascade bug)
+    //   2) the current feature has a stable id we can resume into
+    //      (avoid creating phantom features)
+    //   3) the feature has fewer than 4 vertices (line) or a still-open
+    //      ring (polygon) — i.e., it's mid-draw, not finished.
     map.on("draw.modechange", (e: { mode: string }) => {
       try {
         if (e.mode !== "simple_select") return;
+        if (gatePlacementModeRef.current) return; // ← protects gate flow
         const fc = draw.getAll();
         const feature = fc.features[fc.features.length - 1];
         if (!feature) {
@@ -343,9 +382,9 @@ export default function FenceMap({
           (draw as any).changeMode("draw_line_string");
           return;
         }
+        if (feature.id == null) return; // no stable id; don't risk it
         const geom = feature.geometry;
         if (geom.type === "LineString" && geom.coordinates.length < 4) {
-          // Mid-draw line — resume from the last vertex.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (draw as any).changeMode("draw_line_string", {
             featureId: feature.id,
@@ -715,28 +754,43 @@ export default function FenceMap({
         aria-label="Fence drawing map"
       />
       {errorMsg && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-paper/95 p-6">
+        <div className="absolute inset-0 z-10 flex items-center justify-center overflow-y-auto bg-paper/95 p-6">
           <div className="max-w-sm text-center">
             <div className="font-display text-[18px] font-bold uppercase tracking-eyebrow text-navy">
               Map Didn&rsquo;t Load
             </div>
             <p className="mt-2 font-body text-[13px] leading-[1.5] text-char">
-              Looks like a network hiccup. Tap below to try again — your
-              progress on the rest of the quote is saved.
+              Network hiccup or token issue. Try again first; if it
+              persists, re-enter your address to start fresh.
             </p>
-            <button
-              type="button"
-              onClick={() => {
-                // Hard reload — fresh map init, fresh tile fetch.
-                if (typeof window !== "undefined") window.location.reload();
-              }}
-              className="mt-5 inline-flex h-12 items-center gap-2 rounded-sm bg-brick px-6 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream shadow-cta transition-colors hover:bg-brick-deep"
-            >
-              Try Again
-            </button>
-            <p className="mt-3 font-mono text-[10px] uppercase tracking-spec text-steel">
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== "undefined") window.location.reload();
+                }}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-sm bg-brick px-6 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream shadow-cta transition-colors hover:bg-brick-deep"
+              >
+                Try Again
+              </button>
+              <a
+                href="/address"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-sm border border-navy/30 px-4 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:border-navy hover:bg-navy/5"
+              >
+                Re-enter Address
+              </a>
+            </div>
+            <p className="mt-4 font-mono text-[10px] uppercase tracking-spec text-steel">
               {errorMsg}
             </p>
+            <details className="mt-2 text-left">
+              <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-spec text-steel">
+                Diagnostics
+              </summary>
+              <pre className="mt-2 overflow-x-auto rounded-sm bg-navy/5 p-2 font-mono text-[10px] leading-snug text-char">
+                {initLogRef.current.join("\n")}
+              </pre>
+            </details>
           </div>
         </div>
       )}

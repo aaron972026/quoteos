@@ -522,12 +522,14 @@ function DrawPageInner() {
                 <Undo2 size={14} strokeWidth={2.5} />
                 {t.draw.toolUndo}
               </button>
+              {/* Clear is the universal escape hatch — always enabled, even
+                  when stats report nothing. If draw state has gotten
+                  corrupted, the user can still nuke it without refreshing. */}
               <button
                 type="button"
                 onClick={handleReset}
-                disabled={stats.linear_feet === 0 && gates.length === 0}
                 className={cn(
-                  "flex h-12 items-center justify-center gap-2 rounded-sm border font-display text-[12px] font-semibold uppercase tracking-eyebrow transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                  "flex h-12 items-center justify-center gap-2 rounded-sm border font-display text-[12px] font-semibold uppercase tracking-eyebrow transition-colors",
                   stats.linear_feet > 0 || gates.length > 0
                     ? "border-brick bg-brick text-cream hover:bg-brick-deep"
                     : "border-navy/25 bg-paper text-navy hover:border-navy hover:bg-navy/5"
