@@ -157,29 +157,62 @@ export function AddressAutocomplete({
         containerRef.current.appendChild(element);
 
         // Reach into the (shadow or light DOM) input and tune the mobile
-        // keyboard. Without this, the iOS/Android keyboard auto-flips back
-        // to letters after the first digit because the default input
-        // attributes don't hint that addresses start numeric. `text` mode
-        // keeps the full keyboard available, `autocapitalize="words"`
-        // matches address conventions, `autocomplete="street-address"`
-        // lets the OS offer a saved address suggestion. The Google web
-        // component may still override some of these — best effort.
-        const applyKeyboardHints = () => {
-          const input =
-            element?.querySelector("input") ??
-            element?.shadowRoot?.querySelector("input");
-          if (!input) return;
-          (input as HTMLInputElement).setAttribute("inputmode", "text");
-          (input as HTMLInputElement).setAttribute("autocapitalize", "words");
-          (input as HTMLInputElement).setAttribute(
-            "autocomplete",
-            "street-address"
+        // keyboard. The iOS/Android keyboard otherwise flips back to
+        // letters after the first digit. Google's web component resets
+        // its internal input attributes on re-render, so we (a) apply
+        // hints immediately, (b) re-apply after a tick, AND (c) install
+        // a MutationObserver that re-applies them whenever the input
+        // attributes change. Aggressive, but the only way to win against
+        // the web component's resets.
+        const HINTS: Array<[string, string]> = [
+          ["inputmode", "text"],
+          ["autocapitalize", "words"],
+          ["autocomplete", "street-address"],
+          ["enterkeyhint", "search"],
+          ["type", "text"],
+        ];
+
+        let attrObserver: MutationObserver | null = null;
+
+        const findInput = (): HTMLInputElement | null => {
+          return (
+            (element?.querySelector("input") as HTMLInputElement | null) ??
+            (element?.shadowRoot?.querySelector(
+              "input"
+            ) as HTMLInputElement | null) ??
+            null
           );
         };
-        // Hints may need to be applied after the web component finishes
-        // its own setup; try immediately and once more after a short tick.
+
+        const applyKeyboardHints = () => {
+          const input = findInput();
+          if (!input) return;
+          let changed = false;
+          for (const [attr, val] of HINTS) {
+            if (input.getAttribute(attr) !== val) {
+              input.setAttribute(attr, val);
+              changed = true;
+            }
+          }
+          if (changed && !attrObserver) {
+            // First time we successfully set the hints — wire an observer
+            // so Google's component can't quietly reset them on the next
+            // re-render. The observer fires apply() again; the !changed
+            // check inside prevents an infinite loop.
+            attrObserver = new MutationObserver(applyKeyboardHints);
+            attrObserver.observe(input, {
+              attributes: true,
+              attributeFilter: HINTS.map((h) => h[0]),
+            });
+          }
+        };
+
+        // Try across several ticks — Google's component takes a few
+        // hundred ms to mount its internal input in some browsers.
         applyKeyboardHints();
-        setTimeout(applyKeyboardHints, 250);
+        setTimeout(applyKeyboardHints, 100);
+        setTimeout(applyKeyboardHints, 400);
+        setTimeout(applyKeyboardHints, 1000);
 
         if (autoFocus) {
           setTimeout(() => {

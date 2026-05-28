@@ -306,12 +306,25 @@ export default function FenceMap({
     // gl-draw's simple_select kept flipping into direct_select on every
     // line tap, which (a) blocked gate placement and (b) interpreted
     // pinch-zoom gestures as vertex drags on the fence.
+    //
+    // CRITICAL: toDisplayFeatures must stamp each feature's
+    // `properties.active = "false"` before calling display(). Without
+    // that property, gl-draw's style rules find no match and the
+    // feature renders invisibly — symptom: "fence line disappears
+    // when I switch to gate mode."
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const StaticMode = {
       onSetup() {
         return {};
       },
-      toDisplayFeatures(_state: unknown, geojson: unknown, display: (g: unknown) => void) {
+      toDisplayFeatures(
+        _state: unknown,
+        geojson: any,
+        display: (g: unknown) => void
+      ) {
+        if (geojson.properties) {
+          geojson.properties.active = "false";
+        }
         display(geojson);
       },
       onClick() {},
