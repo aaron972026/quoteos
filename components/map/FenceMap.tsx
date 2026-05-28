@@ -371,6 +371,17 @@ export default function FenceMap({
     //      ring (polygon) — i.e., it's mid-draw, not finished.
     map.on("draw.modechange", (e: { mode: string }) => {
       try {
+        // While in gate-placement mode, mapbox-gl-draw will try to flip
+        // into direct_select the moment the customer taps on the fence
+        // line (default selection behavior). That puts them in
+        // vertex-editing mode where further taps move existing vertices
+        // instead of placing gates — exactly the "another set of nodes"
+        // feedback. Force back to simple_select so gate taps stay clean.
+        if (gatePlacementModeRef.current && e.mode === "direct_select") {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (draw as any).changeMode("simple_select");
+          return;
+        }
         if (e.mode !== "simple_select") return;
         if (gatePlacementModeRef.current) return; // ← protects gate flow
         const fc = draw.getAll();
@@ -629,15 +640,37 @@ export default function FenceMap({
 
     const handleClick = (e: mapboxgl.MapMouseEvent) => {
       const fc = draw.getAll();
-      const feature = fc.features[fc.features.length - 1] as
-        | Feature<LineString | Polygon>
-        | undefined;
-      if (!feature) return;
+      // Pick the feature with the most coordinates — same heuristic as
+      // emitStats above, so a 1-vertex stub doesn't shadow the real fence.
+      let feature: Feature<LineString | Polygon> | undefined;
+      let bestCount = -1;
+      for (const f of fc.features) {
+        const g = f.geometry;
+        const c =
+          g.type === "Polygon"
+            ? g.coordinates[0].length
+            : g.type === "LineString"
+              ? g.coordinates.length
+              : 0;
+        if (c > bestCount) {
+          bestCount = c;
+          feature = f as Feature<LineString | Polygon>;
+        }
+      }
+      if (!feature) {
+        console.info("[FenceMap] gate click: no feature yet");
+        return;
+      }
       const coords =
         feature.geometry.type === "Polygon"
           ? feature.geometry.coordinates[0]
           : feature.geometry.coordinates;
-      if (coords.length < 2) return;
+      if (coords.length < 2) {
+        console.info(
+          `[FenceMap] gate click: feature has only ${coords.length} coord(s)`
+        );
+        return;
+      }
 
       const line = turfLineString(coords as [number, number][]);
       const clicked = turfPoint([e.lngLat.lng, e.lngLat.lat]);
@@ -650,6 +683,9 @@ export default function FenceMap({
         return;
       }
       const [lng, lat] = snapped.geometry.coordinates as [number, number];
+      console.info(
+        `[FenceMap] gate snap ok — dist=${dist.toFixed(4)}km, point=[${lng.toFixed(6)},${lat.toFixed(6)}]`
+      );
       onGatePointPickedRef.current?.({ lat, lng });
     };
 

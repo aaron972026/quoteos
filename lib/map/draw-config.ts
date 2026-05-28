@@ -114,5 +114,7 @@ export const MAP_DEFAULTS = {
 export const GATE_MARKER_CLASS = "qos-gate-marker";
 
 // Maximum distance (km) between a tap and the line for "snap" to succeed.
-// ~0.005 km = 5 m ≈ 16 ft — generous at zoom 19 but rejects clearly-off taps.
-export const GATE_SNAP_MAX_KM = 0.005;
+// ~0.020 km = 20 m ≈ 65 ft. Finger taps on phones are ~40-60px wide and
+// users don't aim precisely — too tight a tolerance silently rejected
+// real taps. Still rejects clearly-off taps (across the yard).
+export const GATE_SNAP_MAX_KM = 0.02;

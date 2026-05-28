@@ -156,6 +156,31 @@ export function AddressAutocomplete({
 
         containerRef.current.appendChild(element);
 
+        // Reach into the (shadow or light DOM) input and tune the mobile
+        // keyboard. Without this, the iOS/Android keyboard auto-flips back
+        // to letters after the first digit because the default input
+        // attributes don't hint that addresses start numeric. `text` mode
+        // keeps the full keyboard available, `autocapitalize="words"`
+        // matches address conventions, `autocomplete="street-address"`
+        // lets the OS offer a saved address suggestion. The Google web
+        // component may still override some of these — best effort.
+        const applyKeyboardHints = () => {
+          const input =
+            element?.querySelector("input") ??
+            element?.shadowRoot?.querySelector("input");
+          if (!input) return;
+          (input as HTMLInputElement).setAttribute("inputmode", "text");
+          (input as HTMLInputElement).setAttribute("autocapitalize", "words");
+          (input as HTMLInputElement).setAttribute(
+            "autocomplete",
+            "street-address"
+          );
+        };
+        // Hints may need to be applied after the web component finishes
+        // its own setup; try immediately and once more after a short tick.
+        applyKeyboardHints();
+        setTimeout(applyKeyboardHints, 250);
+
         if (autoFocus) {
           setTimeout(() => {
             const input =
