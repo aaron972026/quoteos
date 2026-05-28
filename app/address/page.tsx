@@ -122,7 +122,7 @@ export default function AddressPage() {
           </div>
 
           {/* Locale toggle floats top-right under the picket flourish */}
-          <div className="absolute right-5 top-5 z-10 md:right-10 md:top-32">
+          <div className="absolute right-5 top-5 z-10 md:right-10 md:top-48">
             <LocaleToggle />
           </div>
 

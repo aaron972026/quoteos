@@ -38,7 +38,10 @@ export default function LandingPage() {
             ))}
           </div>
 
-          <div className="absolute right-5 top-5 z-10 md:right-10 md:top-32">
+          {/* LocaleToggle sits below the picket flourish on md+ — pushed
+              down (top-48 = 192px) so there's clear vertical breathing
+              room between the brass pickets and the toggle pill. */}
+          <div className="absolute right-5 top-5 z-10 md:right-10 md:top-48">
             <LocaleToggle />
           </div>
 

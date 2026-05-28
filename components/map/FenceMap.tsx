@@ -300,6 +300,28 @@ export default function FenceMap({
     );
     map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-left");
 
+    // Custom "static" mode — features are rendered but no clicks, no
+    // selection, no vertex-drag. Used during gate placement so our own
+    // click handler is the only thing reacting to taps. Without this,
+    // gl-draw's simple_select kept flipping into direct_select on every
+    // line tap, which (a) blocked gate placement and (b) interpreted
+    // pinch-zoom gestures as vertex drags on the fence.
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const StaticMode = {
+      onSetup() {
+        return {};
+      },
+      toDisplayFeatures(_state: unknown, geojson: unknown, display: (g: unknown) => void) {
+        display(geojson);
+      },
+      onClick() {},
+      onTap() {},
+      onMouseDown() {},
+      onTouchStart() {},
+      onKeyUp() {},
+    };
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+
     let draw: MapboxDraw;
     try {
       draw = new MapboxDraw({
@@ -311,6 +333,12 @@ export default function FenceMap({
         defaultMode: "draw_line_string",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         styles: fenceDrawStyles as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        modes: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...((MapboxDraw as any).modes),
+          static: StaticMode,
+        },
       });
     } catch (err) {
       console.error("[FenceMap] draw init failed:", err);
@@ -371,15 +399,18 @@ export default function FenceMap({
     //      ring (polygon) — i.e., it's mid-draw, not finished.
     map.on("draw.modechange", (e: { mode: string }) => {
       try {
-        // While in gate-placement mode, mapbox-gl-draw will try to flip
-        // into direct_select the moment the customer taps on the fence
-        // line (default selection behavior). That puts them in
-        // vertex-editing mode where further taps move existing vertices
-        // instead of placing gates — exactly the "another set of nodes"
-        // feedback. Force back to simple_select so gate taps stay clean.
-        if (gatePlacementModeRef.current && e.mode === "direct_select") {
+        // GLOBAL: never allow direct_select. It's vertex-editing mode —
+        // we don't support customer-side vertex editing, AND it causes
+        // pinch-zoom gestures to be interpreted as vertex drags (a
+        // finger lands on a vertex, gl-draw thinks "drag this corner").
+        // Bounce out immediately:
+        //   - if in gate mode → static (no interaction)
+        //   - otherwise → simple_select (still selectable, just not editable)
+        if (e.mode === "direct_select") {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (draw as any).changeMode("simple_select");
+          (draw as any).changeMode(
+            gatePlacementModeRef.current ? "static" : "simple_select"
+          );
           return;
         }
         if (e.mode !== "simple_select") return;
@@ -628,9 +659,12 @@ export default function FenceMap({
       return;
     }
 
-    // Entering placement mode — stop drawing so taps don't add vertices
+    // Entering placement mode — switch to our custom static mode so
+    // gl-draw stops reacting to taps entirely. Our own map.on('click')
+    // is the only handler that runs; no risk of accidental selection
+    // or vertex-drag.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (draw as any).changeMode("simple_select");
+    (draw as any).changeMode("static");
 
     // Visual cue: the map cursor turns to crosshair while in placement mode
     // so the user understands "tap somewhere" rather than the default arrow.
