@@ -649,103 +649,28 @@ export default function FenceMap({
       map.dragPan.enable();
     }
 
-    // Drop helpers — used on release in loupe mode.
-    function trySnapAndPlaceGate(lng: number, lat: number) {
-      const fc = draw.getAll();
-      let f: Feature<LineString | Polygon> | undefined;
-      let best = -1;
-      for (const ft of fc.features) {
-        const g = ft.geometry;
-        const c =
-          g.type === "Polygon"
-            ? g.coordinates[0].length
-            : g.type === "LineString"
-              ? g.coordinates.length
-              : 0;
-        if (c > best) {
-          best = c;
-          f = ft as Feature<LineString | Polygon>;
-        }
-      }
-      if (!f) return;
-      const fcoords =
-        f.geometry.type === "Polygon"
-          ? f.geometry.coordinates[0]
-          : f.geometry.coordinates;
-      if (fcoords.length < 2) return;
-      const line = turfLineString(fcoords as [number, number][]);
-      const clicked = turfPoint([lng, lat]);
-      const snapped = nearestPointOnLine(line, clicked, { units: "kilometers" });
-      const dist = snapped.properties.dist as number;
-      if (dist > GATE_SNAP_MAX_KM) {
-        console.info(
-          `[FenceMap] loupe gate drop rejected — ${dist.toFixed(4)}km from line`
-        );
-        return;
-      }
-      const [sLng, sLat] = snapped.geometry.coordinates as [number, number];
-      onGatePointPickedRef.current?.({ lat: sLat, lng: sLng });
-    }
-
-    function appendFenceVertex(lng: number, lat: number) {
-      const fc = draw.getAll();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mode = (draw as any).getMode?.() as string | undefined;
-      const feature = fc.features.find(
-        (ft) => ft.geometry.type === "LineString"
-      ) as Feature<LineString> | undefined;
-
-      if (!feature) {
-        // First vertex — create the feature and switch into draw mode.
-        const ids = draw.add({
-          type: "Feature",
-          properties: {},
-          geometry: { type: "LineString", coordinates: [[lng, lat]] },
-        });
-        const newId = ids[0];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (draw as any).changeMode("draw_line_string", {
-          featureId: newId,
-          from: [lng, lat],
-        });
-        return;
-      }
-
-      const coords = feature.geometry.coordinates;
-      const id = feature.id as string;
-      // In draw_line_string mode the trailing coord is the phantom cursor
-      // follower — replace it with the new vertex rather than appending
-      // after it, so coords don't end up duplicated.
-      const realCoords = mode === "draw_line_string" ? coords.slice(0, -1) : coords;
-      const last = realCoords[realCoords.length - 1];
-      if (
-        last &&
-        Math.abs(last[0] - lng) < 1e-7 &&
-        Math.abs(last[1] - lat) < 1e-7
-      ) {
-        return; // identical to last vertex — ignore
-      }
-      const newCoords = [...realCoords, [lng, lat]];
-      draw.add({
-        type: "Feature",
-        id,
-        properties: feature.properties ?? {},
-        geometry: { type: "LineString", coordinates: newCoords },
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (draw as any).changeMode("draw_line_string", {
-        featureId: id,
-        from: [lng, lat],
-      });
-    }
-
+    // Drop helper — fire a synthetic Mapbox click at the loupe target.
+    // gl-draw's draw_line_string mode appends a vertex via its OWN
+    // onClick (no manual feature surgery), and the gate-mode click
+    // handler is already wired to the same event. Both take this
+    // synthetic event identically to a real tap, so there's no risk of
+    // the previous vertex getting clobbered by mis-judging gl-draw's
+    // internal phantom state.
     function dropAtLoupeTarget() {
       const lngLat = map.unproject([pointerX, pointerY]);
-      if (gatePlacementModeRef.current) {
-        trySnapAndPlaceGate(lngLat.lng, lngLat.lat);
-      } else {
-        appendFenceVertex(lngLat.lng, lngLat.lat);
-      }
+      // Mapbox's MapMouseEvent type insists on the full event surface
+      // (preventDefault, defaultPrevented, etc.), but at runtime gl-draw
+      // and our gate handler only read `lngLat` / `point` / `originalEvent`.
+      // Cast through unknown so we can ship a minimal synthetic payload.
+      const payload = {
+        lngLat,
+        point: new mapboxgl.Point(pointerX, pointerY),
+        // gl-draw's internal events.click checks `originalEvent.button`
+        // and returns early on anything other than 0 (left button); we
+        // synthesize a left-button MouseEvent so the check passes.
+        originalEvent: new MouseEvent("click", { button: 0 }),
+      } as unknown as mapboxgl.MapMouseEvent;
+      map.fire("click", payload);
     }
 
     map.on("touchstart", (e) => {
@@ -881,19 +806,16 @@ export default function FenceMap({
 
   // ── Sync parcel-boundary overlay ─────────────────────────────────
   // Renders a dashed cyan outline of the property parcel so the user can see
-  // where the lot line is before drawing. Layer sits below the gl-draw layers
-  // so the orange fence line stays visually on top.
+  // where the lot line is before drawing. Mirrored onto the loupe map so
+  // the magnifier shows property lines too.
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
     const PARCEL_SOURCE = "qos-parcel";
     const PARCEL_LAYER = "qos-parcel-outline";
 
-    function applyOverlay() {
-      if (!map) return;
+    function applyOverlayTo(targetMap: mapboxgl.Map) {
       if (!parcelBoundary) {
-        if (map.getLayer(PARCEL_LAYER)) map.removeLayer(PARCEL_LAYER);
-        if (map.getSource(PARCEL_SOURCE)) map.removeSource(PARCEL_SOURCE);
+        if (targetMap.getLayer(PARCEL_LAYER)) targetMap.removeLayer(PARCEL_LAYER);
+        if (targetMap.getSource(PARCEL_SOURCE)) targetMap.removeSource(PARCEL_SOURCE);
         return;
       }
       const data: GeoJSON.Feature = {
@@ -901,19 +823,20 @@ export default function FenceMap({
         properties: {},
         geometry: parcelBoundary as GeoJSON.Polygon | GeoJSON.MultiPolygon,
       };
-      const existing = map.getSource(PARCEL_SOURCE) as
+      const existing = targetMap.getSource(PARCEL_SOURCE) as
         | mapboxgl.GeoJSONSource
         | undefined;
       if (existing) {
         existing.setData(data);
         return;
       }
-      map.addSource(PARCEL_SOURCE, { type: "geojson", data });
-      // Insert before the first gl-draw layer so the fence line renders above
-      const beforeId = map
+      targetMap.addSource(PARCEL_SOURCE, { type: "geojson", data });
+      // Insert before the first gl-draw layer if present (main map only;
+      // loupe has no gl-draw, so beforeId stays undefined and layer sits on top).
+      const beforeId = targetMap
         .getStyle()
         .layers?.find((l) => l.id.startsWith("gl-draw"))?.id;
-      map.addLayer(
+      targetMap.addLayer(
         {
           id: PARCEL_LAYER,
           type: "line",
@@ -929,28 +852,27 @@ export default function FenceMap({
       );
     }
 
-    if (map.isStyleLoaded()) {
-      applyOverlay();
-    } else {
-      map.once("style.load", applyOverlay);
+    function applyWhenReady(targetMap: mapboxgl.Map | null) {
+      if (!targetMap) return;
+      if (targetMap.isStyleLoaded()) applyOverlayTo(targetMap);
+      else targetMap.once("style.load", () => applyOverlayTo(targetMap));
     }
+
+    applyWhenReady(mapRef.current);
+    applyWhenReady(loupeMapRef.current);
   }, [parcelBoundary]);
 
   // ── Sync adjacent-parcel outlines ────────────────────────────────
   // Renders all neighbor parcels as a fainter dashed line so the customer
-  // can see the full block context — helpful for "which side borders the
-  // neighbor" reasoning. Layered below the primary parcel outline.
+  // can see the full block context. Mirrored onto the loupe map.
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
     const SOURCE = "qos-adjacent-parcels";
     const LAYER = "qos-adjacent-parcels-line";
 
-    function applyOverlay() {
-      if (!map) return;
+    function applyOverlayTo(targetMap: mapboxgl.Map) {
       if (!adjacentBoundaries || adjacentBoundaries.length === 0) {
-        if (map.getLayer(LAYER)) map.removeLayer(LAYER);
-        if (map.getSource(SOURCE)) map.removeSource(SOURCE);
+        if (targetMap.getLayer(LAYER)) targetMap.removeLayer(LAYER);
+        if (targetMap.getSource(SOURCE)) targetMap.removeSource(SOURCE);
         return;
       }
       const data: GeoJSON.FeatureCollection = {
@@ -961,19 +883,18 @@ export default function FenceMap({
           geometry: b as GeoJSON.Polygon | GeoJSON.MultiPolygon,
         })),
       };
-      const existing = map.getSource(SOURCE) as
+      const existing = targetMap.getSource(SOURCE) as
         | mapboxgl.GeoJSONSource
         | undefined;
       if (existing) {
         existing.setData(data);
         return;
       }
-      // Insert under qos-parcel-outline if present, otherwise under gl-draw
-      const layers = map.getStyle().layers ?? [];
+      const layers = targetMap.getStyle().layers ?? [];
       const beforeId =
         layers.find((l) => l.id === "qos-parcel-outline")?.id ??
         layers.find((l) => l.id.startsWith("gl-draw"))?.id;
-      map.addLayer(
+      targetMap.addLayer(
         {
           id: LAYER,
           type: "line",
@@ -989,11 +910,14 @@ export default function FenceMap({
       );
     }
 
-    if (map.isStyleLoaded()) {
-      applyOverlay();
-    } else {
-      map.once("style.load", applyOverlay);
+    function applyWhenReady(targetMap: mapboxgl.Map | null) {
+      if (!targetMap) return;
+      if (targetMap.isStyleLoaded()) applyOverlayTo(targetMap);
+      else targetMap.once("style.load", () => applyOverlayTo(targetMap));
     }
+
+    applyWhenReady(mapRef.current);
+    applyWhenReady(loupeMapRef.current);
   }, [adjacentBoundaries]);
 
   // ── Sync gate markers to the gates prop ─────────────────────────
