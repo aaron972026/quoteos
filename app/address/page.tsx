@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Loader2, MapPin } from "lucide-react";
 import { SessionInit } from "@/components/SessionInit";
-import { LocaleToggle } from "@/components/LocaleToggle";
 import {
   AddressAutocomplete,
   type AddressResult,
@@ -119,11 +118,6 @@ export default function AddressPage() {
             {Array.from({ length: 7 }).map((_, i) => (
               <span key={i} />
             ))}
-          </div>
-
-          {/* Locale toggle floats top-right under the picket flourish */}
-          <div className="absolute right-5 top-5 z-10 md:right-10 md:top-48">
-            <LocaleToggle />
           </div>
 
           <div className="mx-auto max-w-[1280px] px-5 pb-16 pt-14 md:px-10 md:pb-28 md:pt-24">

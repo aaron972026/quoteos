@@ -3,6 +3,7 @@ import { Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BUSINESS, PHONE_HREF } from "@/lib/business";
 import { BrandMark } from "@/components/BrandMark";
+import { LocaleToggle } from "@/components/LocaleToggle";
 
 interface NavLink {
   href: string;
@@ -80,16 +81,23 @@ export function Header({
           </nav>
         )}
 
-        <a
-          href={PHONE_HREF}
-          className={cn(
-            "flex items-center gap-2 font-display text-[14px] font-semibold uppercase tracking-eyebrow",
-            phoneColor
-          )}
-        >
-          <Phone size={14} strokeWidth={2.5} />
-          <span className="hidden sm:inline">{BUSINESS.phone}</span>
-        </a>
+        {/* Right cluster — phone CTA + EN/ES toggle. The persistent home
+            for the locale toggle so a Spanish-speaking customer can
+            switch at any step in the funnel without hunting for it. */}
+        <div className="flex items-center gap-3 md:gap-4">
+          <a
+            href={PHONE_HREF}
+            className={cn(
+              "flex h-11 items-center gap-2 font-display text-[14px] font-semibold uppercase tracking-eyebrow",
+              phoneColor
+            )}
+            aria-label={`Call ${BUSINESS.phone}`}
+          >
+            <Phone size={14} strokeWidth={2.5} />
+            <span className="hidden sm:inline">{BUSINESS.phone}</span>
+          </a>
+          <LocaleToggle dark={dark} />
+        </div>
       </div>
     </header>
   );

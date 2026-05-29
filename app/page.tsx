@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, MapPin, Mail, PenTool, Phone, Receipt, ShieldAlert } from "lucide-react";
 import { SessionInit } from "@/components/SessionInit";
-import { LocaleToggle } from "@/components/LocaleToggle";
 import { Header } from "@/components/brand/Header";
 import { Eyebrow } from "@/components/brand/Eyebrow";
 import { TrustBar } from "@/components/brand/TrustBar";
@@ -36,13 +35,6 @@ export default function LandingPage() {
             {Array.from({ length: 7 }).map((_, i) => (
               <span key={i} />
             ))}
-          </div>
-
-          {/* LocaleToggle sits below the picket flourish on md+ — pushed
-              down (top-48 = 192px) so there's clear vertical breathing
-              room between the brass pickets and the toggle pill. */}
-          <div className="absolute right-5 top-5 z-10 md:right-10 md:top-48">
-            <LocaleToggle />
           </div>
 
           <div className="mx-auto max-w-[1280px] px-5 pb-20 pt-14 md:px-10 md:pb-28 md:pt-24">
