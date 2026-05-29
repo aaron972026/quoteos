@@ -135,10 +135,13 @@ export default function FenceMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const drawRef = useRef<MapboxDraw | null>(null);
-  // Zoom loupe — second non-interactive Mapbox instance rendered in a
-  // circular overlay top-left of the map. Tracks the pointer/touch and
-  // shows the area beneath at main.zoom + LOUPE_ZOOM_DELTA.
+  // Zoom loupe — second non-interactive Mapbox instance in a circular
+  // overlay that follows the pointer/touch. Hidden by default; shows
+  // during cursor-over (desktop) or a touch-drag (mobile). Positioned
+  // above the finger so the user can see what's beneath without it
+  // being covered.
   const loupeContainerRef = useRef<HTMLDivElement>(null);
+  const loupeWrapperRef = useRef<HTMLDivElement>(null);
   const loupeMapRef = useRef<mapboxgl.Map | null>(null);
   const initLogRef = useRef<string[]>([]);
   const logInit = (line: string) => {
@@ -503,16 +506,41 @@ export default function FenceMap({
     });
 
     // ── Zoom loupe ───────────────────────────────────────────────
-    // A second, non-interactive Mapbox instance rendered in a small
-    // circular overlay. Follows the pointer (desktop) or last touch
-    // (mobile) so the user can see exactly what's beneath their finger
-    // before tapping to drop a vertex. Renders at main.zoom + delta and
-    // stays in sync as the user pans/zooms.
-    const LOUPE_ZOOM_DELTA = 3;
+    // A second, non-interactive Mapbox instance in a circular overlay.
+    // Hidden by default. Behavior:
+    //   • Desktop — appears wherever the cursor enters the map, follows
+    //     it, hides on leave.
+    //   • Mobile  — appears after a short drag-distance threshold while
+    //     a finger is down (so a quick tap-to-place doesn't flash it),
+    //     follows the finger, hides on touchend.
+    // The loupe DIV is positioned ABOVE the touch point so the finger
+    // doesn't cover what it's trying to show. The loupe MAP's geographic
+    // center is re-derived from the pointer's SCREEN position on every
+    // map render — so when the user pans (finger stays still relative
+    // to the map, but geography shifts), the loupe content still updates.
+    const LOUPE_ZOOM_DELTA = 2;
+    const LOUPE_SIZE = 160;
+    const LOUPE_FINGER_OFFSET_Y = 110; // distance from finger to loupe center
+    const LOUPE_TOUCH_THRESHOLD_PX = 8; // ignore tap-to-place taps
     let loupeMap: mapboxgl.Map | null = null;
-    let loupeRafId: number | null = null;
-    let loupeQueuedLngLat: { lng: number; lat: number } | null = null;
     let loupeRo: ResizeObserver | null = null;
+
+    // Pointer state — `pointerX/Y` are screen coords relative to the
+    // map container (i.e., `e.point` from Mapbox events). `pointerActive`
+    // means "show the loupe" (set true on mouse-over OR after a touch
+    // drag clears the threshold).
+    let pointerX = 0;
+    let pointerY = 0;
+    let pointerActive = false;
+    let touchDown = false;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    // Once a touch interaction is seen, ignore the synthetic mousemove
+    // mobile browsers fire after a tap (otherwise the loupe pops up after
+    // every gate tap on mobile).
+    let usedTouchRecently = false;
+    let usedTouchTimer: ReturnType<typeof setTimeout> | null = null;
+
     if (loupeContainerRef.current) {
       try {
         loupeMap = new mapboxgl.Map({
@@ -524,19 +552,18 @@ export default function FenceMap({
           maxZoom: MAP_DEFAULTS.maxZoom,
           interactive: false,
           attributionControl: false,
-          antialias: false,
+          antialias: true,
           fadeDuration: 0,
           preserveDrawingBuffer: false,
         });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (loupeMap as any).setMaxPixelRatio?.(1.5);
+        // Use native devicePixelRatio for sharp imagery. Capping previously
+        // at 1.5 made retina screens look soft; the loupe is only on
+        // briefly during interaction so the GPU cost is acceptable.
         loupeMapRef.current = loupeMap;
         loupeMap.on("load", () => {
           console.info("[FenceMap] loupe style loaded");
           setTimeout(() => loupeMap?.resize(), 50);
         });
-        // Keep loupe sized to its container in case the parent flex layout
-        // settles after init (same defensive pattern as the main map).
         loupeRo = new ResizeObserver(() => {
           const r = loupeContainerRef.current?.getBoundingClientRect();
           if (r && r.width > 0 && r.height > 0) {
@@ -545,7 +572,6 @@ export default function FenceMap({
         });
         loupeRo.observe(loupeContainerRef.current);
       } catch (err) {
-        // Loupe is enhancement-only; main flow keeps working if it fails.
         console.warn("[FenceMap] loupe init failed:", err);
         loupeMap = null;
       }
@@ -553,29 +579,102 @@ export default function FenceMap({
       console.warn("[FenceMap] loupe container ref is null at init");
     }
 
-    function flushLoupeCenter() {
-      loupeRafId = null;
-      const target = loupeQueuedLngLat;
-      loupeQueuedLngLat = null;
-      if (target && loupeMap) {
-        loupeMap.jumpTo({ center: [target.lng, target.lat] });
-      }
+    function setLoupeVisible(visible: boolean) {
+      const wrap = loupeWrapperRef.current;
+      if (!wrap) return;
+      wrap.style.opacity = visible ? "1" : "0";
+      wrap.style.pointerEvents = "none";
     }
-    function updateLoupeCenter(lng: number, lat: number) {
-      if (!loupeMap) return;
-      loupeQueuedLngLat = { lng, lat };
-      if (loupeRafId == null) {
-        loupeRafId = window.requestAnimationFrame(flushLoupeCenter);
-      }
+    function positionLoupeWrapper(x: number, y: number) {
+      const wrap = loupeWrapperRef.current;
+      if (!wrap) return;
+      // Center loupe at (x, y - offset). Translate top-left so the
+      // resulting wrapper center lands at that point.
+      const tx = x - LOUPE_SIZE / 2;
+      const ty = y - LOUPE_FINGER_OFFSET_Y - LOUPE_SIZE / 2;
+      wrap.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
+    }
+    function updateLoupeContent() {
+      if (!loupeMap || !pointerActive) return;
+      const lngLat = map.unproject([pointerX, pointerY]);
+      loupeMap.jumpTo({
+        center: [lngLat.lng, lngLat.lat],
+        zoom: Math.min(MAP_DEFAULTS.maxZoom, map.getZoom() + LOUPE_ZOOM_DELTA),
+      });
     }
 
-    map.on("mousemove", (e) => updateLoupeCenter(e.lngLat.lng, e.lngLat.lat));
-    map.on("touchstart", (e) => updateLoupeCenter(e.lngLat.lng, e.lngLat.lat));
-    map.on("touchmove", (e) => updateLoupeCenter(e.lngLat.lng, e.lngLat.lat));
-    map.on("zoom", () => {
-      if (!loupeMap) return;
-      const z = Math.min(MAP_DEFAULTS.maxZoom, map.getZoom() + LOUPE_ZOOM_DELTA);
-      loupeMap.setZoom(z);
+    // Desktop hover — show while cursor is over the map.
+    map.on("mousemove", (e) => {
+      if (usedTouchRecently) return;
+      pointerX = e.point.x;
+      pointerY = e.point.y;
+      pointerActive = true;
+      positionLoupeWrapper(pointerX, pointerY);
+      updateLoupeContent();
+      setLoupeVisible(true);
+    });
+    const onCanvasMouseLeave = () => {
+      pointerActive = false;
+      setLoupeVisible(false);
+    };
+    map.getCanvasContainer().addEventListener("mouseleave", onCanvasMouseLeave);
+
+    // Mobile touch — show only after the user has dragged past a small
+    // threshold, so a tap to drop a vertex / gate doesn't flash the
+    // loupe. Multi-touch (pinch) hides it.
+    map.on("touchstart", (e) => {
+      usedTouchRecently = true;
+      if (usedTouchTimer) clearTimeout(usedTouchTimer);
+      usedTouchTimer = setTimeout(() => {
+        usedTouchRecently = false;
+      }, 500);
+      if (e.points.length > 1) {
+        pointerActive = false;
+        touchDown = false;
+        setLoupeVisible(false);
+        return;
+      }
+      touchDown = true;
+      touchStartX = e.point.x;
+      touchStartY = e.point.y;
+      pointerX = e.point.x;
+      pointerY = e.point.y;
+    });
+    map.on("touchmove", (e) => {
+      if (!touchDown) return;
+      if (e.points.length > 1) {
+        pointerActive = false;
+        touchDown = false;
+        setLoupeVisible(false);
+        return;
+      }
+      pointerX = e.point.x;
+      pointerY = e.point.y;
+      const dx = pointerX - touchStartX;
+      const dy = pointerY - touchStartY;
+      if (Math.hypot(dx, dy) < LOUPE_TOUCH_THRESHOLD_PX) return;
+      pointerActive = true;
+      positionLoupeWrapper(pointerX, pointerY);
+      updateLoupeContent();
+      setLoupeVisible(true);
+    });
+    map.on("touchend", () => {
+      touchDown = false;
+      pointerActive = false;
+      setLoupeVisible(false);
+    });
+    map.on("touchcancel", () => {
+      touchDown = false;
+      pointerActive = false;
+      setLoupeVisible(false);
+    });
+
+    // Re-derive loupe content on every map render. During a pan, the
+    // finger's screen position stays roughly the same but the geography
+    // beneath it shifts — without this listener the loupe would lock
+    // onto whatever was under the finger at touchstart.
+    map.on("render", () => {
+      if (pointerActive) updateLoupeContent();
     });
 
     // Right-click to finish the current line/polygon. Without this the
@@ -595,10 +694,8 @@ export default function FenceMap({
       try {
         ro.disconnect();
         loupeRo?.disconnect();
-        if (loupeRafId != null) {
-          window.cancelAnimationFrame(loupeRafId);
-          loupeRafId = null;
-        }
+        map.getCanvasContainer().removeEventListener("mouseleave", onCanvasMouseLeave);
+        if (usedTouchTimer) clearTimeout(usedTouchTimer);
         loupeMapRef.current?.remove();
         map.remove();
       } catch {
@@ -1028,26 +1125,30 @@ export default function FenceMap({
         role="application"
         aria-label="Fence drawing map"
       />
-      {/* Zoom loupe — circular magnifier showing the area beneath the
-          pointer/touch at +3 zoom. Sizing/positioning uses inline styles
-          so it survives even if Tailwind's JIT misses the arbitrary
-          length classes. pointer-events:none lets clicks pass through
-          to the main map below. Border + bg make the wrapper visible
-          even if the second Mapbox instance fails to load. */}
+      {/* Zoom loupe — circular magnifier that follows the cursor (desktop)
+          or finger (mobile, after a small drag). Hidden by default;
+          opacity is toggled in the pointer/touch handlers above. Position
+          is set imperatively via transform on the wrapper ref. Sized
+          and styled inline so it survives Tailwind JIT misses. */}
       <div
+        ref={loupeWrapperRef}
         style={{
           position: "absolute",
-          left: 12,
-          top: 12,
-          width: 140,
-          height: 140,
+          left: 0,
+          top: 0,
+          width: 160,
+          height: 160,
           borderRadius: "50%",
           overflow: "hidden",
           border: "3px solid #FAF1E0",
           backgroundColor: "rgba(11, 28, 50, 0.15)",
-          boxShadow: "0 8px 24px rgba(11, 28, 50, 0.25)",
+          boxShadow: "0 10px 28px rgba(11, 28, 50, 0.35)",
           pointerEvents: "none",
           zIndex: 20,
+          opacity: 0,
+          transition: "opacity 90ms ease-out",
+          willChange: "transform, opacity",
+          transform: "translate3d(-9999px, -9999px, 0)",
         }}
         aria-hidden="true"
       >
