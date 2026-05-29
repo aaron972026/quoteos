@@ -304,17 +304,23 @@ export default function FenceMap({
     // selection, no vertex-drag. Used during gate placement so our own
     // click handler is the only thing reacting to taps. Without this,
     // gl-draw's simple_select kept flipping into direct_select on every
-    // line tap, which (a) blocked gate placement and (b) interpreted
-    // pinch-zoom gestures as vertex drags on the fence.
+    // line tap.
     //
     // CRITICAL: toDisplayFeatures must stamp each feature's
     // `properties.active = "false"` before calling display(). Without
-    // that property, gl-draw's style rules find no match and the
-    // feature renders invisibly — symptom: "fence line disappears
-    // when I switch to gate mode."
+    // that, gl-draw's style filter `["!=", "active", "true"]` does
+    // match, but the line still won't render in some setups because
+    // the feature lacks the activeness hint. Stamp it explicitly.
+    //
+    // Modes are registered by mutating MapboxDraw.modes BEFORE the
+    // draw instance is constructed — more reliable across versions than
+    // passing `modes` as a constructor option (which has changed
+    // shape between mapbox-gl-draw releases). Side effect on the
+    // global modes table is one-time and idempotent.
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const PlaceGateMode = {
       onSetup() {
+        logInit("PlaceGateMode.onSetup called");
         return {};
       },
       toDisplayFeatures(
@@ -330,9 +336,25 @@ export default function FenceMap({
       onClick() {},
       onTap() {},
       onMouseDown() {},
+      onMouseUp() {},
+      onMouseMove() {},
       onTouchStart() {},
+      onTouchMove() {},
+      onTouchEnd() {},
       onKeyUp() {},
+      onTrash() {},
+      onDoubleClick() {},
+      onStop() {},
     };
+    // Extend the global modes table so the draw instance picks it up
+    // alongside all default modes. Guard against double-registration.
+    const MD = MapboxDraw as any;
+    if (!MD.modes) {
+      console.warn("[FenceMap] MapboxDraw.modes is undefined — custom modes may not work");
+    } else if (!MD.modes.place_gate) {
+      MD.modes.place_gate = PlaceGateMode;
+      logInit("registered place_gate mode on MapboxDraw.modes");
+    }
     /* eslint-enable @typescript-eslint/no-explicit-any */
 
     let draw: MapboxDraw;
@@ -346,12 +368,6 @@ export default function FenceMap({
         defaultMode: "draw_line_string",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         styles: fenceDrawStyles as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        modes: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ...((MapboxDraw as any).modes),
-          place_gate: PlaceGateMode,
-        },
       });
     } catch (err) {
       console.error("[FenceMap] draw init failed:", err);
@@ -663,6 +679,7 @@ export default function FenceMap({
 
     if (!gatePlacementMode) {
       // Returning to drawing — restore line mode unless polygon is in progress
+      console.info("[FenceMap] exiting gate mode → restore draw_line_string");
       const fc = draw.getAll();
       const last = fc.features[fc.features.length - 1];
       if (!last || last.geometry.type === "LineString") {
@@ -677,8 +694,20 @@ export default function FenceMap({
     // is the only handler that runs; no risk of accidental selection
     // or vertex-drag. (Mode name deliberately NOT "static" — the existing
     // fenceDrawStyles filter the static mode out as invisible.)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (draw as any).changeMode("place_gate");
+    console.info("[FenceMap] entering gate mode → changeMode(place_gate)");
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (draw as any).changeMode("place_gate");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const after = (draw as any).getMode?.();
+      console.info(`[FenceMap] mode is now: ${after}`);
+      const fc = draw.getAll();
+      console.info(
+        `[FenceMap] features in collection: ${fc.features.length} (post-mode-change)`
+      );
+    } catch (err) {
+      console.error("[FenceMap] gate-mode changeMode failed:", err);
+    }
 
     // Visual cue: the map cursor turns to crosshair while in placement mode
     // so the user understands "tap somewhere" rather than the default arrow.
@@ -687,6 +716,9 @@ export default function FenceMap({
     canvas.style.cursor = "crosshair";
 
     const handleClick = (e: mapboxgl.MapMouseEvent) => {
+      console.info(
+        `[FenceMap] gate-mode map.click fired at lng=${e.lngLat.lng.toFixed(6)}, lat=${e.lngLat.lat.toFixed(6)}`
+      );
       const fc = draw.getAll();
       // Pick the feature with the most coordinates — same heuristic as
       // emitStats above, so a 1-vertex stub doesn't shadow the real fence.
@@ -738,8 +770,40 @@ export default function FenceMap({
     };
 
     map.on("click", handleClick);
+
+    // Belt-and-suspenders: also bind a pointerup listener directly on the
+    // canvas. If Mapbox's 'click' event is being eaten somewhere upstream
+    // (custom mode, draw plugin, browser quirk), pointerup on the raw
+    // canvas still fires. We dedupe via a flag so we don't double-snap.
+    let lastSyntheticClickTs = 0;
+    const onCanvasPointerUp = (ev: PointerEvent) => {
+      // Only left-button / primary touch — ignore right-click + middle.
+      if (ev.button !== 0) return;
+      const now = performance.now();
+      // If map.on('click') just fired (within 50ms), skip — we already handled it.
+      if (now - lastSyntheticClickTs < 50) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      const y = ev.clientY - rect.top;
+      const lngLat = map.unproject([x, y]);
+      console.info(
+        `[FenceMap] gate-mode canvas.pointerup fallback at lng=${lngLat.lng.toFixed(6)}, lat=${lngLat.lat.toFixed(6)}`
+      );
+      // Synthesize the MapMouseEvent shape handleClick expects.
+      handleClick({ lngLat } as unknown as mapboxgl.MapMouseEvent);
+    };
+    // Whenever map.on('click') fires, stamp the timestamp so the canvas
+    // fallback knows to back off — prevents double-handling.
+    const stampClickTime = () => {
+      lastSyntheticClickTs = performance.now();
+    };
+    map.on("click", stampClickTime);
+    canvas.addEventListener("pointerup", onCanvasPointerUp);
+
     return () => {
       map.off("click", handleClick);
+      map.off("click", stampClickTime);
+      canvas.removeEventListener("pointerup", onCanvasPointerUp);
       canvas.style.cursor = prevCursor;
     };
   }, [gatePlacementMode]);
