@@ -521,20 +521,27 @@ export default function FenceMap({
     const LOUPE_ZOOM_DELTA = 2;
     const LOUPE_SIZE = 160;
     const LOUPE_FINGER_OFFSET_Y = 110; // distance from finger to loupe center
-    const LOUPE_TOUCH_THRESHOLD_PX = 8; // ignore tap-to-place taps
+    const LOUPE_LONG_PRESS_MS = 250;
+    const LOUPE_PAN_ABORT_PX = 12; // movement within long-press window = pan, not loupe
     let loupeMap: mapboxgl.Map | null = null;
     let loupeRo: ResizeObserver | null = null;
 
     // Pointer state — `pointerX/Y` are screen coords relative to the
     // map container (i.e., `e.point` from Mapbox events). `pointerActive`
-    // means "show the loupe" (set true on mouse-over OR after a touch
-    // drag clears the threshold).
+    // means "loupe is visible" (set true on mouse-over OR after a touch
+    // long-press confirms loupe mode).
     let pointerX = 0;
     let pointerY = 0;
     let pointerActive = false;
-    let touchDown = false;
+    // Touch state machine — quick taps go through to gl-draw / gate
+    // handler unchanged; only a long-press WITHOUT significant movement
+    // promotes to loupe mode. In loupe mode, map pan is disabled so the
+    // finger drags the loupe (not the map), and release drops a vertex
+    // at the loupe target.
+    let touchPhase: "idle" | "pending" | "loupe" = "idle";
     let touchStartX = 0;
     let touchStartY = 0;
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
     // Once a touch interaction is seen, ignore the synthetic mousemove
     // mobile browsers fire after a tap (otherwise the loupe pops up after
     // every gate tap on mobile).
@@ -619,9 +626,128 @@ export default function FenceMap({
     };
     map.getCanvasContainer().addEventListener("mouseleave", onCanvasMouseLeave);
 
-    // Mobile touch — show only after the user has dragged past a small
-    // threshold, so a tap to drop a vertex / gate doesn't flash the
-    // loupe. Multi-touch (pinch) hides it.
+    // ── Mobile touch: iOS-style pin-placement pattern ─────────────
+    //   • Quick tap → no loupe, gl-draw / gate handler processes it
+    //   • Quick drag → no loupe, Mapbox pans normally
+    //   • Long-press without movement → enter loupe mode (250ms),
+    //     map pan disabled, loupe follows finger
+    //   • Release in loupe mode → drop vertex (or snap gate) at
+    //     the loupe target lat/lng
+    //   • Pinch / second finger → cancel loupe, multi-touch handled by Mapbox
+    function enterLoupeMode() {
+      if (touchPhase === "loupe") return;
+      touchPhase = "loupe";
+      map.dragPan.disable();
+      pointerActive = true;
+      positionLoupeWrapper(pointerX, pointerY);
+      updateLoupeContent();
+      setLoupeVisible(true);
+    }
+    function exitLoupeMode() {
+      pointerActive = false;
+      setLoupeVisible(false);
+      map.dragPan.enable();
+    }
+
+    // Drop helpers — used on release in loupe mode.
+    function trySnapAndPlaceGate(lng: number, lat: number) {
+      const fc = draw.getAll();
+      let f: Feature<LineString | Polygon> | undefined;
+      let best = -1;
+      for (const ft of fc.features) {
+        const g = ft.geometry;
+        const c =
+          g.type === "Polygon"
+            ? g.coordinates[0].length
+            : g.type === "LineString"
+              ? g.coordinates.length
+              : 0;
+        if (c > best) {
+          best = c;
+          f = ft as Feature<LineString | Polygon>;
+        }
+      }
+      if (!f) return;
+      const fcoords =
+        f.geometry.type === "Polygon"
+          ? f.geometry.coordinates[0]
+          : f.geometry.coordinates;
+      if (fcoords.length < 2) return;
+      const line = turfLineString(fcoords as [number, number][]);
+      const clicked = turfPoint([lng, lat]);
+      const snapped = nearestPointOnLine(line, clicked, { units: "kilometers" });
+      const dist = snapped.properties.dist as number;
+      if (dist > GATE_SNAP_MAX_KM) {
+        console.info(
+          `[FenceMap] loupe gate drop rejected — ${dist.toFixed(4)}km from line`
+        );
+        return;
+      }
+      const [sLng, sLat] = snapped.geometry.coordinates as [number, number];
+      onGatePointPickedRef.current?.({ lat: sLat, lng: sLng });
+    }
+
+    function appendFenceVertex(lng: number, lat: number) {
+      const fc = draw.getAll();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mode = (draw as any).getMode?.() as string | undefined;
+      const feature = fc.features.find(
+        (ft) => ft.geometry.type === "LineString"
+      ) as Feature<LineString> | undefined;
+
+      if (!feature) {
+        // First vertex — create the feature and switch into draw mode.
+        const ids = draw.add({
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [[lng, lat]] },
+        });
+        const newId = ids[0];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (draw as any).changeMode("draw_line_string", {
+          featureId: newId,
+          from: [lng, lat],
+        });
+        return;
+      }
+
+      const coords = feature.geometry.coordinates;
+      const id = feature.id as string;
+      // In draw_line_string mode the trailing coord is the phantom cursor
+      // follower — replace it with the new vertex rather than appending
+      // after it, so coords don't end up duplicated.
+      const realCoords = mode === "draw_line_string" ? coords.slice(0, -1) : coords;
+      const last = realCoords[realCoords.length - 1];
+      if (
+        last &&
+        Math.abs(last[0] - lng) < 1e-7 &&
+        Math.abs(last[1] - lat) < 1e-7
+      ) {
+        return; // identical to last vertex — ignore
+      }
+      const newCoords = [...realCoords, [lng, lat]];
+      draw.add({
+        type: "Feature",
+        id,
+        properties: feature.properties ?? {},
+        geometry: { type: "LineString", coordinates: newCoords },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (draw as any).changeMode("draw_line_string", {
+        featureId: id,
+        from: [lng, lat],
+      });
+    }
+
+    function dropAtLoupeTarget() {
+      const lngLat = map.unproject([pointerX, pointerY]);
+      if (gatePlacementModeRef.current) {
+        trySnapAndPlaceGate(lngLat.lng, lngLat.lat);
+      } else {
+        appendFenceVertex(lngLat.lng, lngLat.lat);
+      }
+    }
+
     map.on("touchstart", (e) => {
       usedTouchRecently = true;
       if (usedTouchTimer) clearTimeout(usedTouchTimer);
@@ -629,44 +755,80 @@ export default function FenceMap({
         usedTouchRecently = false;
       }, 500);
       if (e.points.length > 1) {
-        pointerActive = false;
-        touchDown = false;
-        setLoupeVisible(false);
+        if (touchPhase === "loupe") exitLoupeMode();
+        touchPhase = "idle";
+        if (longPressTimer) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
         return;
       }
-      touchDown = true;
+      touchPhase = "pending";
       touchStartX = e.point.x;
       touchStartY = e.point.y;
       pointerX = e.point.x;
       pointerY = e.point.y;
+      if (longPressTimer) clearTimeout(longPressTimer);
+      longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        if (touchPhase === "pending") enterLoupeMode();
+      }, LOUPE_LONG_PRESS_MS);
     });
     map.on("touchmove", (e) => {
-      if (!touchDown) return;
       if (e.points.length > 1) {
-        pointerActive = false;
-        touchDown = false;
-        setLoupeVisible(false);
+        if (touchPhase === "loupe") exitLoupeMode();
+        touchPhase = "idle";
+        if (longPressTimer) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
         return;
       }
       pointerX = e.point.x;
       pointerY = e.point.y;
-      const dx = pointerX - touchStartX;
-      const dy = pointerY - touchStartY;
-      if (Math.hypot(dx, dy) < LOUPE_TOUCH_THRESHOLD_PX) return;
-      pointerActive = true;
-      positionLoupeWrapper(pointerX, pointerY);
-      updateLoupeContent();
-      setLoupeVisible(true);
+      if (touchPhase === "pending") {
+        const dx = pointerX - touchStartX;
+        const dy = pointerY - touchStartY;
+        if (Math.hypot(dx, dy) > LOUPE_PAN_ABORT_PX) {
+          // User moved before the long-press window completed — it's a
+          // pan, not a loupe-summon. Cancel the timer and let Mapbox
+          // handle the gesture as usual.
+          if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+          }
+          touchPhase = "idle";
+        }
+      }
+      if (touchPhase === "loupe") {
+        positionLoupeWrapper(pointerX, pointerY);
+        updateLoupeContent();
+      }
     });
-    map.on("touchend", () => {
-      touchDown = false;
-      pointerActive = false;
-      setLoupeVisible(false);
+    map.on("touchend", (e) => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      if (touchPhase === "loupe") {
+        dropAtLoupeTarget();
+        exitLoupeMode();
+        // Suppress the synthetic click event the browser fires after
+        // touchend (W3C touch-events §13.5). Without this, gl-draw /
+        // the gate-mode click handler would ALSO fire at the touchend
+        // screen position and add a duplicate point on top of the one
+        // we just dropped via the loupe.
+        e.preventDefault();
+      }
+      touchPhase = "idle";
     });
     map.on("touchcancel", () => {
-      touchDown = false;
-      pointerActive = false;
-      setLoupeVisible(false);
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      if (touchPhase === "loupe") exitLoupeMode();
+      touchPhase = "idle";
     });
 
     // Re-derive loupe content on every map render. During a pan, the
@@ -696,6 +858,13 @@ export default function FenceMap({
         loupeRo?.disconnect();
         map.getCanvasContainer().removeEventListener("mouseleave", onCanvasMouseLeave);
         if (usedTouchTimer) clearTimeout(usedTouchTimer);
+        if (longPressTimer) clearTimeout(longPressTimer);
+        // Make sure dragPan isn't left disabled if we unmount mid-loupe.
+        try {
+          map.dragPan.enable();
+        } catch {
+          // map already removed below — ignore
+        }
         loupeMapRef.current?.remove();
         map.remove();
       } catch {
