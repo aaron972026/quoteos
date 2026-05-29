@@ -36,6 +36,12 @@ export interface FenceGeometryStats {
   linear_feet: number;
   corner_count: number;
   closed: boolean;
+  // Real user-placed vertex count, excluding gl-draw's trailing phantom
+  // cursor-follower (in draw_line_string/draw_polygon modes) and the
+  // polygon ring's closing duplicate. Stable across mode changes, so it
+  // can drive an undo stack without spurious increments when the user
+  // toggles gate mode on/off.
+  vertex_count: number;
 }
 
 export interface FenceMapHandle {
@@ -129,6 +135,11 @@ export default function FenceMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const drawRef = useRef<MapboxDraw | null>(null);
+  // Zoom loupe — second non-interactive Mapbox instance rendered in a
+  // circular overlay top-left of the map. Tracks the pointer/touch and
+  // shows the area beneath at main.zoom + LOUPE_ZOOM_DELTA.
+  const loupeContainerRef = useRef<HTMLDivElement>(null);
+  const loupeMapRef = useRef<mapboxgl.Map | null>(null);
   const initLogRef = useRef<string[]>([]);
   const logInit = (line: string) => {
     initLogRef.current.push(line);
@@ -398,11 +409,31 @@ export default function FenceMap({
           primary = f as Feature<LineString | Polygon>;
         }
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mode = (draw as any).getMode?.() as string | undefined;
+      const isDrawingLine = mode === "draw_line_string";
+      const isDrawingPoly = mode === "draw_polygon";
+      let vertex_count = 0;
+      if (primary) {
+        if (primary.geometry.type === "LineString") {
+          vertex_count = Math.max(
+            0,
+            primary.geometry.coordinates.length - (isDrawingLine ? 1 : 0)
+          );
+        } else {
+          // Polygon: subtract the closing duplicate AND the phantom (in draw mode)
+          vertex_count = Math.max(
+            0,
+            primary.geometry.coordinates[0].length - 1 - (isDrawingPoly ? 1 : 0)
+          );
+        }
+      }
       const stats: FenceGeometryStats = {
         feature: primary,
         linear_feet: primary ? geometryLF(primary) : 0,
         corner_count: primary ? cornerCount(primary) : 0,
         closed: primary?.geometry.type === "Polygon",
+        vertex_count,
       };
       onChangeRef.current(stats);
     }
@@ -471,6 +502,82 @@ export default function FenceMap({
       }
     });
 
+    // ── Zoom loupe ───────────────────────────────────────────────
+    // A second, non-interactive Mapbox instance rendered in a small
+    // circular overlay. Follows the pointer (desktop) or last touch
+    // (mobile) so the user can see exactly what's beneath their finger
+    // before tapping to drop a vertex. Renders at main.zoom + delta and
+    // stays in sync as the user pans/zooms.
+    const LOUPE_ZOOM_DELTA = 3;
+    let loupeMap: mapboxgl.Map | null = null;
+    let loupeRafId: number | null = null;
+    let loupeQueuedLngLat: { lng: number; lat: number } | null = null;
+    let loupeRo: ResizeObserver | null = null;
+    if (loupeContainerRef.current) {
+      try {
+        loupeMap = new mapboxgl.Map({
+          container: loupeContainerRef.current,
+          style: SATELLITE_STYLE,
+          center: [centerLng, centerLat],
+          zoom: Math.min(MAP_DEFAULTS.maxZoom, MAP_DEFAULTS.zoom + LOUPE_ZOOM_DELTA),
+          minZoom: MAP_DEFAULTS.minZoom,
+          maxZoom: MAP_DEFAULTS.maxZoom,
+          interactive: false,
+          attributionControl: false,
+          antialias: false,
+          fadeDuration: 0,
+          preserveDrawingBuffer: false,
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (loupeMap as any).setMaxPixelRatio?.(1.5);
+        loupeMapRef.current = loupeMap;
+        loupeMap.on("load", () => {
+          console.info("[FenceMap] loupe style loaded");
+          setTimeout(() => loupeMap?.resize(), 50);
+        });
+        // Keep loupe sized to its container in case the parent flex layout
+        // settles after init (same defensive pattern as the main map).
+        loupeRo = new ResizeObserver(() => {
+          const r = loupeContainerRef.current?.getBoundingClientRect();
+          if (r && r.width > 0 && r.height > 0) {
+            loupeMap?.resize();
+          }
+        });
+        loupeRo.observe(loupeContainerRef.current);
+      } catch (err) {
+        // Loupe is enhancement-only; main flow keeps working if it fails.
+        console.warn("[FenceMap] loupe init failed:", err);
+        loupeMap = null;
+      }
+    } else {
+      console.warn("[FenceMap] loupe container ref is null at init");
+    }
+
+    function flushLoupeCenter() {
+      loupeRafId = null;
+      const target = loupeQueuedLngLat;
+      loupeQueuedLngLat = null;
+      if (target && loupeMap) {
+        loupeMap.jumpTo({ center: [target.lng, target.lat] });
+      }
+    }
+    function updateLoupeCenter(lng: number, lat: number) {
+      if (!loupeMap) return;
+      loupeQueuedLngLat = { lng, lat };
+      if (loupeRafId == null) {
+        loupeRafId = window.requestAnimationFrame(flushLoupeCenter);
+      }
+    }
+
+    map.on("mousemove", (e) => updateLoupeCenter(e.lngLat.lng, e.lngLat.lat));
+    map.on("touchstart", (e) => updateLoupeCenter(e.lngLat.lng, e.lngLat.lat));
+    map.on("touchmove", (e) => updateLoupeCenter(e.lngLat.lng, e.lngLat.lat));
+    map.on("zoom", () => {
+      if (!loupeMap) return;
+      const z = Math.min(MAP_DEFAULTS.maxZoom, map.getZoom() + LOUPE_ZOOM_DELTA);
+      loupeMap.setZoom(z);
+    });
+
     // Right-click to finish the current line/polygon. Without this the
     // phantom cursor-vertex keeps tracking the mouse and there's no way to
     // stop drawing other than double-click (easy to miss on touchpads).
@@ -487,12 +594,19 @@ export default function FenceMap({
     return () => {
       try {
         ro.disconnect();
+        loupeRo?.disconnect();
+        if (loupeRafId != null) {
+          window.cancelAnimationFrame(loupeRafId);
+          loupeRafId = null;
+        }
+        loupeMapRef.current?.remove();
         map.remove();
       } catch {
         // ignore
       }
       mapRef.current = null;
       drawRef.current = null;
+      loupeMapRef.current = null;
     };
     // Center change after mount is intentional — recreating the map on every
     // pan would lose the in-progress geometry. Quote address is fixed.
@@ -772,38 +886,45 @@ export default function FenceMap({
     map.on("click", handleClick);
 
     // Belt-and-suspenders: also bind a pointerup listener directly on the
-    // canvas. If Mapbox's 'click' event is being eaten somewhere upstream
-    // (custom mode, draw plugin, browser quirk), pointerup on the raw
-    // canvas still fires. We dedupe via a flag so we don't double-snap.
-    let lastSyntheticClickTs = 0;
+    // canvas in case Mapbox's 'click' event ever gets eaten (custom mode,
+    // draw plugin quirk, mobile browser oddity). Dedupe: the browser
+    // dispatches pointerup BEFORE click, so a simple "did map.click just
+    // fire?" timestamp check is always too early. Instead we DEFER the
+    // fallback by ~150ms; if map.click fires inside that window it
+    // cancels the timer. Net result: map.click handles 99% of taps,
+    // pointerup only takes over when Mapbox truly missed the event.
+    let pendingFallback: ReturnType<typeof setTimeout> | null = null;
     const onCanvasPointerUp = (ev: PointerEvent) => {
       // Only left-button / primary touch — ignore right-click + middle.
       if (ev.button !== 0) return;
-      const now = performance.now();
-      // If map.on('click') just fired (within 50ms), skip — we already handled it.
-      if (now - lastSyntheticClickTs < 50) return;
       const rect = canvas.getBoundingClientRect();
       const x = ev.clientX - rect.left;
       const y = ev.clientY - rect.top;
       const lngLat = map.unproject([x, y]);
-      console.info(
-        `[FenceMap] gate-mode canvas.pointerup fallback at lng=${lngLat.lng.toFixed(6)}, lat=${lngLat.lat.toFixed(6)}`
-      );
-      // Synthesize the MapMouseEvent shape handleClick expects.
-      handleClick({ lngLat } as unknown as mapboxgl.MapMouseEvent);
+      if (pendingFallback != null) clearTimeout(pendingFallback);
+      pendingFallback = setTimeout(() => {
+        pendingFallback = null;
+        console.info(
+          `[FenceMap] gate-mode canvas.pointerup fallback at lng=${lngLat.lng.toFixed(6)}, lat=${lngLat.lat.toFixed(6)}`
+        );
+        handleClick({ lngLat } as unknown as mapboxgl.MapMouseEvent);
+      }, 150);
     };
-    // Whenever map.on('click') fires, stamp the timestamp so the canvas
-    // fallback knows to back off — prevents double-handling.
-    const stampClickTime = () => {
-      lastSyntheticClickTs = performance.now();
+    // map.click is the primary path — cancel any pending pointerup fallback.
+    const cancelPendingFallback = () => {
+      if (pendingFallback != null) {
+        clearTimeout(pendingFallback);
+        pendingFallback = null;
+      }
     };
-    map.on("click", stampClickTime);
+    map.on("click", cancelPendingFallback);
     canvas.addEventListener("pointerup", onCanvasPointerUp);
 
     return () => {
       map.off("click", handleClick);
-      map.off("click", stampClickTime);
+      map.off("click", cancelPendingFallback);
       canvas.removeEventListener("pointerup", onCanvasPointerUp);
+      if (pendingFallback != null) clearTimeout(pendingFallback);
       canvas.style.cursor = prevCursor;
     };
   }, [gatePlacementMode]);
@@ -850,9 +971,15 @@ export default function FenceMap({
           properties: feature.properties ?? {},
           geometry: { type: "LineString", coordinates: newCoords },
         });
-        // Resume drawing from the new last vertex so the user can keep going
+        // Resume drawing from the new last vertex so the user can keep going.
+        // gl-draw v1.4+ throws "Please use the `from` property to indicate
+        // which point to continue the line from" if `from` is omitted, so
+        // pass the last remaining coord explicitly.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (draw as any).changeMode("draw_line_string", { featureId: id });
+        (draw as any).changeMode("draw_line_string", {
+          featureId: id,
+          from: newCoords[newCoords.length - 1],
+        });
         return;
       }
 
@@ -901,6 +1028,82 @@ export default function FenceMap({
         role="application"
         aria-label="Fence drawing map"
       />
+      {/* Zoom loupe — circular magnifier showing the area beneath the
+          pointer/touch at +3 zoom. Sizing/positioning uses inline styles
+          so it survives even if Tailwind's JIT misses the arbitrary
+          length classes. pointer-events:none lets clicks pass through
+          to the main map below. Border + bg make the wrapper visible
+          even if the second Mapbox instance fails to load. */}
+      <div
+        style={{
+          position: "absolute",
+          left: 12,
+          top: 12,
+          width: 140,
+          height: 140,
+          borderRadius: "50%",
+          overflow: "hidden",
+          border: "3px solid #FAF1E0",
+          backgroundColor: "rgba(11, 28, 50, 0.15)",
+          boxShadow: "0 8px 24px rgba(11, 28, 50, 0.25)",
+          pointerEvents: "none",
+          zIndex: 20,
+        }}
+        aria-hidden="true"
+      >
+        <div
+          ref={loupeContainerRef}
+          style={{ width: "100%", height: "100%" }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+          }}
+        >
+          <div style={{ position: "relative", width: 22, height: 22 }}>
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: 0,
+                height: "100%",
+                width: 1,
+                transform: "translateX(-50%)",
+                backgroundColor: "#B23B2A",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                top: "50%",
+                width: "100%",
+                height: 1,
+                transform: "translateY(-50%)",
+                backgroundColor: "#B23B2A",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                width: 6,
+                height: 6,
+                transform: "translate(-50%, -50%)",
+                borderRadius: "50%",
+                border: "1px solid #B23B2A",
+                backgroundColor: "#FAF1E0",
+              }}
+            />
+          </div>
+        </div>
+      </div>
       {errorMsg && (
         <div className="absolute inset-0 z-10 flex items-center justify-center overflow-y-auto bg-paper/95 p-6">
           <div className="max-w-sm text-center">

@@ -92,6 +92,7 @@ function DrawPageInner() {
     linear_feet: 0,
     corner_count: 0,
     closed: false,
+    vertex_count: 0,
   });
   const [slopeCode, setSlopeCode] = useState<number>(0);
   const [detectedSlope, setDetectedSlope] = useState<DetectedSlope | null>(null);
@@ -101,6 +102,11 @@ function DrawPageInner() {
   const [gates, setGates] = useState<PlacedGate[]>([]);
   const [gateMode, setGateMode] = useState(false);
   const [pendingGatePoint, setPendingGatePoint] = useState<{ lat: number; lng: number } | null>(null);
+  // Unified action history so Undo pops the most recent action regardless of
+  // kind (fence vertex OR placed gate). Vertex entries are inferred from
+  // stats changes; gate entries are pushed in handlePickGateSize.
+  const [actionHistory, setActionHistory] = useState<Array<"vertex" | "gate">>([]);
+  const prevVertexCountRef = useRef(0);
   const [photos, setPhotos] = useState<QuotePhoto[]>([]);
   const [initialAudit, setInitialAudit] = useState<PhotoAudit | null>(null);
   const [parcelBoundary, setParcelBoundary] = useState<ParcelBoundary | null>(null);
@@ -138,6 +144,20 @@ function DrawPageInner() {
       setCoachmarkVisible(false);
     }
   }, [stats.linear_feet, coachmarkVisible]);
+
+  // Track vertex additions for the unified undo stack. Drives off
+  // `stats.vertex_count` which FenceMap computes with the phantom
+  // cursor-follower already excluded — so toggling gate mode (which adds
+  // / removes that phantom from raw coords) no longer triggers spurious
+  // "vertex" pushes that would shadow the most recent "gate" entry.
+  useEffect(() => {
+    const vc = stats.vertex_count;
+    if (vc > prevVertexCountRef.current) {
+      const added = vc - prevVertexCountRef.current;
+      setActionHistory((h) => [...h, ...Array<"vertex">(added).fill("vertex")]);
+    }
+    prevVertexCountRef.current = vc;
+  }, [stats.vertex_count]);
 
   useEffect(() => {
     if (!quoteId) {
@@ -267,11 +287,13 @@ function DrawPageInner() {
   }
 
   function handleReset() {
-    setStats({ feature: null, linear_feet: 0, corner_count: 0, closed: false });
+    setStats({ feature: null, linear_feet: 0, corner_count: 0, closed: false, vertex_count: 0 });
     setGates([]);
     setGateMode(false);
     setPendingGatePoint(null);
     setDetectedSlope(null);
+    setActionHistory([]);
+    prevVertexCountRef.current = 0;
     slopeUserOverrodeRef.current = false;
     mapRef.current?.reset();
   }
@@ -279,7 +301,23 @@ function DrawPageInner() {
   function handlePickGateSize(type: GateType) {
     if (!pendingGatePoint) return;
     setGates((prev) => [...prev, { type, count: 1, position: pendingGatePoint }]);
+    setActionHistory((h) => [...h, "gate"]);
     setPendingGatePoint(null);
+  }
+
+  // Unified undo — pops the most recent action regardless of kind. Gate
+  // undos remove the last placed gate; vertex undos delegate to the map.
+  // The vertex-tracking effect resyncs prevVertexCountRef on the resulting
+  // stats decrement, so we don't need to touch the ref here.
+  function handleUndo() {
+    const last = actionHistory[actionHistory.length - 1];
+    if (!last) return;
+    setActionHistory((h) => h.slice(0, -1));
+    if (last === "gate") {
+      setGates((prev) => prev.slice(0, -1));
+    } else {
+      mapRef.current?.undo();
+    }
   }
 
   function handleGateMove(index: number, position: { lat: number; lng: number }) {
@@ -499,7 +537,7 @@ function DrawPageInner() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => mapRef.current?.undo()}
+                    onClick={handleUndo}
                     className="flex h-8 flex-shrink-0 items-center gap-1.5 rounded-sm bg-cream px-3 font-display text-[11px] font-semibold uppercase tracking-eyebrow text-brick transition-colors hover:bg-paper"
                   >
                     <Undo2 size={12} strokeWidth={2.5} />
@@ -515,8 +553,8 @@ function DrawPageInner() {
             <div className="mt-3 grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => mapRef.current?.undo()}
-                disabled={stats.linear_feet === 0}
+                onClick={handleUndo}
+                disabled={actionHistory.length === 0}
                 className="flex h-12 items-center justify-center gap-2 rounded-sm border border-navy/25 bg-paper font-display text-[12px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:border-navy hover:bg-navy/5 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Undo2 size={14} strokeWidth={2.5} />
