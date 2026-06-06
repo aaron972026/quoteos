@@ -542,11 +542,6 @@ export default function FenceMap({
     let touchStartX = 0;
     let touchStartY = 0;
     let longPressTimer: ReturnType<typeof setTimeout> | null = null;
-    // Once a touch interaction is seen, ignore the synthetic mousemove
-    // mobile browsers fire after a tap (otherwise the loupe pops up after
-    // every gate tap on mobile).
-    let usedTouchRecently = false;
-    let usedTouchTimer: ReturnType<typeof setTimeout> | null = null;
 
     if (loupeContainerRef.current) {
       try {
@@ -610,23 +605,10 @@ export default function FenceMap({
       });
     }
 
-    // Desktop hover — show while cursor is over the map.
-    map.on("mousemove", (e) => {
-      if (usedTouchRecently) return;
-      pointerX = e.point.x;
-      pointerY = e.point.y;
-      pointerActive = true;
-      positionLoupeWrapper(pointerX, pointerY);
-      updateLoupeContent();
-      setLoupeVisible(true);
-    });
-    const onCanvasMouseLeave = () => {
-      pointerActive = false;
-      setLoupeVisible(false);
-    };
-    map.getCanvasContainer().addEventListener("mouseleave", onCanvasMouseLeave);
-
     // ── Mobile touch: iOS-style pin-placement pattern ─────────────
+    // (Desktop has no loupe — was distracting while drawing with the
+    // mouse, and the imagery is sharper at 1x anyway. Re-add only if
+    // we get a touchscreen-laptop request later.)
     //   • Quick tap → no loupe, gl-draw / gate handler processes it
     //   • Quick drag → no loupe, Mapbox pans normally
     //   • Long-press without movement → enter loupe mode (250ms),
@@ -674,11 +656,6 @@ export default function FenceMap({
     }
 
     map.on("touchstart", (e) => {
-      usedTouchRecently = true;
-      if (usedTouchTimer) clearTimeout(usedTouchTimer);
-      usedTouchTimer = setTimeout(() => {
-        usedTouchRecently = false;
-      }, 500);
       if (e.points.length > 1) {
         if (touchPhase === "loupe") exitLoupeMode();
         touchPhase = "idle";
@@ -781,8 +758,6 @@ export default function FenceMap({
       try {
         ro.disconnect();
         loupeRo?.disconnect();
-        map.getCanvasContainer().removeEventListener("mouseleave", onCanvasMouseLeave);
-        if (usedTouchTimer) clearTimeout(usedTouchTimer);
         if (longPressTimer) clearTimeout(longPressTimer);
         // Make sure dragPan isn't left disabled if we unmount mid-loupe.
         try {

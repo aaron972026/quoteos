@@ -22,7 +22,9 @@ const Body = z.object({
   zip: z.string().regex(/^\d{5}$/),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
-  parcel_id: z.string().max(128).optional(),
+  // .nullish() — null is what JSON.stringify writes when the client passes
+  // an undefined place_id; treat it the same as "field absent."
+  parcel_id: z.string().max(128).nullish(),
 });
 
 export async function POST(req: NextRequest) {

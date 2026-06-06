@@ -72,7 +72,13 @@ export default function AddressPage() {
             zip: picked.zip,
             lat: picked.lat,
             lng: picked.lng,
-            parcel_id: picked.place_id,
+            // Only include parcel_id when it's a real string. New-build
+            // addresses sometimes come back from Google Places without a
+            // stable place_id, and JSON.stringify would otherwise serialize
+            // null straight through and fail the server's z.string() check.
+            ...(typeof picked.place_id === "string" && picked.place_id
+              ? { parcel_id: picked.place_id }
+              : {}),
           }),
         });
 
