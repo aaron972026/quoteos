@@ -115,6 +115,7 @@ export interface Dictionary {
     toolHelp: string;
     emptyEyebrow: string; // "Tap To Start"
     emptyBody: string;
+    traceLotCta: string; // "Trace My Lot Line"
     helpTitle: string;
     helpSteps: Array<{ title: string; body: string }>;
     helpCloseCta: string;
@@ -377,6 +378,7 @@ const en: Dictionary = {
     emptyEyebrow: "Tap To Start",
     emptyBody:
       "Tap each corner of your fence. The first tap stakes a starting post.",
+    traceLotCta: "Trace My Lot Line",
     helpTitle: "How To Trace Your Fence",
     helpSteps: [
       {
@@ -701,6 +703,7 @@ const es: Dictionary = {
     emptyEyebrow: "Toca para empezar",
     emptyBody:
       "Toca cada esquina de tu cerca. El primer toque marca el poste inicial.",
+    traceLotCta: "Trazar mi línea de lote",
     helpTitle: "Cómo trazar tu cerca",
     helpSteps: [
       {

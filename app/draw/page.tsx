@@ -15,6 +15,7 @@ import {
   Spline,
   TriangleAlert,
   Undo2,
+  Wand2,
   X,
 } from "lucide-react";
 import { Header } from "@/components/brand/Header";
@@ -42,6 +43,7 @@ import {
 import type { Direction } from "@/lib/integrations/regrid";
 import type { GateType } from "@/lib/pricing/types";
 import { isSelfIntersecting } from "@/lib/map/linear-feet";
+import { traceFenceFromParcel } from "@/lib/map/trace-parcel";
 import { useT } from "@/lib/i18n/use-locale";
 import { cn } from "@/lib/utils";
 
@@ -328,6 +330,20 @@ function DrawPageInner() {
     setGates((prev) => prev.filter((_, i) => i !== index));
   }
 
+  // One-tap lot-line trace — converts the Regrid parcel boundary into a
+  // pre-drawn fence (rear + sides when neighbor data identifies the
+  // street frontage; full perimeter otherwise). The vertex-tracking
+  // effect sees vertex_count jump 0→N and seeds the undo stack, so the
+  // customer can trim from either... well, from the end — and Clear All
+  // remains the full escape hatch.
+  function handleTraceLot() {
+    if (!parcelBoundary) return;
+    const traced = traceFenceFromParcel(parcelBoundary, adjacentBoundaries);
+    if (!traced) return;
+    mapRef.current?.loadFeature(traced.feature);
+    setCoachmarkVisible(false);
+  }
+
   const crossesItself = useMemo(
     () => (stats.feature ? isSelfIntersecting(stats.feature) : false),
     [stats.feature]
@@ -335,11 +351,19 @@ function DrawPageInner() {
 
   function handleContinue() {
     if (!quoteId || !stats.feature) return;
-    if (stats.linear_feet < 5) {
+    // Pull the phantom-stripped geometry straight from the map. The live
+    // stats feature includes gl-draw's rubber-band cursor point while in
+    // a draw mode — on desktop that point sits wherever the mouse last
+    // touched the map, silently inflating the saved linear feet.
+    const final = mapRef.current?.getFinalFeature();
+    const feature = final?.feature ?? stats.feature;
+    const linearFeet = final?.linear_feet ?? stats.linear_feet;
+    const corners = final?.corner_count ?? stats.corner_count;
+    if (linearFeet < 5) {
       setError(t.draw.needFenceLine);
       return;
     }
-    if (isSelfIntersecting(stats.feature)) {
+    if (isSelfIntersecting(feature)) {
       setError(t.draw.crossesItselfFull);
       return;
     }
@@ -351,9 +375,9 @@ function DrawPageInner() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            geometry: stats.feature,
-            linear_feet: stats.linear_feet,
-            corner_count: stats.corner_count,
+            geometry: feature,
+            linear_feet: linearFeet,
+            corner_count: corners,
             slope_code: slopeCode,
             slope_self_reported: slopeUserOverrodeRef.current,
             demo_required: demoRequired,
@@ -516,6 +540,21 @@ function DrawPageInner() {
                     Tap a corner to begin
                   </span>
                 </div>
+              )}
+
+              {/* One-tap lot-line trace — only before anything is drawn,
+                  only when Regrid gave us a boundary. Bottom-center so it
+                  doesn't fight the coachmark pill at top or the zoom
+                  control bottom-right. Disappears on first vertex. */}
+              {parcelBoundary && stats.linear_feet === 0 && !gateMode && (
+                <button
+                  type="button"
+                  onClick={handleTraceLot}
+                  className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-pill border border-brass/60 bg-navy/95 px-5 py-2.5 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-cream shadow-card-lg backdrop-blur transition-colors hover:bg-navy"
+                >
+                  <Wand2 size={14} strokeWidth={2.5} className="text-brass" />
+                  {t.draw.traceLotCta}
+                </button>
               )}
 
               {/* Gate-mode pulse — only while picking, slim pill at top. */}

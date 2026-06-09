@@ -48,6 +48,25 @@ export interface FenceMapHandle {
   reset(): void;
   undo(): void;
   setMode(mode: "line" | "polygon"): void;
+  /**
+   * Replace whatever is drawn with the given feature (e.g. a traced lot
+   * line). LineStrings resume draw_line_string from their last vertex so
+   * the customer can keep tapping; Polygons land in simple_select.
+   */
+  loadFeature(feature: Feature<LineString | Polygon>): void;
+  /**
+   * The drawn geometry with gl-draw's phantom cursor-follower stripped.
+   * In draw_line_string / draw_polygon mode the feature's trailing
+   * coordinate is the rubber-band point under the cursor — on desktop
+   * that sits wherever the mouse last touched the map, so saving the
+   * raw feature inflates linear feet by the rubber-band segment. Use
+   * this (not the live stats feature) for the PATCH payload.
+   */
+  getFinalFeature(): {
+    feature: Feature<LineString | Polygon>;
+    linear_feet: number;
+    corner_count: number;
+  } | null;
 }
 
 export type ParcelBoundary = {
@@ -1270,6 +1289,87 @@ export default function FenceMap({
       // @types/mapbox__mapbox-gl-draw@1.4 has narrower overloads than runtime
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (drawRef.current as any)?.changeMode(target);
+    },
+    loadFeature(feature) {
+      const draw = drawRef.current;
+      if (!draw) return;
+      draw.deleteAll();
+      const [id] = draw.add({
+        type: "Feature",
+        properties: {},
+        geometry: feature.geometry,
+      });
+      if (feature.geometry.type === "LineString") {
+        const coords = feature.geometry.coordinates;
+        // Resume drawing from the chain's end so the next tap extends it
+        // and Undo trims it — same affordances as a hand-drawn line.
+        // changeMode fires draw.modechange, which re-runs emitStats, so
+        // the page readout updates without a manual emit.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (draw as any).changeMode("draw_line_string", {
+          featureId: id,
+          from: coords[coords.length - 1],
+        });
+      } else {
+        // Closed polygon — complete as-is. Ring length is always ≥ 5 for
+        // a traced lot, so the simple_select auto-recovery (which only
+        // bounces rings shorter than 4) leaves it alone.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (draw as any).changeMode("simple_select");
+      }
+    },
+    getFinalFeature() {
+      const draw = drawRef.current;
+      if (!draw) return null;
+      const fc = draw.getAll();
+      // Most-coords primary — same heuristic as emitStats/undo.
+      let primary: Feature<LineString | Polygon> | null = null;
+      let bestCount = -1;
+      for (const f of fc.features) {
+        const g = f.geometry;
+        const c =
+          g.type === "Polygon"
+            ? g.coordinates[0].length
+            : g.type === "LineString"
+              ? g.coordinates.length
+              : -1;
+        if (c > bestCount) {
+          bestCount = c;
+          primary = f as Feature<LineString | Polygon>;
+        }
+      }
+      if (!primary) return null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mode = (draw as any).getMode?.() as string | undefined;
+      let geometry: LineString | Polygon;
+      if (primary.geometry.type === "LineString") {
+        const coords = primary.geometry.coordinates;
+        const clean =
+          mode === "draw_line_string" && coords.length >= 2
+            ? coords.slice(0, -1)
+            : coords;
+        if (clean.length < 2) return null;
+        geometry = { type: "LineString", coordinates: clean };
+      } else {
+        const ring = primary.geometry.coordinates[0];
+        if (mode === "draw_polygon" && ring.length >= 5) {
+          // Strip the phantom (just before the closing duplicate).
+          const clean = ring.slice(0, ring.length - 2).concat([ring[0]]);
+          geometry = { type: "Polygon", coordinates: [clean] };
+        } else {
+          geometry = { type: "Polygon", coordinates: [ring] };
+        }
+      }
+      const feature: Feature<LineString | Polygon> = {
+        type: "Feature",
+        properties: primary.properties ?? {},
+        geometry,
+      };
+      return {
+        feature,
+        linear_feet: geometryLF(feature),
+        corner_count: cornerCount(feature),
+      };
     },
   }));
 
