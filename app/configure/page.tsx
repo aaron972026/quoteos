@@ -194,16 +194,11 @@ function ConfigurePageInner() {
     ? STEEL_UPGRADE_FAMILIES.has(selectedSku.family)
     : false;
 
-  // Auto-pick: first family + its Better variant (or first available)
-  useEffect(() => {
-    if (!familyCode && families.length > 0) {
-      const cheapest = families[0];
-      setFamilyCode(cheapest.code);
-      if (!skuCode && cheapest.variants[0]) {
-        setSkuCode(cheapest.variants[0].code);
-      }
-    }
-  }, [familyCode, families, skuCode]);
+  // (No auto-pick.) Earlier this effect landed on families[0] (Chain Link)
+  // + its first variant on mount, which made the page display a running
+  // estimate the customer hadn't chosen. The estimate card + sticky CTA
+  // below now render conditionally on selectedSku, so the customer sees
+  // pricing only after explicitly picking a style.
 
   // When family changes, default the SKU to the middle tier (or the only one)
   function handleFamilyPick(code: string) {
@@ -611,7 +606,11 @@ function ConfigurePageInner() {
               )}
             </div>
 
-            {/* ── Right column — Running estimate ──────────────── */}
+            {/* ── Right column — Running estimate ────────────────
+                Only rendered once the customer has selected a SKU.
+                Before that, showing a number would be the auto-picked
+                default and felt like a pre-decision. */}
+            {selectedSku && (
             <aside className="order-first lg:order-last">
               <div className="lg:sticky lg:top-6 lg:self-start">
                 <div className="rounded-sm border border-brass/30 bg-navy p-6 text-cream shadow-card-lg">
@@ -709,14 +708,16 @@ function ConfigurePageInner() {
                 </div>
               </div>
             </aside>
+            )}
           </div>
         </div>
       </section>
 
       {/* Sticky mobile CTA — live total + Continue pinned to the bottom.
-          The estimate card sits at the TOP of the page on mobile, which
-          meant choosing upgrades at the bottom left the customer scrolling
-          back up to advance. Hidden on lg where the card is sticky-visible. */}
+          Hidden until a SKU is selected (matches the desktop estimate
+          aside above — both surfaces appear only after the customer
+          has explicitly picked a style). */}
+      {selectedSku && (
       <div
         className="fixed inset-x-0 bottom-0 z-30 border-t border-navy/15 bg-navy lg:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
@@ -758,6 +759,7 @@ function ConfigurePageInner() {
           </button>
         </div>
       </div>
+      )}
     </div>
   );
 }
