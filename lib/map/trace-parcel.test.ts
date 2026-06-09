@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { traceFenceFromParcel } from "./trace-parcel";
+import {
+  chainLengthM,
+  locateOnChain,
+  sliceChainByLocation,
+  traceFenceFromParcel,
+} from "./trace-parcel";
 import { geometryLF } from "./linear-feet";
 
 /**
@@ -104,5 +109,54 @@ describe("traceFenceFromParcel", () => {
       coordinates: [[[LNG0, LAT0], [LNG0, LAT0]]],
     };
     expect(traceFenceFromParcel(degenerate, [])).toBeNull();
+  });
+});
+
+describe("chain trim helpers", () => {
+  // L-shaped chain: 40m north, then 20m east (meters from origin).
+  const CHAIN: number[][] = [
+    [LNG0, LAT0],
+    [LNG0, LAT0 + 40 * DLAT],
+    [LNG0 + 20 * DLNG, LAT0 + 40 * DLAT],
+  ];
+
+  it("measures total length", () => {
+    expect(chainLengthM(CHAIN)).toBeCloseTo(60, 0);
+  });
+
+  it("locates a point dragged off the line back onto it", () => {
+    // 10m up the first leg, dragged 5m east off the line.
+    const dragged = [LNG0 + 5 * DLNG, LAT0 + 10 * DLAT];
+    const loc = locateOnChain(CHAIN, dragged);
+    expect(loc.locationM).toBeCloseTo(10, 0);
+    expect(loc.point[0]).toBeCloseTo(LNG0, 8); // snapped back to the leg
+  });
+
+  it("locates onto the second leg past the corner", () => {
+    // 5m along the east leg, dragged 3m north off it.
+    const dragged = [LNG0 + 5 * DLNG, LAT0 + 43 * DLAT];
+    const loc = locateOnChain(CHAIN, dragged);
+    expect(loc.locationM).toBeCloseTo(45, 0);
+  });
+
+  it("slices between two locations, keeping the corner vertex", () => {
+    const out = sliceChainByLocation(CHAIN, 10, 50);
+    // start interpolated at 10m up leg 1, corner kept, end at 10m along leg 2
+    expect(out.length).toBe(3);
+    expect(chainLengthM(out)).toBeCloseTo(40, 0);
+    const yM = (lat: number) => (lat - LAT0) / DLAT;
+    expect(yM(out[0][1])).toBeCloseTo(10, 0);
+    expect(yM(out[1][1])).toBeCloseTo(40, 0); // the corner
+  });
+
+  it("slicing the full range reproduces the chain length", () => {
+    const out = sliceChainByLocation(CHAIN, 0, chainLengthM(CHAIN));
+    expect(chainLengthM(out)).toBeCloseTo(60, 0);
+  });
+
+  it("never returns an inverted or zero-length slice", () => {
+    const out = sliceChainByLocation(CHAIN, 30, 30);
+    expect(out.length).toBeGreaterThanOrEqual(2);
+    expect(chainLengthM(out)).toBeGreaterThan(0);
   });
 });

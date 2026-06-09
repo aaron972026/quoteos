@@ -116,6 +116,8 @@ export interface Dictionary {
     emptyEyebrow: string; // "Tap To Start"
     emptyBody: string;
     traceLotCta: string; // "Trace My Lot Line"
+    traceAdjustHint: string; // trim-handle pill copy
+    traceAdjustDone: string; // "Done"
     helpTitle: string;
     helpSteps: Array<{ title: string; body: string }>;
     helpCloseCta: string;
@@ -379,6 +381,8 @@ const en: Dictionary = {
     emptyBody:
       "Tap each corner of your fence. The first tap stakes a starting post.",
     traceLotCta: "Trace My Lot Line",
+    traceAdjustHint: "Drag the dots to where the fence should stop",
+    traceAdjustDone: "Done",
     helpTitle: "How To Trace Your Fence",
     helpSteps: [
       {
@@ -704,6 +708,8 @@ const es: Dictionary = {
     emptyBody:
       "Toca cada esquina de tu cerca. El primer toque marca el poste inicial.",
     traceLotCta: "Trazar mi línea de lote",
+    traceAdjustHint: "Arrastra los puntos hasta donde termina la cerca",
+    traceAdjustDone: "Listo",
     helpTitle: "Cómo trazar tu cerca",
     helpSteps: [
       {

@@ -312,3 +312,115 @@ export function traceFenceFromParcel(
     vertexCount: chain.length,
   };
 }
+
+// ── Chain trim helpers (drag-to-shorten endpoint handles) ───────────
+// The traced chain is kept as the full reference line; the customer
+// drags an endpoint handle and we re-slice the chain between the two
+// handle locations. Locations are planar meters along the chain.
+
+export interface ChainLocation {
+  /** distance along the chain, meters from the chain's first vertex */
+  locationM: number;
+  /** the snapped point on the chain */
+  point: Position;
+}
+
+function cumulativeLengths(
+  chain: Position[],
+  mx: number,
+  my: number
+): number[] {
+  const cum: number[] = [0];
+  for (let i = 1; i < chain.length; i++) {
+    cum.push(cum[i - 1] + distM(chain[i - 1], chain[i], mx, my));
+  }
+  return cum;
+}
+
+/** Total chain length in meters. */
+export function chainLengthM(chain: Position[]): number {
+  if (chain.length < 2) return 0;
+  const { mx, my } = metersPerDegree(chain[0][1]);
+  const cum = cumulativeLengths(chain, mx, my);
+  return cum[cum.length - 1];
+}
+
+/** Nearest point on the chain to p, with its distance-along location. */
+export function locateOnChain(chain: Position[], p: Position): ChainLocation {
+  const { mx, my } = metersPerDegree(chain[0][1]);
+  const cum = cumulativeLengths(chain, mx, my);
+  let bestDist = Infinity;
+  let bestLoc = 0;
+  let bestPoint: Position = chain[0];
+  for (let i = 0; i < chain.length - 1; i++) {
+    const a = chain[i];
+    const b = chain[i + 1];
+    const ax = a[0] * mx;
+    const ay = a[1] * my;
+    const bx = b[0] * mx;
+    const by = b[1] * my;
+    const px = p[0] * mx;
+    const py = p[1] * my;
+    const abx = bx - ax;
+    const aby = by - ay;
+    const len2 = abx * abx + aby * aby;
+    let t = len2 === 0 ? 0 : ((px - ax) * abx + (py - ay) * aby) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const qx = ax + t * abx;
+    const qy = ay + t * aby;
+    const d = Math.hypot(px - qx, py - qy);
+    if (d < bestDist) {
+      bestDist = d;
+      bestLoc = cum[i] + t * (cum[i + 1] - cum[i]);
+      bestPoint = [
+        a[0] + t * (b[0] - a[0]),
+        a[1] + t * (b[1] - a[1]),
+      ];
+    }
+  }
+  return { locationM: bestLoc, point: bestPoint };
+}
+
+/** Interpolated point at a distance-along location (meters). */
+function pointAtLocation(
+  chain: Position[],
+  cum: number[],
+  locM: number
+): Position {
+  const total = cum[cum.length - 1];
+  const m = Math.max(0, Math.min(total, locM));
+  for (let i = 0; i < cum.length - 1; i++) {
+    if (m <= cum[i + 1] || i === cum.length - 2) {
+      const segLen = cum[i + 1] - cum[i];
+      const t = segLen === 0 ? 0 : (m - cum[i]) / segLen;
+      const a = chain[i];
+      const b = chain[i + 1];
+      return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+    }
+  }
+  return chain[chain.length - 1];
+}
+
+/**
+ * The sub-chain between two distance-along locations (meters). Endpoints
+ * are interpolated; interior vertices strictly between are kept verbatim.
+ */
+export function sliceChainByLocation(
+  chain: Position[],
+  startM: number,
+  endM: number
+): Position[] {
+  const { mx, my } = metersPerDegree(chain[0][1]);
+  const cum = cumulativeLengths(chain, mx, my);
+  const total = cum[cum.length - 1];
+  const s = Math.max(0, Math.min(total, Math.min(startM, endM)));
+  let e = Math.max(0, Math.min(total, Math.max(startM, endM)));
+  if (e - s < 0.01) e = Math.min(total, s + 0.01);
+  const out: Position[] = [pointAtLocation(chain, cum, s)];
+  const EPS = 0.05; // skip interior vertices within 5cm of the cut points
+  for (let i = 0; i < chain.length; i++) {
+    if (cum[i] > s + EPS && cum[i] < e - EPS) out.push(chain[i]);
+  }
+  out.push(pointAtLocation(chain, cum, e));
+  return out;
+}

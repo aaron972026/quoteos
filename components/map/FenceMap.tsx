@@ -55,6 +55,21 @@ export interface FenceMapHandle {
    */
   loadFeature(feature: Feature<LineString | Polygon>): void;
   /**
+   * Like loadFeature, but lands in the inert place_gate mode: the
+   * feature renders, taps do nothing, and gl-draw holds no drawing
+   * state — which makes live geometry rewrites via setFeatureCoords
+   * safe. Used while endpoint trim handles are active.
+   */
+  loadFeatureStatic(feature: Feature<LineString | Polygon>): void;
+  /**
+   * Rewrite the active LineString's coordinates in place. ONLY safe
+   * while in a non-drawing mode (loadFeatureStatic) — rewriting under
+   * draw_line_string desyncs gl-draw's currentVertexPosition.
+   */
+  setFeatureCoords(coords: number[][]): void;
+  /** Resume draw_line_string from the active line's last vertex. */
+  resumeLine(): void;
+  /**
    * The drawn geometry with gl-draw's phantom cursor-follower stripped.
    * In draw_line_string / draw_polygon mode the feature's trailing
    * coordinate is the rubber-band point under the cursor — on desktop
@@ -94,6 +109,15 @@ interface Props {
   parcelBoundary?: ParcelBoundary | null;
   // Phase 2 — neighbor parcel outlines (rendered fainter under the primary)
   adjacentBoundaries?: ParcelBoundary[];
+  // Endpoint trim handles — big draggable dots on the traced line's two
+  // ends. The page owns the trim math; FenceMap just renders markers and
+  // reports raw drag positions.
+  trimHandles?: Array<{ lat: number; lng: number }> | null;
+  onTrimHandleDrag?: (
+    index: number,
+    position: { lat: number; lng: number },
+    phase: "move" | "end"
+  ) => void;
 }
 
 const GATE_WIDTH_LABEL: Record<GateType, string> = {
@@ -150,6 +174,8 @@ export default function FenceMap({
   onGateDelete,
   parcelBoundary,
   adjacentBoundaries,
+  trimHandles,
+  onTrimHandleDrag,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -182,6 +208,12 @@ export default function FenceMap({
   const gatePlacementModeRef = useRef(!!gatePlacementMode);
   gatePlacementModeRef.current = !!gatePlacementMode;
   const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const trimMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const onTrimHandleDragRef = useRef(onTrimHandleDrag);
+  onTrimHandleDragRef.current = onTrimHandleDrag;
+  // Id of the feature loaded via loadFeature/loadFeatureStatic so
+  // setFeatureCoords can rewrite the right one without guessing.
+  const loadedFeatureIdRef = useRef<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1041,6 +1073,67 @@ export default function FenceMap({
     });
   }, [gates]);
 
+  // ── Sync endpoint trim handles ──────────────────────────────────
+  // Two large draggable dots riding the traced line's endpoints. During
+  // a drag we report "move" with the raw finger position — the page
+  // snaps it onto the chain and rewrites the line live, so the dot can
+  // wander while the FENCE stays magnetized to the lot line. On
+  // release ("end") the page snaps the handle position itself, which
+  // re-runs this effect and re-seats the dot exactly on the line.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    for (const m of trimMarkersRef.current) m.remove();
+    trimMarkersRef.current = [];
+    if (!trimHandles || trimHandles.length === 0) return;
+
+    trimHandles.forEach((h, idx) => {
+      const el = document.createElement("div");
+      el.setAttribute(
+        "aria-label",
+        idx === 0 ? "Fence start — drag to adjust" : "Fence end — drag to adjust"
+      );
+      // 44px touch target wrapping a 26px visible dot.
+      el.style.cssText =
+        "width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none;";
+      const dot = document.createElement("div");
+      dot.style.cssText =
+        "width:26px;height:26px;border-radius:50%;background:#F4A623;border:3px solid #FAF1E0;box-shadow:0 2px 12px rgba(11,28,50,0.5);";
+      // Gentle pulse for discoverability until the first grab.
+      dot.classList.add("animate-pulse");
+      el.appendChild(dot);
+
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: "center",
+        draggable: true,
+      })
+        .setLngLat([h.lng, h.lat])
+        .addTo(map);
+
+      marker.on("dragstart", () => {
+        dot.classList.remove("animate-pulse");
+        el.style.cursor = "grabbing";
+      });
+      marker.on("drag", () => {
+        const ll = marker.getLngLat();
+        onTrimHandleDragRef.current?.(idx, { lat: ll.lat, lng: ll.lng }, "move");
+      });
+      marker.on("dragend", () => {
+        el.style.cursor = "grab";
+        const ll = marker.getLngLat();
+        onTrimHandleDragRef.current?.(idx, { lat: ll.lat, lng: ll.lng }, "end");
+      });
+
+      trimMarkersRef.current.push(marker);
+    });
+
+    return () => {
+      for (const m of trimMarkersRef.current) m.remove();
+      trimMarkersRef.current = [];
+    };
+  }, [trimHandles]);
+
   // ── Gate placement mode: switch draw to simple_select, intercept clicks ──
   useEffect(() => {
     const map = mapRef.current;
@@ -1299,6 +1392,7 @@ export default function FenceMap({
         properties: {},
         geometry: feature.geometry,
       });
+      loadedFeatureIdRef.current = id;
       if (feature.geometry.type === "LineString") {
         const coords = feature.geometry.coordinates;
         // Resume drawing from the chain's end so the next tap extends it
@@ -1316,6 +1410,63 @@ export default function FenceMap({
         // bounces rings shorter than 4) leaves it alone.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (draw as any).changeMode("simple_select");
+      }
+    },
+    loadFeatureStatic(feature) {
+      const draw = drawRef.current;
+      if (!draw) return;
+      draw.deleteAll();
+      const [id] = draw.add({
+        type: "Feature",
+        properties: {},
+        geometry: feature.geometry,
+      });
+      loadedFeatureIdRef.current = id;
+      // place_gate is our registered render-only mode: features draw,
+      // every interaction is a no-op, and gl-draw holds no per-mode
+      // drawing state — so setFeatureCoords can rewrite geometry on
+      // every drag frame without desyncing anything. (Mode name is a
+      // legacy of gate placement; it's really "static but visible".)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (draw as any).changeMode("place_gate");
+    },
+    setFeatureCoords(coords) {
+      const draw = drawRef.current;
+      if (!draw || coords.length < 2) return;
+      const id = loadedFeatureIdRef.current;
+      if (!id) return;
+      // gl-draw's add() with an existing id replaces that feature's
+      // geometry in place (documented API behavior).
+      draw.add({
+        type: "Feature",
+        id,
+        properties: {},
+        geometry: { type: "LineString", coordinates: coords },
+      });
+    },
+    resumeLine() {
+      const draw = drawRef.current;
+      if (!draw) return;
+      const fc = draw.getAll();
+      let line: Feature<LineString> | null = null;
+      let best = -1;
+      for (const f of fc.features) {
+        if (f.geometry.type !== "LineString") continue;
+        if (f.geometry.coordinates.length > best) {
+          best = f.geometry.coordinates.length;
+          line = f as Feature<LineString>;
+        }
+      }
+      if (!line || line.id == null || best < 2) return;
+      const coords = line.geometry.coordinates;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (draw as any).changeMode("draw_line_string", {
+          featureId: line.id,
+          from: coords[coords.length - 1],
+        });
+      } catch (err) {
+        console.warn("[FenceMap] resumeLine failed", err);
       }
     },
     getFinalFeature() {

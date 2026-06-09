@@ -43,7 +43,13 @@ import {
 import type { Direction } from "@/lib/integrations/regrid";
 import type { GateType } from "@/lib/pricing/types";
 import { isSelfIntersecting } from "@/lib/map/linear-feet";
-import { traceFenceFromParcel } from "@/lib/map/trace-parcel";
+import {
+  chainLengthM,
+  locateOnChain,
+  sliceChainByLocation,
+  traceFenceFromParcel,
+} from "@/lib/map/trace-parcel";
+import type { Position } from "geojson";
 import { useT } from "@/lib/i18n/use-locale";
 import { cn } from "@/lib/utils";
 
@@ -105,10 +111,27 @@ function DrawPageInner() {
   const [gateMode, setGateMode] = useState(false);
   const [pendingGatePoint, setPendingGatePoint] = useState<{ lat: number; lng: number } | null>(null);
   // Unified action history so Undo pops the most recent action regardless of
-  // kind (fence vertex OR placed gate). Vertex entries are inferred from
-  // stats changes; gate entries are pushed in handlePickGateSize.
-  const [actionHistory, setActionHistory] = useState<Array<"vertex" | "gate">>([]);
+  // kind (fence vertex, placed gate, or a whole lot-line trace). Vertex
+  // entries are inferred from stats changes; gate entries are pushed in
+  // handlePickGateSize; "trace" is pushed as ONE atomic entry so a single
+  // Undo removes the entire traced line.
+  const [actionHistory, setActionHistory] = useState<
+    Array<"vertex" | "gate" | "trace">
+  >([]);
   const prevVertexCountRef = useRef(0);
+  // Set just before a trace loads so the vertex-tracking effect doesn't
+  // also spam N "vertex" entries for the traced points.
+  const suppressVertexPushRef = useRef(false);
+  // ── Endpoint trim state (post-trace) ──────────────────────────────
+  // trimChain is the FULL traced chain kept as the slide rail; the live
+  // fence is the slice of it between trimLocsRef.start/end (meters along
+  // the chain). Handles can therefore shorten AND re-extend.
+  const [trimChain, setTrimChain] = useState<Position[] | null>(null);
+  const [trimHandles, setTrimHandles] = useState<
+    Array<{ lat: number; lng: number }> | null
+  >(null);
+  const trimLocsRef = useRef({ start: 0, end: 0 });
+  const trimTotalRef = useRef(0);
   const [photos, setPhotos] = useState<QuotePhoto[]>([]);
   const [initialAudit, setInitialAudit] = useState<PhotoAudit | null>(null);
   const [parcelBoundary, setParcelBoundary] = useState<ParcelBoundary | null>(null);
@@ -152,14 +175,21 @@ function DrawPageInner() {
   // cursor-follower already excluded — so toggling gate mode (which adds
   // / removes that phantom from raw coords) no longer triggers spurious
   // "vertex" pushes that would shadow the most recent "gate" entry.
+  // Two extra guards: a trace pushes ONE "trace" entry instead of N
+  // vertices (suppress flag), and endpoint trim drags change the count
+  // continuously without being undoable actions of their own.
   useEffect(() => {
     const vc = stats.vertex_count;
     if (vc > prevVertexCountRef.current) {
-      const added = vc - prevVertexCountRef.current;
-      setActionHistory((h) => [...h, ...Array<"vertex">(added).fill("vertex")]);
+      if (suppressVertexPushRef.current || trimChain) {
+        suppressVertexPushRef.current = false;
+      } else {
+        const added = vc - prevVertexCountRef.current;
+        setActionHistory((h) => [...h, ...Array<"vertex">(added).fill("vertex")]);
+      }
     }
     prevVertexCountRef.current = vc;
-  }, [stats.vertex_count]);
+  }, [stats.vertex_count, trimChain]);
 
   useEffect(() => {
     if (!quoteId) {
@@ -295,6 +325,9 @@ function DrawPageInner() {
     setPendingGatePoint(null);
     setDetectedSlope(null);
     setActionHistory([]);
+    setTrimChain(null);
+    setTrimHandles(null);
+    suppressVertexPushRef.current = false;
     prevVertexCountRef.current = 0;
     slopeUserOverrodeRef.current = false;
     mapRef.current?.reset();
@@ -308,15 +341,19 @@ function DrawPageInner() {
   }
 
   // Unified undo — pops the most recent action regardless of kind. Gate
-  // undos remove the last placed gate; vertex undos delegate to the map.
-  // The vertex-tracking effect resyncs prevVertexCountRef on the resulting
-  // stats decrement, so we don't need to touch the ref here.
+  // undos remove the last placed gate; vertex undos delegate to the map;
+  // a "trace" undo removes the entire traced line (and any active trim
+  // handles) in one step.
   function handleUndo() {
     const last = actionHistory[actionHistory.length - 1];
     if (!last) return;
     setActionHistory((h) => h.slice(0, -1));
     if (last === "gate") {
       setGates((prev) => prev.slice(0, -1));
+    } else if (last === "trace") {
+      setTrimChain(null);
+      setTrimHandles(null);
+      mapRef.current?.reset();
     } else {
       mapRef.current?.undo();
     }
@@ -332,16 +369,80 @@ function DrawPageInner() {
 
   // One-tap lot-line trace — converts the Regrid parcel boundary into a
   // pre-drawn fence (rear + sides when neighbor data identifies the
-  // street frontage; full perimeter otherwise). The vertex-tracking
-  // effect sees vertex_count jump 0→N and seeds the undo stack, so the
-  // customer can trim from either... well, from the end — and Clear All
-  // remains the full escape hatch.
+  // street frontage; full perimeter otherwise). LineString traces enter
+  // trim mode: the line renders in an inert mode with a big draggable
+  // handle on each end that SLIDES ALONG THE LOT LINE, so the customer
+  // pulls each side back from the street corner to where the fence
+  // actually cuts in at the house. One "trace" entry lands in the undo
+  // stack — Undo removes the whole trace atomically.
   function handleTraceLot() {
     if (!parcelBoundary) return;
     const traced = traceFenceFromParcel(parcelBoundary, adjacentBoundaries);
     if (!traced) return;
-    mapRef.current?.loadFeature(traced.feature);
+    suppressVertexPushRef.current = true;
+    setActionHistory((h) => [...h, "trace"]);
     setCoachmarkVisible(false);
+    if (traced.feature.geometry.type === "LineString") {
+      const chain = traced.feature.geometry.coordinates as Position[];
+      mapRef.current?.loadFeatureStatic(traced.feature);
+      const total = chainLengthM(chain);
+      setTrimChain(chain);
+      trimLocsRef.current = { start: 0, end: total };
+      trimTotalRef.current = total;
+      setTrimHandles([
+        { lat: chain[0][1], lng: chain[0][0] },
+        { lat: chain[chain.length - 1][1], lng: chain[chain.length - 1][0] },
+      ]);
+    } else {
+      // Polygon fallback (full perimeter) — no endpoints to trim.
+      mapRef.current?.loadFeature(traced.feature);
+    }
+  }
+
+  // Endpoint handle drag — snap the raw finger position onto the traced
+  // chain, clamp against the opposite end (min 3m of fence), and rewrite
+  // the live line to the slice between the two locations. The fence stays
+  // magnetized to the lot line no matter where the finger wanders; LF in
+  // the readout and sticky bar stream live during the drag.
+  function handleTrimDrag(
+    index: number,
+    pos: { lat: number; lng: number },
+    phase: "move" | "end"
+  ) {
+    if (!trimChain) return;
+    const MIN_GAP_M = 3;
+    const loc = locateOnChain(trimChain, [pos.lng, pos.lat]);
+    let { start, end } = trimLocsRef.current;
+    if (index === 0) {
+      start = Math.max(0, Math.min(loc.locationM, end - MIN_GAP_M));
+    } else {
+      end = Math.min(
+        trimTotalRef.current,
+        Math.max(loc.locationM, start + MIN_GAP_M)
+      );
+    }
+    trimLocsRef.current = { start, end };
+    const coords = sliceChainByLocation(trimChain, start, end);
+    mapRef.current?.setFeatureCoords(coords as number[][]);
+    if (phase === "end") {
+      // Re-seat the handles exactly on the trimmed endpoints (the dot
+      // may have been dropped off-line; the line itself never left).
+      setTrimHandles([
+        { lat: coords[0][1], lng: coords[0][0] },
+        {
+          lat: coords[coords.length - 1][1],
+          lng: coords[coords.length - 1][0],
+        },
+      ]);
+    }
+  }
+
+  // Exit trim mode, keeping the trimmed line, and hand control back to
+  // normal drawing (next tap extends from the end).
+  function exitTrimMode(resume: boolean) {
+    setTrimChain(null);
+    setTrimHandles(null);
+    if (resume) mapRef.current?.resumeLine();
   }
 
   const crossesItself = useMemo(
@@ -466,6 +567,9 @@ function DrawPageInner() {
                 onClick={() => {
                   setGateMode(false);
                   setPendingGatePoint(null);
+                  // Tapping Fence Line while trim handles are up commits
+                  // the trim and returns to drawing (next tap extends).
+                  if (trimChain) exitTrimMode(true);
                 }}
                 className={cn(
                   "flex h-12 items-center justify-center gap-2 font-display text-[13px] font-semibold uppercase tracking-eyebrow transition-colors",
@@ -482,6 +586,10 @@ function DrawPageInner() {
                 type="button"
                 onClick={() => {
                   if (stats.linear_feet === 0) return;
+                  // Commit any active trim before gate placement — the
+                  // gate effect owns mode switching from here, and its
+                  // exit path resumes line drawing as usual.
+                  if (trimChain) exitTrimMode(false);
                   setGateMode((m) => !m);
                   setPendingGatePoint(null);
                 }}
@@ -527,6 +635,8 @@ function DrawPageInner() {
                   onGateDelete={handleGateDelete}
                   parcelBoundary={parcelBoundary}
                   adjacentBoundaries={adjacentBoundaries}
+                  trimHandles={trimHandles}
+                  onTrimHandleDrag={handleTrimDrag}
                 />
               </MapErrorBoundary>
 
@@ -539,6 +649,23 @@ function DrawPageInner() {
                   <span className="font-body text-[12px] text-cream/85">
                     Tap a corner to begin
                   </span>
+                </div>
+              )}
+
+              {/* Trim-mode hint — slim pill at top while endpoint handles
+                  are live. Done commits the trim and resumes drawing. */}
+              {trimChain && !gateMode && (
+                <div className="absolute left-1/2 top-3 z-10 flex max-w-[94%] -translate-x-1/2 items-center gap-2.5 rounded-pill border border-brass/50 bg-navy/95 py-1.5 pl-4 pr-1.5 shadow-card-lg backdrop-blur">
+                  <span className="truncate font-body text-[12px] text-cream/90">
+                    {t.draw.traceAdjustHint}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => exitTrimMode(true)}
+                    className="flex-shrink-0 rounded-pill bg-brass px-3.5 py-1.5 font-display text-[11px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:bg-brass/85"
+                  >
+                    {t.draw.traceAdjustDone}
+                  </button>
                 </div>
               )}
 
