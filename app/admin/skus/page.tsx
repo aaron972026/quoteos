@@ -31,6 +31,12 @@ export default async function AdminSkusPage({
             <code className="rounded bg-navy/5 px-1 font-mono">pricing_versions</code>.
           </p>
         </div>
+        <Link
+          href="/admin/skus/new"
+          className="inline-flex h-9 items-center rounded-md bg-navy px-4 text-sm font-semibold text-white hover:bg-navy/90"
+        >
+          + New SKU
+        </Link>
       </div>
 
       <div className="mt-4">

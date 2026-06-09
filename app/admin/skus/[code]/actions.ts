@@ -8,14 +8,23 @@ import { db } from "@/lib/db/client";
 import { pricingVersions, skus } from "@/lib/db/schema";
 import { invalidatePricingConfigCache } from "@/lib/pricing/load-config";
 
-const Schema = z.object({
+const PricingFields = z.object({
   description: z.string().min(1).max(512),
   base_price_per_lf_cents: z.number().int().min(0).max(1_000_000),
   material_cost_per_lf_cents: z.number().int().min(0).max(1_000_000),
-  sub_labor_pct: z.number().min(0).max(1),
+  labor_cost_per_lf_cents: z.number().int().min(0).max(1_000_000),
+  market_max_per_lf_cents: z.number().int().min(0).max(1_000_000).nullable(),
   spec_bullets: z.array(z.string().min(1).max(160)).max(12),
   hero_image_url: z.string().url().nullable(),
   active: z.boolean(),
+});
+
+const IdentityFields = z.object({
+  code: z.string().regex(/^[A-Z0-9-]{2,16}$/),
+  family: z.string().regex(/^[A-Z0-9]{2,8}$/),
+  family_name: z.string().min(2).max(64),
+  height_inches: z.number().int().min(24).max(120),
+  tier: z.enum(["good", "better", "best"]).nullable(),
 });
 
 function parseDollarsToCents(raw: FormDataEntryValue | null): number {
@@ -26,13 +35,57 @@ function parseDollarsToCents(raw: FormDataEntryValue | null): number {
   return Math.round(n * 100);
 }
 
-function parsePct(raw: FormDataEntryValue | null): number {
-  // Form input is shown as percentage (e.g. "23" or "23.5"); store as 0..1
-  const n = Number(raw ?? 0);
-  if (!Number.isFinite(n) || n < 0 || n > 100) {
-    throw new Error("sub_labor_pct must be 0–100");
-  }
-  return n / 100;
+function parseOptionalDollarsToCents(
+  raw: FormDataEntryValue | null
+): number | null {
+  const s = (raw ?? "").toString().trim();
+  if (s === "") return null;
+  return parseDollarsToCents(s);
+}
+
+function parsePricingFields(formData: FormData): z.infer<typeof PricingFields> {
+  const bulletsRaw = (formData.get("spec_bullets") ?? "").toString();
+  const bullets = bulletsRaw
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const heroRaw = (formData.get("hero_image_url") ?? "").toString().trim();
+
+  return PricingFields.parse({
+    description: formData.get("description")?.toString() ?? "",
+    base_price_per_lf_cents: parseDollarsToCents(
+      formData.get("base_price_per_lf_dollars")
+    ),
+    material_cost_per_lf_cents: parseDollarsToCents(
+      formData.get("material_cost_per_lf_dollars")
+    ),
+    labor_cost_per_lf_cents: parseDollarsToCents(
+      formData.get("labor_cost_per_lf_dollars")
+    ),
+    market_max_per_lf_cents: parseOptionalDollarsToCents(
+      formData.get("market_max_per_lf_dollars")
+    ),
+    spec_bullets: bullets,
+    hero_image_url: heroRaw === "" ? null : heroRaw,
+    active: formData.get("active") === "on",
+  });
+}
+
+function computedMarketFlag(
+  baseCents: number,
+  marketMaxCents: number | null
+): "ok" | "ABOVE_MKT" {
+  return marketMaxCents != null && baseCents > marketMaxCents
+    ? "ABOVE_MKT"
+    : "ok";
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof z.ZodError
+    ? err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+    : err instanceof Error
+      ? err.message
+      : "Validation failed";
 }
 
 export interface UpdateSkuResult {
@@ -41,10 +94,10 @@ export interface UpdateSkuResult {
 }
 
 /**
- * Server action invoked by SkuEditForm. Validates, writes the change, and
- * appends a pricing_versions audit row with before+after for trail purposes.
+ * Server action invoked by SkuEditForm (edit mode). Validates, writes the
+ * change, and appends a pricing_versions audit row with before+after.
  * Cache busted after the write so the next quote calculation sees the new
- * SKU values — see lib/pricing/load-config.ts.
+ * SKU values immediately — see lib/pricing/load-config.ts (DB-backed).
  */
 export async function updateSku(
   code: string,
@@ -55,50 +108,25 @@ export async function updateSku(
   )[0];
   if (!before) return { ok: false, error: `SKU ${code} not found` };
 
-  // Parse form values
-  const bulletsRaw = (formData.get("spec_bullets") ?? "").toString();
-  const bullets = bulletsRaw
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  const heroRaw = (formData.get("hero_image_url") ?? "").toString().trim();
-
-  let parsed: z.infer<typeof Schema>;
+  let parsed: z.infer<typeof PricingFields>;
   try {
-    parsed = Schema.parse({
-      description: formData.get("description")?.toString() ?? "",
-      base_price_per_lf_cents: parseDollarsToCents(
-        formData.get("base_price_per_lf_dollars")
-      ),
-      material_cost_per_lf_cents: parseDollarsToCents(
-        formData.get("material_cost_per_lf_dollars")
-      ),
-      sub_labor_pct: parsePct(formData.get("sub_labor_pct_display")),
-      spec_bullets: bullets,
-      hero_image_url: heroRaw === "" ? null : heroRaw,
-      active: formData.get("active") === "on",
-    });
+    parsed = parsePricingFields(formData);
   } catch (err) {
-    const msg =
-      err instanceof z.ZodError
-        ? err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
-        : err instanceof Error
-          ? err.message
-          : "Validation failed";
-    return { ok: false, error: msg };
+    return { ok: false, error: errMessage(err) };
   }
 
-  // Persist the change + audit snapshot atomically (Drizzle doesn't ship
-  // a transaction helper that's friendly to all driver shapes; sequentially
-  // is fine here — admin operation, no contention).
   await db
     .update(skus)
     .set({
       description: parsed.description,
       basePricePerLfCents: parsed.base_price_per_lf_cents,
       materialCostPerLfCents: parsed.material_cost_per_lf_cents,
-      subLaborPct: parsed.sub_labor_pct.toString(),
+      laborCostPerLfCents: parsed.labor_cost_per_lf_cents,
+      marketMaxPerLfCents: parsed.market_max_per_lf_cents,
+      marketFlag: computedMarketFlag(
+        parsed.base_price_per_lf_cents,
+        parsed.market_max_per_lf_cents
+      ),
       specBullets: parsed.spec_bullets,
       heroImageUrl: parsed.hero_image_url,
       active: parsed.active,
@@ -116,11 +144,76 @@ export async function updateSku(
     effectiveAt: new Date(),
   });
 
-  // Bust the engine config cache so the next quote sees the new SKU values
-  // immediately (otherwise the change would take up to CACHE_TTL_MS to land).
   invalidatePricingConfigCache();
 
   revalidatePath("/admin/skus");
   revalidatePath(`/admin/skus/${code}/edit`);
   redirect("/admin/skus?saved=" + encodeURIComponent(code));
+}
+
+/**
+ * Server action for /admin/skus/new — inserts a brand-new SKU (offering).
+ * Same validation + audit + cache-bust contract as updateSku.
+ */
+export async function createSku(formData: FormData): Promise<UpdateSkuResult> {
+  let identity: z.infer<typeof IdentityFields>;
+  let parsed: z.infer<typeof PricingFields>;
+  try {
+    const tierRaw = (formData.get("tier") ?? "").toString().trim();
+    identity = IdentityFields.parse({
+      code: (formData.get("code") ?? "").toString().trim().toUpperCase(),
+      family: (formData.get("family") ?? "").toString().trim().toUpperCase(),
+      family_name: (formData.get("family_name") ?? "").toString().trim(),
+      height_inches: Number(formData.get("height_inches") ?? 0),
+      tier: tierRaw === "" ? null : tierRaw,
+    });
+    parsed = parsePricingFields(formData);
+  } catch (err) {
+    return { ok: false, error: errMessage(err) };
+  }
+
+  const existing = (
+    await db.select({ code: skus.code }).from(skus).where(eq(skus.code, identity.code)).limit(1)
+  )[0];
+  if (existing) {
+    return { ok: false, error: `SKU ${identity.code} already exists` };
+  }
+
+  await db.insert(skus).values({
+    code: identity.code,
+    family: identity.family,
+    familyName: identity.family_name,
+    tier: identity.tier,
+    description: parsed.description,
+    heightInches: identity.height_inches,
+    basePricePerLfCents: parsed.base_price_per_lf_cents,
+    materialCostPerLfCents: parsed.material_cost_per_lf_cents,
+    laborCostPerLfCents: parsed.labor_cost_per_lf_cents,
+    subLaborPct: null,
+    marketMaxPerLfCents: parsed.market_max_per_lf_cents,
+    marketFlag: computedMarketFlag(
+      parsed.base_price_per_lf_cents,
+      parsed.market_max_per_lf_cents
+    ),
+    postsStandard: "cedar_wood",
+    active: parsed.active,
+    heroImageUrl: parsed.hero_image_url,
+    specBullets: parsed.spec_bullets,
+    sortOrder: 99,
+  });
+
+  await db.insert(pricingVersions).values({
+    versionNumber: `sku-${identity.code}-create-${Date.now()}`,
+    config: {
+      kind: "sku_create",
+      code: identity.code,
+      after: { ...identity, ...parsed },
+    },
+    effectiveAt: new Date(),
+  });
+
+  invalidatePricingConfigCache();
+
+  revalidatePath("/admin/skus");
+  redirect("/admin/skus?saved=" + encodeURIComponent(identity.code));
 }

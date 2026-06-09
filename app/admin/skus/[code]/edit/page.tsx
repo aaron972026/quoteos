@@ -51,10 +51,11 @@ export default async function AdminSkuEditPage({
             description: sku.description,
             base_price_per_lf_dollars: sku.basePricePerLfCents / 100,
             material_cost_per_lf_dollars: sku.materialCostPerLfCents / 100,
-            sub_labor_pct_display:
-              sku.subLaborPct != null
-                ? Math.round(Number(sku.subLaborPct) * 10000) / 100
-                : 0,
+            labor_cost_per_lf_dollars: (sku.laborCostPerLfCents ?? 0) / 100,
+            market_max_per_lf_dollars:
+              sku.marketMaxPerLfCents != null
+                ? sku.marketMaxPerLfCents / 100
+                : null,
             spec_bullets: (sku.specBullets ?? []).join("\n"),
             hero_image_url: sku.heroImageUrl ?? "",
             active: sku.active,
