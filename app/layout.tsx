@@ -60,6 +60,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  // Required for env(safe-area-inset-*) to be non-zero on notched
+  // iPhones — the sticky bottom CTAs on /draw and /configure pad with it.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

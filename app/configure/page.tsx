@@ -348,7 +348,7 @@ function ConfigurePageInner() {
     .replace("{gates}", gateText);
 
   return (
-    <div className="flex min-h-dvh flex-col bg-paper">
+    <div className="flex min-h-dvh flex-col bg-paper pb-20 lg:pb-0">
       <Header dark />
       <Progress step={3} dark />
 
@@ -712,6 +712,52 @@ function ConfigurePageInner() {
           </div>
         </div>
       </section>
+
+      {/* Sticky mobile CTA — live total + Continue pinned to the bottom.
+          The estimate card sits at the TOP of the page on mobile, which
+          meant choosing upgrades at the bottom left the customer scrolling
+          back up to advance. Hidden on lg where the card is sticky-visible. */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-navy/15 bg-navy lg:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-5 py-3">
+          <div className="min-w-0">
+            <div className="flex items-baseline gap-2">
+              <span className="font-display text-[22px] font-bold leading-none tabular-nums text-cream">
+                {pricing?.final_price_cents != null
+                  ? formatCents(pricing.final_price_cents)
+                  : "—"}
+              </span>
+              {pricingLoading && (
+                <Loader2 size={12} className="animate-spin text-cream/60" />
+              )}
+            </div>
+            <div className="mt-0.5 truncate font-mono text-[10px] uppercase tracking-spec text-cream/60">
+              {t.configure.estimateEyebrow}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleContinue}
+            disabled={!skuCode || isPending}
+            className={cn(
+              "flex h-12 flex-shrink-0 items-center gap-2 rounded-sm bg-brick px-6",
+              "font-display text-[14px] font-semibold uppercase tracking-eyebrow text-cream",
+              "transition-colors hover:bg-brick-deep disabled:cursor-not-allowed disabled:bg-steel-soft"
+            )}
+          >
+            {isPending ? (
+              <Loader2 className="animate-spin" size={16} />
+            ) : (
+              <>
+                {t.configure.continueCta}
+                <ArrowRight size={14} strokeWidth={2.5} />
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

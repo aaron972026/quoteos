@@ -221,11 +221,11 @@ export default function FenceMap({
         fadeDuration: 0,             // no tile cross-fade animation
         preserveDrawingBuffer: false,
       });
-      // Cap DPR — on retina/4K displays Mapbox renders at 2x by default which
-      // quadruples tile fetches and pixel work. Visually indistinguishable on
-      // satellite imagery, much faster.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (map as any).setMaxPixelRatio?.(1.5);
+      // NOTE: a previous `setMaxPixelRatio(1.5)` call here was a silent
+      // no-op — that method does not exist anywhere in mapbox-gl 3.23.x
+      // (verified against the dist bundle), so the map has always
+      // rendered at native devicePixelRatio. Removed rather than kept as
+      // a misleading "perf cap."
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Mapbox failed to initialize";
       console.error("[FenceMap] init failed:", err);
@@ -234,20 +234,24 @@ export default function FenceMap({
     }
     mapRef.current = map;
 
-    // Mapbox emits "error" for both fatal init failures AND transient tile
-    // fetch failures. Setting the terminal error overlay on every tile blip
-    // would kill the map for a single tile that didn't load. Only treat the
-    // error as fatal if the style itself failed to load — tile fetches that
-    // fail mid-session retry on their own.
+    // Mapbox emits "error" for both fatal init failures AND transient
+    // mid-session failures. The terminal overlay is only justified when
+    // the map never got to a usable state: once the style has loaded
+    // successfully, any later error (tile blip, vector-source hiccup,
+    // brief network drop) self-recovers on retry — slapping the fatal
+    // "Map Didn't Load" overlay over a WORKING map with the user's
+    // drawn fence underneath is strictly worse than logging it.
+    let loadedOnce = false;
     map.on("error", (e) => {
       const m = e?.error?.message ?? "Map error";
       const isTileFetch = /tile|HTTP/i.test(m);
       console.error("[FenceMap] map error:", e);
-      if (!isTileFetch) {
+      if (!isTileFetch && !loadedOnce) {
         setErrorMsg(m);
       }
     });
     map.on("load", () => {
+      loadedOnce = true;
       console.info("[FenceMap] style loaded");
       setTimeout(() => map.resize(), 50);
     });
@@ -392,6 +396,14 @@ export default function FenceMap({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     map.addControl(draw as any, "top-right");
 
+    // emitStats runs on every draw.render, which fires far more often
+    // than the geometry actually changes (zoom changes, style rerenders).
+    // Each call used to push a brand-new stats object into the parent's
+    // React state — a full /draw page re-render plus a slope-detect
+    // debounce reset per frame. Skip the onChange when nothing material
+    // moved. The signature includes the last coordinate so phantom
+    // (rubber-band) movement still streams live LF updates.
+    let lastStatsSig = "";
     function emitStats() {
       const fc = draw.getAll();
       // Prefer the feature with the most coordinates over "the most recent
@@ -438,6 +450,23 @@ export default function FenceMap({
         closed: primary?.geometry.type === "Polygon",
         vertex_count,
       };
+      let lastCoord: number[] | undefined;
+      if (primary) {
+        const c =
+          primary.geometry.type === "Polygon"
+            ? primary.geometry.coordinates[0]
+            : primary.geometry.coordinates;
+        lastCoord = c[c.length - 1];
+      }
+      const sig = [
+        stats.linear_feet.toFixed(2),
+        stats.corner_count,
+        stats.closed,
+        stats.vertex_count,
+        lastCoord ? `${lastCoord[0].toFixed(7)},${lastCoord[1].toFixed(7)}` : "",
+      ].join("|");
+      if (sig === lastStatsSig) return;
+      lastStatsSig = sig;
       onChangeRef.current(stats);
     }
 
@@ -543,7 +572,17 @@ export default function FenceMap({
     let touchStartY = 0;
     let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
-    if (loupeContainerRef.current) {
+    // The loupe is mobile-only (it summons exclusively from a touch
+    // long-press), but the second Map instance was being constructed on
+    // EVERY device — each `new mapboxgl.Map` is a billed map load and a
+    // second WebGL context. Desktop mouse users can never summon it, so
+    // skip construction entirely unless the device can produce touches.
+    const touchCapable =
+      typeof window !== "undefined" &&
+      (navigator.maxTouchPoints > 0 ||
+        window.matchMedia?.("(pointer: coarse)")?.matches === true);
+
+    if (touchCapable && loupeContainerRef.current) {
       try {
         loupeMap = new mapboxgl.Map({
           container: loupeContainerRef.current,
@@ -577,7 +616,7 @@ export default function FenceMap({
         console.warn("[FenceMap] loupe init failed:", err);
         loupeMap = null;
       }
-    } else {
+    } else if (touchCapable) {
       console.warn("[FenceMap] loupe container ref is null at init");
     }
 
@@ -624,6 +663,9 @@ export default function FenceMap({
       positionLoupeWrapper(pointerX, pointerY);
       updateLoupeContent();
       setLoupeVisible(true);
+      // Snap the rubber-band phantom to the finger right away (see the
+      // synthetic mousemove note in the touchmove handler).
+      map.fire("mousemove", syntheticMouseEvent("mousemove"));
     }
     function exitLoupeMode() {
       pointerActive = false;
@@ -631,28 +673,41 @@ export default function FenceMap({
       map.dragPan.enable();
     }
 
-    // Drop helper — fire a synthetic Mapbox click at the loupe target.
-    // gl-draw's draw_line_string mode appends a vertex via its OWN
-    // onClick (no manual feature surgery), and the gate-mode click
-    // handler is already wired to the same event. Both take this
-    // synthetic event identically to a real tap, so there's no risk of
-    // the previous vertex getting clobbered by mis-judging gl-draw's
-    // internal phantom state.
-    function dropAtLoupeTarget() {
+    // Drop helper — place a vertex (or gate) at the loupe target.
+    //
+    // IMPORTANT: gl-draw v1.5 does NOT subscribe to the map's "click"
+    // event. Its src/events.js binds only mousemove/mousedown/mouseup +
+    // touchstart/touchmove/touchend and synthesizes its own click from a
+    // mousedown→mouseup pair (lib/is_click.js) or its own tap from a
+    // touchstart→touchend pair (lib/is_tap.js, tolerance 25px / 250ms).
+    // A loupe release always fails isTap (the long-press alone exceeds
+    // the 250ms interval), so the ONLY way to make draw_line_string
+    // append a vertex without manual feature surgery is a synthetic
+    // mousedown+mouseup pair at the same point and time — isClick()
+    // passes on zero movement and currentMode.click() runs.
+    //
+    // The trailing "click" fire is for OUR gate-mode handler, which is a
+    // plain map.on("click") listener. In place_gate mode the down/up
+    // pair hits gl-draw's no-op handlers, so both paths stay isolated.
+    function syntheticMouseEvent(domType: string) {
       const lngLat = map.unproject([pointerX, pointerY]);
       // Mapbox's MapMouseEvent type insists on the full event surface
       // (preventDefault, defaultPrevented, etc.), but at runtime gl-draw
-      // and our gate handler only read `lngLat` / `point` / `originalEvent`.
-      // Cast through unknown so we can ship a minimal synthetic payload.
-      const payload = {
+      // and our gate handler only read `lngLat` / `point` /
+      // `originalEvent`. Cast through unknown for a minimal payload.
+      return {
         lngLat,
         point: new mapboxgl.Point(pointerX, pointerY),
-        // gl-draw's internal events.click checks `originalEvent.button`
-        // and returns early on anything other than 0 (left button); we
-        // synthesize a left-button MouseEvent so the check passes.
-        originalEvent: new MouseEvent("click", { button: 0 }),
+        originalEvent: new MouseEvent(domType, {
+          button: 0,
+          buttons: domType === "mousedown" ? 1 : 0,
+        }),
       } as unknown as mapboxgl.MapMouseEvent;
-      map.fire("click", payload);
+    }
+    function dropAtLoupeTarget() {
+      map.fire("mousedown", syntheticMouseEvent("mousedown"));
+      map.fire("mouseup", syntheticMouseEvent("mouseup"));
+      map.fire("click", syntheticMouseEvent("click"));
     }
 
     map.on("touchstart", (e) => {
@@ -665,6 +720,12 @@ export default function FenceMap({
         }
         return;
       }
+      // Defensive: if a touchend was ever swallowed while in loupe mode
+      // (notification shade, browser gesture, tab switch), touchPhase
+      // would still read "loupe" with dragPan disabled — and without
+      // this exit, the next single-finger touch would flip to "pending"
+      // while leaving the map permanently un-pannable.
+      if (touchPhase === "loupe") exitLoupeMode();
       touchPhase = "pending";
       touchStartX = e.point.x;
       touchStartY = e.point.y;
@@ -705,6 +766,12 @@ export default function FenceMap({
       if (touchPhase === "loupe") {
         positionLoupeWrapper(pointerX, pointerY);
         updateLoupeContent();
+        // gl-draw's draw_line_string mode has NO onTouchMove — only
+        // onMouseMove updates the phantom cursor-follower. Fire a
+        // synthetic mousemove (buttons: 0 so gl-draw's events.mousemove
+        // doesn't reroute it into its drag path) so the rubber-band
+        // line from the last vertex tracks the loupe target live.
+        map.fire("mousemove", syntheticMouseEvent("mousemove"));
       }
     });
     map.on("touchend", (e) => {
@@ -715,11 +782,16 @@ export default function FenceMap({
       if (touchPhase === "loupe") {
         dropAtLoupeTarget();
         exitLoupeMode();
-        // Suppress the synthetic click event the browser fires after
-        // touchend (W3C touch-events §13.5). Without this, gl-draw /
-        // the gate-mode click handler would ALSO fire at the touchend
-        // screen position and add a duplicate point on top of the one
-        // we just dropped via the loupe.
+        // Suppress the compatibility mouse events (incl. click) the
+        // browser fires after touchend (W3C touch-events §13.5), so the
+        // gate-mode click handler can't double-fire at the touchend
+        // position on top of the synthetic drop above. NOTE: Mapbox's
+        // MapTouchEvent.preventDefault() only suppresses Mapbox's OWN
+        // default handlers — it never reaches the DOM event. gl-draw's
+        // touchend listener happens to preventDefault the DOM event
+        // unconditionally, but don't depend on a third-party side
+        // effect: call it on the originalEvent explicitly.
+        e.originalEvent?.preventDefault?.();
         e.preventDefault();
       }
       touchPhase = "idle";
@@ -1104,7 +1176,27 @@ export default function FenceMap({
       if (!draw) return;
       const all = draw.getAll();
       if (all.features.length === 0) return;
-      const feature = all.features[all.features.length - 1];
+      // Pick the feature with the most coordinates — the SAME heuristic
+      // emitStats uses. Using "most recent feature" here meant the exact
+      // edge case emitStats guards against (a 1-vertex stub created by
+      // mode-thrash sitting as the newest entry) made Undo operate on
+      // the stub while the readout reflected the real fence.
+      let feature: Feature<LineString | Polygon> | null = null;
+      let bestCount = -1;
+      for (const f of all.features) {
+        const g = f.geometry;
+        const c =
+          g.type === "Polygon"
+            ? g.coordinates[0].length
+            : g.type === "LineString"
+              ? g.coordinates.length
+              : -1;
+        if (c > bestCount) {
+          bestCount = c;
+          feature = f as Feature<LineString | Polygon>;
+        }
+      }
+      if (!feature) return;
       const geom = feature.geometry;
       const id = feature.id as string;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

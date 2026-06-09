@@ -410,7 +410,7 @@ function DrawPageInner() {
     !!stats.feature && stats.linear_feet >= 5 && !isPending && !crossesItself;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-paper">
+    <div className="flex min-h-dvh flex-col bg-paper pb-20 lg:pb-0">
       <Header dark />
       <Progress step={2} dark />
 
@@ -692,6 +692,51 @@ function DrawPageInner() {
           </div>
         </div>
       </section>
+
+      {/* Sticky mobile CTA — live readout + Continue pinned to the bottom
+          so the customer never has to scroll past photos/slope to advance.
+          Hidden on lg where the right-column CTA is always visible.
+          z-30 keeps it BELOW the gate-size sheet (z-40), which should
+          cover it while a gate is being picked. */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-navy/15 bg-paper/95 backdrop-blur lg:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-5 py-3">
+          <div className="min-w-0">
+            <div className="font-display text-[20px] font-bold leading-none tabular-nums text-navy">
+              {stats.linear_feet.toFixed(0)}{" "}
+              <span className="font-mono text-[10px] font-normal uppercase tracking-spec text-steel">
+                {t.draw.labelLF}
+              </span>
+            </div>
+            <div className="mt-0.5 truncate font-mono text-[10px] uppercase tracking-spec text-steel">
+              {gates.length} {t.draw.labelGates} · {stats.corner_count}{" "}
+              {t.draw.labelCorners}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleContinue}
+            disabled={!canContinue}
+            className={cn(
+              "flex h-12 flex-shrink-0 items-center gap-2 rounded-sm px-6 font-display text-[14px] font-semibold uppercase tracking-eyebrow transition-colors",
+              canContinue
+                ? "bg-brick text-cream hover:bg-brick-deep"
+                : "cursor-not-allowed bg-steel-soft text-cream"
+            )}
+          >
+            {isPending ? (
+              <Loader2 className="animate-spin" size={14} />
+            ) : (
+              <>
+                {t.draw.continueCtaShort}
+                <ArrowRight size={14} strokeWidth={2.5} />
+              </>
+            )}
+          </button>
+        </div>
+      </div>
 
       {/* Gate-size bottom sheet (rendered outside map so it can overlay everything) */}
       {pendingGatePoint && (
