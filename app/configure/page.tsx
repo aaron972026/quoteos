@@ -131,10 +131,17 @@ function ConfigurePageInner() {
         if (cancelled) return;
         setSkus(s);
         setQuote(q);
+        // Only adopt the quote's saved SKU if it still exists in the
+        // active catalog. If the SKU was deactivated in admin after this
+        // quote started, falling through leaves skuCode null so the
+        // auto-pick effect selects a live SKU instead of pricing against
+        // a dead one ("sku not available" / empty estimate).
         if (q.skuCode) {
-          setSkuCode(q.skuCode);
           const picked = s.find((sk) => sk.code === q.skuCode);
-          if (picked) setFamilyCode(picked.family);
+          if (picked) {
+            setSkuCode(q.skuCode);
+            setFamilyCode(picked.family);
+          }
         }
         if (q.stainSeal) setStainSeal(true);
       })
