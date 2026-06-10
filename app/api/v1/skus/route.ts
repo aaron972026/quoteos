@@ -41,7 +41,17 @@ export async function GET() {
     }));
 
     const res = NextResponse.json(enriched);
-    res.headers.set("Cache-Control", "public, max-age=3600, s-maxage=3600");
+    // Edge-cache for 60s max, browsers always revalidate. This was
+    // max-age=3600/s-maxage=3600, which meant admin price edits kept
+    // showing STALE $/LF on the /configure family + tier cards for up
+    // to an hour (Vercel CDN) even after the pricing engine had the new
+    // numbers — the calculated estimate and the card price disagreed.
+    // 60s matches the pricing-config cache TTL so both layers converge
+    // on the same staleness bound.
+    res.headers.set(
+      "Cache-Control",
+      "public, max-age=0, s-maxage=60, stale-while-revalidate=30"
+    );
     return res;
   } catch (err) {
     console.error("skus GET error", err);
