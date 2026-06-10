@@ -63,6 +63,7 @@ const FenceMap = dynamic(() => import("@/components/map/FenceMap"), {
 });
 
 const GATE_SIZES: Array<{ type: GateType; label: string; sublabel: string }> = [
+  { type: "W3", label: "3'", sublabel: "Walk" },
   { type: "W4", label: "4'", sublabel: "Walk" },
   { type: "W5", label: "5'", sublabel: "Walk" },
   { type: "D10", label: "10'", sublabel: "Drive" },

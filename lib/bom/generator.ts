@@ -26,6 +26,7 @@ const POST_SPACING_FT: Record<SkuFamily, number> = {
 };
 
 const POSTS_PER_GATE: Record<GateType, number> = {
+  W3: 2,
   W4: 2,
   W5: 2,
   D10: 3,

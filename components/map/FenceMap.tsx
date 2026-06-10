@@ -121,6 +121,7 @@ interface Props {
 }
 
 const GATE_WIDTH_LABEL: Record<GateType, string> = {
+  W3: "3'",
   W4: "4'",
   W5: "5'",
   D10: "10'",

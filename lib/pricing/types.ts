@@ -6,7 +6,7 @@
 // display range. Each SKU is its own price point — no tier multiplier.
 // See _pricing/FencePros_Pricing_Model.csv-* for the source of truth.
 
-export type GateType = "W4" | "W5" | "D10" | "D12" | "D16";
+export type GateType = "W3" | "W4" | "W5" | "D10" | "D12" | "D16";
 export type DemoType = "NONE" | "CEDAR" | "CHAIN" | "METAL" | "CONC";
 export type SkuFamily = "CPF" | "HCF" | "CL" | "RR" | "BP";
 export type MarginFlag = "ok" | "warn" | "low";

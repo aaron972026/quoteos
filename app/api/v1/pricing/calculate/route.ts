@@ -8,7 +8,7 @@ import { LIMITS, checkLimit } from "@/lib/api/rate-limit";
 import { getCurrentSessionId } from "@/lib/api/session-helper";
 
 const GateSchema = z.object({
-  type: z.enum(["W4", "W5", "D10", "D12", "D16"]),
+  type: z.enum(["W3", "W4", "W5", "D10", "D12", "D16"]),
   count: z.number().int().min(0).max(20),
 });
 

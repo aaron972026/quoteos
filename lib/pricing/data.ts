@@ -346,6 +346,7 @@ export const DEMO_RATES: Record<DemoType, number> = {
 // ─── Gate prices (cents each) ─────────────────────────────────────────
 
 export const GATE_PRICES: Record<GateType, { price_cents: number; label: string }> = {
+  W3:  { price_cents: 30000,  label: "3' walk gate"          },
   W4:  { price_cents: 35000,  label: "4' walk gate"          },
   W5:  { price_cents: 42500,  label: "5' walk gate"          },
   D10: { price_cents: 85000,  label: "10' single-leaf drive" },
