@@ -37,6 +37,11 @@ interface QuoteShape {
   skuCode: string | null;
   city: string | null;
   stainSeal: boolean | null;
+  steelPostUpgrade: boolean | null;
+  capRailTrim: boolean | null;
+  matchVinylPosts: boolean | null;
+  ironclad: boolean | null;
+  boardOnBoard: boolean | null;
   priceValidUntil: string | null;
   gates?: Array<{ type: string; count: number }> | null;
 }
@@ -46,6 +51,8 @@ interface PricingBreakdown {
   slope_surcharge_cents: number;
   access_surcharge_cents: number;
   steel_upgrade_cents: number;
+  ironclad_cents: number;
+  board_on_board_cents: number;
   cap_rail_cents: number;
   match_vinyl_posts_cents: number;
   gates_cents: number;
@@ -109,6 +116,11 @@ export default function QuotePage({ params }: { params: { id: string } }) {
             demo_type: q.demoType ?? "NONE",
             gates: q.gates ?? [],
             stain_seal: !!q.stainSeal,
+            ironclad: !!q.ironclad,
+            board_on_board: !!q.boardOnBoard,
+            steel_post_upgrade: !!q.steelPostUpgrade,
+            cap_rail_trim: !!q.capRailTrim,
+            match_vinyl_posts: !!q.matchVinylPosts,
             city: q.city ?? "Tulsa",
           }),
         });
@@ -224,7 +236,7 @@ export default function QuotePage({ params }: { params: { id: string } }) {
   const concreteRow = {
     title: "Concrete-Set Posts, Plumb",
     body:
-      "30-inch footings · ~100 lbs of 3,000-psi concrete per post. Checked twice with a 4-foot level.",
+      "Posts set 32–36″ deep · 160–240 lbs of 3,000-psi concrete per post (Ironclad sets deepest, with the most concrete). Plumb and square, checked twice with a 4-foot level.",
   };
 
   const inclusionsRendered = [
@@ -520,8 +532,23 @@ function InvoiceCard({
         .replace("{lf}", lf.toFixed(0))
         .replace("{rate}", formatCents(Math.round(ratePerLf)))}`;
 
-  const lines: Array<{ label: string; cents: number }> = [
+  // Ironclad bundles steel posts + stain & seal — the engine zeroes those
+  // standalone charges when the bundle is active, so they fall out of the
+  // filter below (no double-charge). They're re-surfaced as "included"
+  // sub-lines under the Ironclad upgrade so the customer sees the value.
+  const lines: Array<{ label: string; cents: number; included?: string[] }> = [
     { label: baseFenceLabel, cents: adjustedBaseFence },
+    {
+      label: "Ironclad Install upgrade",
+      cents: breakdown.ironclad_cents,
+      included: [
+        "Steel posts · lifetime rot warranty",
+        "Stain & seal",
+        "36″ post set · 240+ lbs concrete each",
+        "3-yr workmanship · 15-yr post & picket warranty",
+      ],
+    },
+    { label: "Board-on-board privacy", cents: breakdown.board_on_board_cents },
     { label: "Steel post upgrade", cents: breakdown.steel_upgrade_cents },
     { label: "Cap rail + trim", cents: breakdown.cap_rail_cents },
     { label: "Black vinyl posts", cents: breakdown.match_vinyl_posts_cents },
@@ -559,17 +586,34 @@ function InvoiceCard({
 
       <div className="px-6 py-5">
         <ul className="space-y-2.5">
-          {lines.map((line) => (
-            <li
-              key={line.label}
-              className="flex items-baseline justify-between gap-4 font-body text-[13.5px]"
-            >
-              <span className="text-char">{line.label}</span>
-              <span className="font-mono text-[13px] tabular-nums text-navy">
-                {formatCents(line.cents)}
-              </span>
-            </li>
-          ))}
+          {lines.flatMap((line) => {
+            const rendered = [
+              <li
+                key={line.label}
+                className="flex items-baseline justify-between gap-4 font-body text-[13.5px]"
+              >
+                <span className="text-char">{line.label}</span>
+                <span className="font-mono text-[13px] tabular-nums text-navy">
+                  {formatCents(line.cents)}
+                </span>
+              </li>,
+            ];
+            // Bundled-in items: listed under their parent line with no price.
+            for (const inc of line.included ?? []) {
+              rendered.push(
+                <li
+                  key={`${line.label}-${inc}`}
+                  className="flex items-baseline justify-between gap-4 pl-4 font-body text-[12.5px]"
+                >
+                  <span className="text-steel">↳ {inc}</span>
+                  <span className="font-mono text-[11px] uppercase tracking-spec text-steel">
+                    included
+                  </span>
+                </li>
+              );
+            }
+            return rendered;
+          })}
           {/* Permits + OK811 line locate — both absorbed into the total but
               shown as "incl." so the customer reads them as bundled service,
               not separate add-ons. */}
