@@ -118,6 +118,13 @@ export const quotes = pgTable(
     heightUpgrade: boolean("height_upgrade").default(false),
     frenchGothic: boolean("french_gothic").default(false),
     stainSeal: boolean("stain_seal").default(false),
+    // Pricing-v2 add-on selections, persisted so /configure restores them
+    // on reload (otherwise a reload silently drops the upgrade + its price).
+    steelPostUpgrade: boolean("steel_post_upgrade").default(false),
+    capRailTrim: boolean("cap_rail_trim").default(false),
+    matchVinylPosts: boolean("match_vinyl_posts").default(false),
+    ironclad: boolean("ironclad").default(false),
+    boardOnBoard: boolean("board_on_board").default(false),
 
     // Gates: jsonb array of { type, count, position?: { lat, lng } }
     gates: jsonb("gates").$type<

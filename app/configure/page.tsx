@@ -52,6 +52,11 @@ interface QuoteShape {
   city: string | null;
   skuCode: string | null;
   stainSeal: boolean | null;
+  steelPostUpgrade: boolean | null;
+  capRailTrim: boolean | null;
+  matchVinylPosts: boolean | null;
+  ironclad: boolean | null;
+  boardOnBoard: boolean | null;
   gates?: Array<{ type: string; count: number }> | null;
 }
 
@@ -148,7 +153,14 @@ function ConfigurePageInner() {
             setFamilyCode(picked.family);
           }
         }
+        // Restore add-on selections so a reload keeps the customer's
+        // upgrades (and their price) instead of silently dropping them.
         if (q.stainSeal) setStainSeal(true);
+        if (q.steelPostUpgrade) setSteelPostUpgrade(true);
+        if (q.capRailTrim) setCapRailTrim(true);
+        if (q.matchVinylPosts) setMatchVinylPosts(true);
+        if (q.ironclad) setIronclad(true);
+        if (q.boardOnBoard) setBoardOnBoard(true);
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : t.configure.loadFailed);

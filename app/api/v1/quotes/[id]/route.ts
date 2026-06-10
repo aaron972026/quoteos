@@ -196,6 +196,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         heightUpgrade: d.height_upgrade,
         frenchGothic: d.french_gothic,
         stainSeal: d.stain_seal,
+        steelPostUpgrade: d.steel_post_upgrade,
+        capRailTrim: d.cap_rail_trim,
+        matchVinylPosts: d.match_vinyl_posts,
+        ironclad: d.ironclad,
+        boardOnBoard: d.board_on_board,
         gates: d.gates,
         ...(d.ownership !== undefined
           ? {
