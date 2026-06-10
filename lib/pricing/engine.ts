@@ -89,6 +89,27 @@ export function calculatePrice(
     }
   }
 
+  // ─── Ironclad Install bundle ($13/LF, wood-post families only) ─────
+  // Bundles steel posts + stain & seal + the 36"-deep / 240+ lb post set
+  // + extended warranties (3-yr workmanship, 15-yr post & picket). The
+  // bundle ABSORBS the standalone steel and stain charges: if those
+  // flags also arrive (e.g. stain_seal is persisted true so the BOM
+  // orders stain materials), their line items zero out with a warning
+  // rather than double-charging.
+  let ironcladCents = 0;
+  if (input.ironclad) {
+    if (config.steelUpgradeFamilies.has(sku.family)) {
+      ironcladCents = input.linear_feet * addons.IRONCLAD_PER_LF_CENTS;
+      if (steelUpgradeCents > 0) {
+        steelUpgradeCents = 0;
+        warnings.push("steel_absorbed_by_ironclad");
+      }
+    } else {
+      warnings.push("ironclad_ignored");
+    }
+  }
+  const ironcladActive = ironcladCents > 0;
+
   // ─── Cap rail + trim ($4/LF, wood-picket families only) ────────────
   let capRailCents = 0;
   if (input.cap_rail_trim) {
@@ -139,9 +160,17 @@ export function calculatePrice(
   const demoCents = Math.round(demoLf * demoRate);
 
   // ─── Stain & seal ($8/LF) ──────────────────────────────────────────
-  const stainCents = input.stain_seal
-    ? input.linear_feet * addons.STAIN_PER_LF_CENTS
-    : 0;
+  // Included in Ironclad — the standalone $8/LF charge zeroes out when
+  // the bundle is active (stain_seal may still arrive true so the BOM
+  // orders stain materials).
+  let stainCents = 0;
+  if (input.stain_seal) {
+    if (ironcladActive) {
+      warnings.push("stain_absorbed_by_ironclad");
+    } else {
+      stainCents = input.linear_feet * addons.STAIN_PER_LF_CENTS;
+    }
+  }
 
   // ─── Rock drilling + tear concrete ─────────────────────────────────
   const rockPosts = input.rock_drilling_posts ?? 0;
@@ -168,6 +197,7 @@ export function calculatePrice(
   // ─── Raw subtotal (pre-guards) ─────────────────────────────────────
   const rawSubtotal =
     baseFenceCents +
+    ironcladCents +
     steelUpgradeCents +
     capRailCents +
     matchVinylPostsCents +
@@ -204,6 +234,7 @@ export function calculatePrice(
   const demoCost = Math.round(demoCents * costRatios.DEMO);
   const stainCost = Math.round(stainCents * costRatios.STAIN);
   const steelCost = Math.round(steelUpgradeCents * costRatios.STEEL_UPGRADE);
+  const ironcladCost = Math.round(ironcladCents * costRatios.IRONCLAD);
   const capRailCost = Math.round(capRailCents * costRatios.CAP_RAIL);
   const matchVinylCost = Math.round(
     matchVinylPostsCents * costRatios.MATCH_VINYL_POSTS
@@ -214,6 +245,7 @@ export function calculatePrice(
 
   const totalCostCents =
     fenceCostCents +
+    ironcladCost +
     gateCost +
     demoCost +
     stainCost +
@@ -303,6 +335,7 @@ export function calculatePrice(
       slope_surcharge_cents: slopeSurchargeCents,
       access_surcharge_cents: accessSurchargeCents,
       steel_upgrade_cents: steelUpgradeCents,
+      ironclad_cents: ironcladCents,
       cap_rail_cents: capRailCents,
       match_vinyl_posts_cents: matchVinylPostsCents,
       gates_cents: gatesCents,

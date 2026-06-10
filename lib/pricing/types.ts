@@ -27,6 +27,10 @@ export interface PricingInput {
   demo_lf?: number;             // LF needing demo; defaults to linear_feet when demo_type != NONE
   gates: PricingGate[];
   stain_seal?: boolean;         // +$8/LF
+  // Ironclad Install bundle (+$13/LF, wood-post families): steel posts +
+  // stain & seal + 36"/240lb set + extended warranties. Absorbs the
+  // standalone steel_post_upgrade and stain_seal charges when active.
+  ironclad?: boolean;
   steel_post_upgrade?: boolean; // +$5/LF (wood-post families: CPF/HCF/BP — ignored elsewhere with warning)
   cap_rail_trim?: boolean;      // +$4/LF (Cedar Privacy + Horizontal Cedar + Budget Pine — wood-picket families)
   match_vinyl_posts?: boolean;  // +$3/LF (CL-VIN only — black PVC-coated posts to match the mesh)
@@ -44,6 +48,7 @@ export interface PricingBreakdown {
   slope_surcharge_cents: number;     // delta from slope mul (already inside base_fence)
   access_surcharge_cents: number;    // delta from access (already inside base_fence)
   steel_upgrade_cents: number;
+  ironclad_cents: number;            // +$13/LF Ironclad Install bundle (wood-post families)
   cap_rail_cents: number;            // +$4/LF cap rail + trim (wood-picket families)
   match_vinyl_posts_cents: number;   // +$3/LF black PVC posts (CL-VIN only)
   gates_cents: number;

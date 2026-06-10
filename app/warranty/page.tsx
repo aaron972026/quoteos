@@ -47,6 +47,58 @@ const SECTIONS: Section[] = [
           <strong>transferable</strong> to a new property owner — a benefit
           worth noting if you sell your home.
         </p>
+        <p className="mt-4">
+          Fences built with the <strong>Ironclad Install</strong> carry an
+          extended <strong>three (3) year</strong> workmanship warranty under
+          the same terms — see the Ironclad section below.
+        </p>
+      </>
+    ),
+  },
+  {
+    num: "1B",
+    title: "Ironclad Install — 15-Year Coverage",
+    body: (
+      <>
+        <p>
+          The <strong>Ironclad Install</strong> is our upgraded build and
+          warranty package. Every Ironclad fence is built with galvanized
+          steel posts set at least <strong>36 inches deep</strong> in{" "}
+          <strong>240 or more pounds of concrete per post</strong>, and the
+          cedar is stained and sealed at installation. Because of how it&apos;s
+          built, we stand behind it longer than anything else we sell:
+        </p>
+        <ul className="mt-4 space-y-2">
+          {[
+            "Lifetime rot warranty on steel posts (manufacturer's limited lifetime warranty, passed through in full)",
+            "15-year coverage against post failure — leaning, heaving, or structural collapse under normal conditions",
+            "15-year coverage against cedar picket rot-through (Ironclad fences include Stain & Seal, which this coverage requires)",
+            "3-year workmanship warranty — one year beyond standard",
+          ].map((line) => (
+            <li key={line} className="flex items-start gap-3">
+              <Check
+                size={14}
+                strokeWidth={2.5}
+                className="mt-1.5 flex-shrink-0 text-brick"
+              />
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4">
+          If a covered failure occurs within the coverage period, we repair or
+          replace the affected section at <strong>no cost to you</strong> —
+          parts and labor. Like our standard warranty, Ironclad coverage is{" "}
+          <strong>transferable</strong> to a new property owner.
+        </p>
+        <p className="mt-4">
+          Exclusions: damage from vehicle or equipment impact, ground
+          modification or excavation after installation, alteration or
+          attachment of structures to the fence by others, fire, flood, and
+          falling trees or limbs. Picket-rot coverage assumes the factory
+          Stain &amp; Seal remains intact; we recommend re-sealing every 3–4
+          years and offer it as a service.
+        </p>
       </>
     ),
   },

@@ -414,3 +414,45 @@ describe("pmtCents amortization", () => {
     expect(monthly).toBeLessThan(35200);
   });
 });
+
+// ════════════════════════════════════════════════════════════════════
+// Ironclad Install bundle — $13/LF, wood-post families, absorbs
+// the standalone steel + stain charges
+// ════════════════════════════════════════════════════════════════════
+describe("ironclad install bundle", () => {
+  it("charges $13/LF on a wood-post family", () => {
+    const base = calculatePrice(input());
+    const withIronclad = calculatePrice(input({ ironclad: true }));
+    expect(withIronclad.breakdown.ironclad_cents).toBe(150 * 1300);
+    // Raw subtotal moves by exactly the bundle (guards/rounding apply after)
+    expect(withIronclad.raw_subtotal_cents - base.raw_subtotal_cents).toBe(
+      150 * 1300
+    );
+  });
+
+  it("absorbs steel + stain instead of double-charging", () => {
+    const bundled = calculatePrice(input({ ironclad: true, steel_post_upgrade: true, stain_seal: true }));
+    const ironcladOnly = calculatePrice(input({ ironclad: true }));
+    expect(bundled.raw_subtotal_cents).toBe(ironcladOnly.raw_subtotal_cents);
+    expect(bundled.breakdown.steel_upgrade_cents).toBe(0);
+    expect(bundled.breakdown.stain_cents).toBe(0);
+    expect(bundled.warnings).toContain("steel_absorbed_by_ironclad");
+    expect(bundled.warnings).toContain("stain_absorbed_by_ironclad");
+  });
+
+  it("is ignored (with warning) on non-wood families", () => {
+    const r = calculatePrice(input({ sku_code: "CL-RES", ironclad: true }));
+    expect(r.breakdown.ironclad_cents).toBe(0);
+    expect(r.warnings).toContain("ironclad_ignored");
+  });
+
+  it("carries cost at the IRONCLAD ratio so margin stays honest", () => {
+    const base = calculatePrice(input());
+    const withIronclad = calculatePrice(input({ ironclad: true }));
+    const revenueDelta = 150 * 1300;
+    const costDelta =
+      withIronclad.internal_margin.total_cost_cents -
+      base.internal_margin.total_cost_cents;
+    expect(costDelta).toBe(Math.round(revenueDelta * 0.54));
+  });
+});

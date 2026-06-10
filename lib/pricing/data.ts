@@ -366,6 +366,13 @@ export const ADDONS = {
   ROCK_PER_POST_CENTS: 2500,           // $25/post (rock/hard-clay drilling)
   TEAR_CONCRETE_PER_POST_CENTS: 2000,  // $20/post for old concrete-set posts
   ACCESS_SURCHARGE_PCT: 0.08,          // +8% on fence subtotal for difficult access
+  // Ironclad Install bundle: steel posts (lifetime rot warranty) + stain &
+  // seal + 36" deep / 240+ lb concrete set + 3-yr workmanship + 15-yr post
+  // & cedar-picket coverage. Priced below the $13 a-la-carte component sum
+  // anchor ($5 steel + $8 standalone stain) once warranty value is stacked;
+  // bundled cost ~= $7.05/LF (steel 2.75 + in-build stain 2.80 + deeper
+  // set/extra concrete 1.00 + warranty reserve 0.50) -> 45.8% margin.
+  IRONCLAD_PER_LF_CENTS: 1300,         // $13/LF
 } as const;
 
 // ─── Permits by city (cents) ──────────────────────────────────────────
@@ -396,6 +403,7 @@ export const COST_RATIOS = {
   MATCH_VINYL_POSTS: 0.60, // black PVC posts cost-up slightly more than galv
   ROCK_DRILLING: 0.55,
   TEAR_CONCRETE: 0.55,
+  IRONCLAD: 0.54,        // bundled steel+stain+deep-set+warranty reserve (see ADDONS note)
   ACCESS: 0,             // pure margin add (no incremental cost in our model)
   PERMIT: 1.0,           // pass-through (we pay the city)
 } as const;
