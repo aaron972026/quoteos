@@ -235,9 +235,9 @@ describe("add-ons", () => {
     expect(r.warnings).toContain("steel_upgrade_ignored");
   });
 
-  it("stain & seal adds $8/LF", () => {
+  it("stain & seal adds $6/LF", () => {
     const r = calculatePrice(input({ stain_seal: true }));
-    expect(r.breakdown.stain_cents).toBe(150 * 800);
+    expect(r.breakdown.stain_cents).toBe(150 * 600);
   });
 
   it("demo adds $3/LF when demo_type is not NONE", () => {

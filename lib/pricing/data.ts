@@ -357,7 +357,7 @@ export const GATE_PRICES: Record<GateType, { price_cents: number; label: string 
 
 export const ADDONS = {
   STEEL_UPGRADE_PER_LF_CENTS: 500,     // $5/LF — wood post → steel post
-  STAIN_PER_LF_CENTS: 800,             // $8/LF
+  STAIN_PER_LF_CENTS: 600,             // $6/LF
   CAP_RAIL_PER_LF_CENTS: 400,          // $4/LF — cap rail + decorative trim (wood-picket families)
   MATCH_VINYL_POSTS_PER_LF_CENTS: 300, // $3/LF — black PVC-coated posts (CL-VIN only)
   ROCK_PER_POST_CENTS: 2500,           // $25/post (rock/hard-clay drilling)

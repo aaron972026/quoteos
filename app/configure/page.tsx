@@ -229,10 +229,14 @@ function ConfigurePageInner() {
     setFamilyCode(code);
     const fam = families.find((f) => f.code === code);
     if (!fam) return;
-    const defaultPick =
-      fam.variants.find((v) => v.tier === "better") ??
-      fam.variants[0];
+    // Ironclad-eligible families show only the basic variant + the Ironclad
+    // upgrade, so default to the basic. Other families keep the "better"
+    // (most-picked) default across their full tier lineup.
+    const defaultPick = STEEL_UPGRADE_FAMILIES.has(fam.code)
+      ? fam.variants[0]
+      : fam.variants.find((v) => v.tier === "better") ?? fam.variants[0];
     if (defaultPick) setSkuCode(defaultPick.code);
+    setIronclad(false);
   }
 
   // Reset upgrades that don't apply to the picked family/SKU
@@ -365,17 +369,19 @@ function ConfigurePageInner() {
   }
 
   const lf = Number(quote.linearFeet) || 0;
-  // Ironclad rides the family's anchor variant (the "better" slot, or the
-  // first variant) — selecting the Ironclad tier card sets that SKU +
-  // the bundle. Only wood-post families get the slot.
   const ironcladEligible =
     !!selectedFamily && STEEL_UPGRADE_FAMILIES.has(selectedFamily.code);
-  const ironcladAnchor = selectedFamily
-    ? selectedFamily.variants.find((v) => v.tier === "better") ??
-      selectedFamily.variants[0]
-    : null;
-  const tierCardCount =
-    (selectedFamily?.variants.length ?? 0) + (ironcladEligible ? 1 : 0);
+  // The basic (cheapest) variant — variants are tier-sorted, so [0] is the
+  // lowest tier. On Ironclad-eligible families we show ONLY this basic card
+  // plus the Ironclad upgrade (same SKU + the $13/LF install bundle), so the
+  // customer compares basic cost vs. the upgraded install — nothing else.
+  const baseVariant = selectedFamily?.variants[0] ?? null;
+  const ironcladAnchor = baseVariant;
+  const displayVariants =
+    ironcladEligible && baseVariant
+      ? [baseVariant]
+      : selectedFamily?.variants ?? [];
+  const tierCardCount = displayVariants.length + (ironcladEligible ? 1 : 0);
   const gateCount = Array.isArray(quote.gates)
     ? quote.gates.reduce((sum, g) => sum + (g.count ?? 0), 0)
     : 0;
@@ -490,10 +496,17 @@ function ConfigurePageInner() {
                       tierCardCount >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"
                     )}
                   >
-                    {selectedFamily.variants.map((v) => {
+                    {displayVariants.map((v) => {
                       const selected = skuCode === v.code && !ironclad;
                       const slot = v.tier;
-                      const slotLabel = slot ? TIER_SLOT_LABEL[slot] : "Option";
+                      // On Ironclad-eligible families this is the lone base
+                      // card paired against Ironclad — label it "Standard" so
+                      // it reads as basic-vs-upgraded, not a tier name.
+                      const slotLabel = ironcladEligible
+                        ? "Standard"
+                        : slot
+                          ? TIER_SLOT_LABEL[slot]
+                          : "Option";
                       // Ironclad owns the Most Picked badge when its slot renders.
                       const popular = slot === "better" && !ironcladEligible;
                       return (
@@ -679,7 +692,7 @@ function ConfigurePageInner() {
                           {[
                             "Steel posts — lifetime rot warranty",
                             "Set 36″ deep · 240+ lbs concrete each",
-                            "Stain & Seal included ($8/LF value)",
+                            "Stain & Seal included ($6/LF value)",
                             "3-Year workmanship · 15-Year post & picket coverage",
                           ].map((bullet) => (
                             <li

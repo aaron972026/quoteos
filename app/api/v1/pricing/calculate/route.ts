@@ -21,6 +21,8 @@ const Body = z.object({
   demo_lf: z.number().min(0).max(10000).optional(),
   gates: z.array(GateSchema).max(10),
   stain_seal: z.boolean().optional(),
+  ironclad: z.boolean().optional(),
+  board_on_board: z.boolean().optional(),
   steel_post_upgrade: z.boolean().optional(),
   cap_rail_trim: z.boolean().optional(),
   match_vinyl_posts: z.boolean().optional(),
