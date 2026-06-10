@@ -123,7 +123,7 @@ export default async function AdminFunnelPage({
           count(${quotes.id}) filter (where ${quotes.status} in ('deposit_paid','won'))::int as deposited
         FROM ${sessions}
         LEFT JOIN ${quotes} ON ${quotes.sessionId} = ${sessions.id}
-        WHERE ${sessions.startedAt} >= ${since}
+        WHERE ${sessions.startedAt} >= ${since.toISOString()}
         GROUP BY variant
         ORDER BY visited DESC
       `)) as unknown as VariantRow[];
