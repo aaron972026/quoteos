@@ -114,9 +114,9 @@ const SKU_SEEDS: SkuSeed[] = [
     market_max_dollars_per_lf: 40,
     market_flag: "ok",
     spec_bullets: [
-      "6' tall · 3-rail framing",
-      "KDAT pine, hand-selected",
-      "Wood posts, concrete-set",
+      "6' tall · dog-ear pickets · 3-rail framing",
+      "KDAT premium pine, hand-selected",
+      "Posts set 32″ deep · 160–200 lbs concrete each",
       "12-Month no-warp guarantee",
       STD_WARRANTY_BULLET,
     ],
@@ -137,9 +137,9 @@ const SKU_SEEDS: SkuSeed[] = [
     market_max_dollars_per_lf: 64,
     market_flag: "ok",
     spec_bullets: [
-      "6' tall · 3-rail framing",
-      "#1 cedar, dog-ear top",
-      "Wood posts, concrete-set",
+      "6' tall · dog-ear pickets · 3-rail framing",
+      "#1 grade Western Red Cedar",
+      "Posts set 32″ deep · 160–200 lbs concrete each",
       STD_WARRANTY_BULLET,
     ],
     sort_order: 12,
@@ -150,17 +150,16 @@ const SKU_SEEDS: SkuSeed[] = [
     family: "CPF",
     family_name: "Cedar Privacy",
     display_name: "Cedar Estate",
-    description: "#1/BTR cedar, board-on-board, kickboard, cap + trim.",
+    description: "#1/BTR select-grade cedar, our finest privacy build.",
     height_inches: 72,
     material_dollars_per_lf: 17,
     labor_dollars_per_lf: 9,
     market_max_dollars_per_lf: 80,
     market_flag: "ok",
     spec_bullets: [
-      "6' tall · 3-rail framing",
-      "#1/BTR cedar, board-on-board",
-      "Kickboard + cap + trim",
-      "Wood posts, concrete-set",
+      "6' tall · dog-ear pickets · 3-rail framing",
+      "#1/BTR select-grade cedar",
+      "Posts set 32″ deep · 160–200 lbs concrete each",
       STD_WARRANTY_BULLET,
     ],
     sort_order: 13,
@@ -180,9 +179,8 @@ const SKU_SEEDS: SkuSeed[] = [
     market_max_dollars_per_lf: 62,
     market_flag: "ok",
     spec_bullets: [
-      "6' tall",
-      "1×6 cedar horizontal slats",
-      "Wood posts, concrete-set",
+      "6' tall · 1×6 cedar horizontal slats",
+      "Posts set 32″ deep · 160–200 lbs concrete each",
       STD_WARRANTY_BULLET,
     ],
     sort_order: 20,
@@ -200,10 +198,9 @@ const SKU_SEEDS: SkuSeed[] = [
     market_max_dollars_per_lf: 84,
     market_flag: "ok",
     spec_bullets: [
-      "6' tall",
-      "1×6 #1 cedar, mitered corners",
+      "6' tall · 1×6 #1 cedar, mitered corners",
       "Hidden fasteners",
-      "Wood posts, concrete-set",
+      "Posts set 32″ deep · 160–200 lbs concrete each",
       STD_WARRANTY_BULLET,
     ],
     sort_order: 21,
@@ -373,6 +370,8 @@ export const ADDONS = {
   // bundled cost ~= $7.05/LF (steel 2.75 + in-build stain 2.80 + deeper
   // set/extra concrete 1.00 + warranty reserve 0.50) -> 45.8% margin.
   IRONCLAD_PER_LF_CENTS: 1300,         // $13/LF
+  // Board-on-board privacy: overlapped pickets, no gaps as wood dries.
+  BOARD_ON_BOARD_PER_LF_CENTS: 700,    // $7/LF
 } as const;
 
 // ─── Permits by city (cents) ──────────────────────────────────────────
@@ -404,6 +403,7 @@ export const COST_RATIOS = {
   ROCK_DRILLING: 0.55,
   TEAR_CONCRETE: 0.55,
   IRONCLAD: 0.54,        // bundled steel+stain+deep-set+warranty reserve (see ADDONS note)
+  BOARD_ON_BOARD: 0.55,  // mostly extra picket material + the labor to lap them
   ACCESS: 0,             // pure margin add (no incremental cost in our model)
   PERMIT: 1.0,           // pass-through (we pay the city)
 } as const;

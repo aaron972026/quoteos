@@ -112,6 +112,8 @@ function ConfigurePageInner() {
   // Ironclad Install bundle — steel posts + stain & seal + 36"/240lb set
   // + extended warranties at $13/LF. Absorbs the steel + stain add-ons.
   const [ironclad, setIronclad] = useState(false);
+  // Board-on-board privacy — +$7/LF toggle (wood-picket families).
+  const [boardOnBoard, setBoardOnBoard] = useState(false);
 
   const [pricing, setPricing] = useState<PricingResponse | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
@@ -230,10 +232,16 @@ function ConfigurePageInner() {
     if (!CAP_RAIL_FAMILIES.has(selectedSku.family) && capRailTrim) {
       setCapRailTrim(false);
     }
+    if (!CAP_RAIL_FAMILIES.has(selectedSku.family) && boardOnBoard) {
+      setBoardOnBoard(false);
+    }
+    if (!STEEL_UPGRADE_FAMILIES.has(selectedSku.family) && ironclad) {
+      setIronclad(false);
+    }
     if (selectedSku.code !== "CL-VIN" && matchVinylPosts) {
       setMatchVinylPosts(false);
     }
-  }, [selectedSku, steelPostUpgrade, capRailTrim, matchVinylPosts]);
+  }, [selectedSku, steelPostUpgrade, capRailTrim, matchVinylPosts, boardOnBoard, ironclad]);
 
   // Live pricing
   useEffect(() => {
@@ -256,6 +264,7 @@ function ConfigurePageInner() {
             gates: quote.gates ?? [],
             stain_seal: stainSeal,
             ironclad,
+            board_on_board: boardOnBoard,
             steel_post_upgrade: steelPostUpgrade,
             cap_rail_trim: capRailTrim,
             match_vinyl_posts: matchVinylPosts,
@@ -277,7 +286,7 @@ function ConfigurePageInner() {
       clearTimeout(timer);
       ctl.abort();
     };
-  }, [skuCode, stainSeal, steelPostUpgrade, capRailTrim, matchVinylPosts, ironclad, quote]);
+  }, [skuCode, stainSeal, steelPostUpgrade, capRailTrim, matchVinylPosts, ironclad, boardOnBoard, quote]);
 
   function handleContinue() {
     if (!quoteId || !skuCode) return;
@@ -294,6 +303,7 @@ function ConfigurePageInner() {
             // stain materials; the engine zeroes its charge when bundled.
             stain_seal: stainSeal || ironclad,
             ironclad,
+            board_on_board: boardOnBoard,
             steel_post_upgrade: steelPostUpgrade,
             cap_rail_trim: capRailTrim,
             match_vinyl_posts: matchVinylPosts,
@@ -343,6 +353,17 @@ function ConfigurePageInner() {
   }
 
   const lf = Number(quote.linearFeet) || 0;
+  // Ironclad rides the family's anchor variant (the "better" slot, or the
+  // first variant) — selecting the Ironclad tier card sets that SKU +
+  // the bundle. Only wood-post families get the slot.
+  const ironcladEligible =
+    !!selectedFamily && STEEL_UPGRADE_FAMILIES.has(selectedFamily.code);
+  const ironcladAnchor = selectedFamily
+    ? selectedFamily.variants.find((v) => v.tier === "better") ??
+      selectedFamily.variants[0]
+    : null;
+  const tierCardCount =
+    (selectedFamily?.variants.length ?? 0) + (ironcladEligible ? 1 : 0);
   const gateCount = Array.isArray(quote.gates)
     ? quote.gates.reduce((sum, g) => sum + (g.count ?? 0), 0)
     : 0;
@@ -454,23 +475,25 @@ function ConfigurePageInner() {
                     aria-label="Tier selection"
                     className={cn(
                       "mt-5 grid gap-4",
-                      selectedFamily.variants.length === 3
-                        ? "sm:grid-cols-3"
-                        : "sm:grid-cols-2"
+                      tierCardCount >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"
                     )}
                   >
                     {selectedFamily.variants.map((v) => {
-                      const selected = skuCode === v.code;
+                      const selected = skuCode === v.code && !ironclad;
                       const slot = v.tier;
                       const slotLabel = slot ? TIER_SLOT_LABEL[slot] : "Option";
-                      const popular = slot === "better";
+                      // Ironclad owns the Most Picked badge when its slot renders.
+                      const popular = slot === "better" && !ironcladEligible;
                       return (
                         <button
                           key={v.code}
                           type="button"
                           role="radio"
                           aria-checked={selected}
-                          onClick={() => setSkuCode(v.code)}
+                          onClick={() => {
+                            setSkuCode(v.code);
+                            setIronclad(false);
+                          }}
                           className={cn(
                             "group relative flex flex-col rounded-sm border p-5 pt-7 text-left transition-all",
                             selected
@@ -564,138 +587,71 @@ function ConfigurePageInner() {
                         </button>
                       );
                     })}
-                  </div>
-                </>
-              )}
 
-              {/* Section 03 — Choose Your Install (wood-post families).
-                  Tier choice, not a checkbox: everyone picks an install
-                  level, so Ironclad reads as a decision, not a fee. */}
-              {selectedSku && STEEL_UPGRADE_FAMILIES.has(selectedSku.family) && (
-                <>
-                  <div className="mt-10">
-                    <SectionHeader num="03" label="Choose Your Install" />
-                  </div>
-                  <div
-                    role="radiogroup"
-                    aria-label="Install level"
-                    className="mt-5 grid gap-4 sm:grid-cols-2"
-                  >
-                    {/* Standard */}
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={!ironclad}
-                      onClick={() => setIronclad(false)}
-                      className={cn(
-                        "flex flex-col rounded-sm border p-5 text-left transition-all",
-                        !ironclad
-                          ? "border-navy bg-cream shadow-card-lg ring-2 ring-brass/40"
-                          : "border-navy/15 bg-paper text-navy hover:border-navy/40"
-                      )}
-                    >
-                      <div className="font-display text-[20px] font-bold uppercase leading-none text-navy">
-                        Standard Install
-                      </div>
-                      <div className="mt-1 font-mono text-[11px] uppercase tracking-spec text-steel">
-                        Included
-                      </div>
-                      <ul className="mt-3 space-y-1.5">
-                        {[
-                          "Posts set 32″ deep · 160–200 lbs concrete each",
-                          "2-Year workmanship warranty, in writing",
-                          "5-Year cedar post warranty",
-                        ].map((b) => (
-                          <li
-                            key={b}
-                            className="flex items-start gap-1.5 font-body text-[12.5px] leading-[1.45] text-char"
-                          >
-                            <Check size={12} strokeWidth={2.5} className="mt-1 flex-shrink-0 text-brick" />
-                            <span>{b}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </button>
-
-                    {/* Ironclad */}
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={ironclad}
-                      onClick={() => setIronclad(true)}
-                      className={cn(
-                        "relative flex flex-col rounded-sm border p-5 pt-7 text-left transition-all",
-                        ironclad
-                          ? "border-navy bg-navy text-cream shadow-card-lg ring-2 ring-brass/40"
-                          : "border-navy/15 bg-paper text-navy hover:border-navy/40"
-                      )}
-                    >
-                      <span
+                    {/* Ironclad slot — replaces the old "Best" box on
+                        wood-post families. Rides the anchor variant +
+                        the $13/LF bundle; selecting it sets both. */}
+                    {ironcladEligible && ironcladAnchor && (
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={ironclad}
+                        onClick={() => {
+                          setSkuCode(ironcladAnchor.code);
+                          setIronclad(true);
+                        }}
                         className={cn(
-                          "absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-pill px-3 py-0.5 font-display text-[10px] font-semibold uppercase tracking-eyebrow",
-                          ironclad ? "bg-brass text-navy" : "bg-brick text-cream"
+                          "group relative flex flex-col rounded-sm border p-5 pt-7 text-left transition-all",
+                          ironclad
+                            ? "border-navy bg-navy text-cream shadow-card-lg ring-2 ring-brass/40"
+                            : "border-navy/15 bg-paper text-navy hover:border-navy/40"
                         )}
                       >
-                        Most Picked
-                      </span>
-                      <div
-                        className={cn(
-                          "font-display text-[20px] font-bold uppercase leading-none",
-                          ironclad ? "text-brass" : "text-brick"
-                        )}
-                      >
-                        Ironclad Install
-                      </div>
-                      <div
-                        className={cn(
-                          "mt-1 font-body text-[12px] italic",
-                          ironclad ? "text-cream/80" : "text-steel"
-                        )}
-                      >
-                        A 15-year asset instead of a 5-year liability.
-                      </div>
-                      <ul className="mt-3 space-y-1.5">
-                        {[
-                          "Steel posts — lifetime rot warranty",
-                          "Set 36″ deep · 240+ lbs concrete each",
-                          "Stain & Seal included (a $8/LF add-on)",
-                          "3-Year workmanship warranty (vs. 2)",
-                          "15-Year coverage — post failure AND cedar picket rot. If it fails, we fix it. Free.",
-                        ].map((b) => (
-                          <li
-                            key={b}
-                            className={cn(
-                              "flex items-start gap-1.5 font-body text-[12.5px] leading-[1.45]",
-                              ironclad ? "text-cream/85" : "text-char"
-                            )}
-                          >
-                            <Check
-                              size={12}
-                              strokeWidth={2.5}
-                              className={cn("mt-1 flex-shrink-0", ironclad ? "text-brass" : "text-brick")}
-                            />
-                            <span>{b}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      <div className="mt-4 border-t border-current/15 pt-3">
-                        <div
+                        <span
                           className={cn(
-                            "font-mono text-[10.5px] uppercase tracking-spec",
-                            ironclad ? "text-cream/60" : "text-steel"
+                            "absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-pill px-3 py-0.5 font-display text-[10px] font-semibold uppercase tracking-eyebrow",
+                            ironclad ? "bg-brass text-navy" : "bg-brick text-cream"
                           )}
                         >
-                          <span className="line-through">$17+/LF value</span>{" "}
-                          · save $4+/LF bundled
+                          Most Picked
+                        </span>
+
+                        <div
+                          className={cn(
+                            "font-display text-[32px] font-bold uppercase leading-[0.95] tracking-[0.02em]",
+                            ironclad ? "text-brass" : "text-brick"
+                          )}
+                        >
+                          Ironclad
                         </div>
-                        <div className="mt-1 flex items-baseline gap-1.5">
+
+                        <div
+                          className={cn(
+                            "mt-2 font-display text-[13px] font-semibold uppercase tracking-eyebrow",
+                            ironclad ? "text-cream" : "text-navy"
+                          )}
+                        >
+                          {ironcladAnchor.displayName} · Ironclad Install
+                        </div>
+                        <p
+                          className={cn(
+                            "mt-2 font-body text-[12.5px] leading-[1.45]",
+                            ironclad ? "text-cream/80" : "text-steel"
+                          )}
+                        >
+                          A 15-year asset instead of a 5-year liability.
+                        </p>
+
+                        <div className="mt-4 flex items-baseline gap-1.5">
                           <span
                             className={cn(
                               "font-display text-[24px] font-bold tabular-nums",
                               ironclad ? "text-cream" : "text-navy"
                             )}
                           >
-                            +$13
+                            {formatCents(
+                              ironcladAnchor.basePricePerLfCents + 1300
+                            )}
                           </span>
                           <span
                             className={cn(
@@ -706,23 +662,53 @@ function ConfigurePageInner() {
                             {t.configure.perLF}
                           </span>
                         </div>
+
+                        <ul className="mt-3 space-y-1.5">
+                          {[
+                            "Steel posts — lifetime rot warranty",
+                            "Set 36″ deep · 240+ lbs concrete each",
+                            "Stain & Seal included ($8/LF value)",
+                            "3-Year workmanship · 15-Year post & picket coverage",
+                          ].map((bullet) => (
+                            <li
+                              key={bullet}
+                              className={cn(
+                                "flex items-start gap-1.5 font-body text-[12px] leading-[1.45]",
+                                ironclad ? "text-cream/80" : "text-char"
+                              )}
+                            >
+                              <Check
+                                size={12}
+                                strokeWidth={2.5}
+                                className={cn(
+                                  "mt-1 flex-shrink-0",
+                                  ironclad ? "text-brass" : "text-brick"
+                                )}
+                              />
+                              <span>{bullet}</span>
+                            </li>
+                          ))}
+                        </ul>
+
                         {lf > 0 && (
-                          <div
+                          <p
                             className={cn(
-                              "mt-1 font-body text-[12px]",
-                              ironclad ? "text-cream/75" : "text-steel"
+                              "mt-3 border-t pt-3 font-body text-[12px] leading-[1.45]",
+                              ironclad
+                                ? "border-cream/15 text-cream/75"
+                                : "border-navy/10 text-steel"
                             )}
                           >
-                            +{formatCents(1300 * lf)} on your {lf.toFixed(0)} LF — about{" "}
+                            About{" "}
                             <span className="font-semibold">
                               {formatCents(Math.round((1300 * lf) / 180))}/month
                             </span>{" "}
-                            over the 15 years it&rsquo;s guaranteed. One wood-post
-                            repair runs $200–300.
-                          </div>
+                            more over the 15 years it&rsquo;s guaranteed. One
+                            wood-post repair runs $200–300.
+                          </p>
                         )}
-                      </div>
-                    </button>
+                      </button>
+                    )}
                   </div>
                 </>
               )}
@@ -730,7 +716,7 @@ function ConfigurePageInner() {
               {/* Customize toggles — appear after the customer picks a tier
                   so the screen flows family → level → upgrades. */}
               <div className="mt-10">
-                <SectionHeader num="04" label="Add Upgrades" />
+                <SectionHeader num="03" label="Add Upgrades" />
               </div>
               <div className="mt-4 space-y-3">
                 <AddonRow
@@ -754,6 +740,17 @@ function ConfigurePageInner() {
                       : "Available on cedar + pine wood-post families."
                   }
                   onChange={setSteelPostUpgrade}
+                />
+                <AddonRow
+                  label="Board-on-Board Privacy"
+                  description="Overlapped pickets — zero gaps as the wood dries. Full privacy from every angle."
+                  priceLabel="+$7/LF"
+                  checked={boardOnBoard}
+                  disabled={
+                    !selectedSku || !CAP_RAIL_FAMILIES.has(selectedSku.family)
+                  }
+                  disabledReason="Available on wood-picket families (cedar, horizontal cedar, pine)."
+                  onChange={setBoardOnBoard}
                 />
                 <AddonRow
                   label="Cap Rail + Trim"
@@ -842,6 +839,9 @@ function ConfigurePageInner() {
                     )}
                     {steelPostUpgrade && !ironclad && (
                       <EstimateRow label="Steel posts" value="✓" />
+                    )}
+                    {boardOnBoard && (
+                      <EstimateRow label="Board-on-board" value="✓" />
                     )}
                     {capRailTrim && (
                       <EstimateRow label="Cap rail + trim" value="✓" />

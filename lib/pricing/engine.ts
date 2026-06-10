@@ -120,6 +120,18 @@ export function calculatePrice(
     }
   }
 
+  // ─── Board-on-board privacy ($7/LF, wood-picket families only) ─────
+  // Overlapped pickets so the fence stays gap-free as the wood dries.
+  let boardOnBoardCents = 0;
+  if (input.board_on_board) {
+    if (config.capRailFamilies.has(sku.family)) {
+      boardOnBoardCents =
+        input.linear_feet * addons.BOARD_ON_BOARD_PER_LF_CENTS;
+    } else {
+      warnings.push("board_on_board_ignored");
+    }
+  }
+
   // ─── Match black vinyl posts ($3/LF, CL-VIN only) ──────────────────
   let matchVinylPostsCents = 0;
   if (input.match_vinyl_posts) {
@@ -200,6 +212,7 @@ export function calculatePrice(
     ironcladCents +
     steelUpgradeCents +
     capRailCents +
+    boardOnBoardCents +
     matchVinylPostsCents +
     gatesCents +
     demoCents +
@@ -236,6 +249,9 @@ export function calculatePrice(
   const steelCost = Math.round(steelUpgradeCents * costRatios.STEEL_UPGRADE);
   const ironcladCost = Math.round(ironcladCents * costRatios.IRONCLAD);
   const capRailCost = Math.round(capRailCents * costRatios.CAP_RAIL);
+  const boardOnBoardCost = Math.round(
+    boardOnBoardCents * costRatios.BOARD_ON_BOARD
+  );
   const matchVinylCost = Math.round(
     matchVinylPostsCents * costRatios.MATCH_VINYL_POSTS
   );
@@ -251,6 +267,7 @@ export function calculatePrice(
     stainCost +
     steelCost +
     capRailCost +
+    boardOnBoardCost +
     matchVinylCost +
     rockCost +
     tearCost +
@@ -336,6 +353,7 @@ export function calculatePrice(
       access_surcharge_cents: accessSurchargeCents,
       steel_upgrade_cents: steelUpgradeCents,
       ironclad_cents: ironcladCents,
+      board_on_board_cents: boardOnBoardCents,
       cap_rail_cents: capRailCents,
       match_vinyl_posts_cents: matchVinylPostsCents,
       gates_cents: gatesCents,

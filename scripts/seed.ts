@@ -92,7 +92,10 @@ async function seedSkus() {
           marketMaxPerLfCents: s.market_max_per_lf_cents,
           marketFlag: s.market_flag,
           postsStandard: s.posts_standard,
-          active: true,
+          // NOTE: `active` deliberately NOT in the update set. The admin
+          // UI owns hide/show now (DB-backed pricing config) — re-running
+          // the seed must never silently re-publish offerings the owner
+          // hid in /admin/skus. New rows still insert active: true above.
           specBullets: s.spec_bullets,
           sortOrder: s.sort_order,
         },

@@ -456,3 +456,38 @@ describe("ironclad install bundle", () => {
     expect(costDelta).toBe(Math.round(revenueDelta * 0.54));
   });
 });
+
+// ════════════════════════════════════════════════════════════════════
+// Board-on-board — $7/LF toggle, wood-picket families
+// ════════════════════════════════════════════════════════════════════
+describe("board-on-board add-on", () => {
+  it("charges $7/LF on a wood-picket family", () => {
+    const base = calculatePrice(input());
+    const withBob = calculatePrice(input({ board_on_board: true }));
+    expect(withBob.breakdown.board_on_board_cents).toBe(150 * 700);
+    expect(withBob.raw_subtotal_cents - base.raw_subtotal_cents).toBe(
+      150 * 700
+    );
+  });
+
+  it("is ignored (with warning) on chain link", () => {
+    const r = calculatePrice(input({ sku_code: "CL-RES", board_on_board: true }));
+    expect(r.breakdown.board_on_board_cents).toBe(0);
+    expect(r.warnings).toContain("board_on_board_ignored");
+  });
+
+  it("stacks with ironclad without interference", () => {
+    const r = calculatePrice(input({ ironclad: true, board_on_board: true }));
+    expect(r.breakdown.ironclad_cents).toBe(150 * 1300);
+    expect(r.breakdown.board_on_board_cents).toBe(150 * 700);
+  });
+
+  it("carries cost at the BOARD_ON_BOARD ratio", () => {
+    const base = calculatePrice(input());
+    const withBob = calculatePrice(input({ board_on_board: true }));
+    const costDelta =
+      withBob.internal_margin.total_cost_cents -
+      base.internal_margin.total_cost_cents;
+    expect(costDelta).toBe(Math.round(150 * 700 * 0.55));
+  });
+});
