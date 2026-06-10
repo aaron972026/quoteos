@@ -24,6 +24,9 @@ export const quoteStatusEnum = pgEnum("quote_status", [
   "won",
   "lost",
   "expired",
+  // Deposit refunded by admin — terminal like "lost" but distinguishes
+  // money returned from deals that simply died.
+  "refunded",
 ]);
 
 export const tierEnum = pgEnum("tier", ["good", "better", "best"]);
@@ -222,6 +225,33 @@ export const pricingVersions = pgTable("pricing_versions", {
     .notNull()
     .defaultNow(),
 });
+
+// ─── Quote audit ──────────────────────────────────────────────────────
+// Every admin-side mutation of a quote (price adjustment, re-send,
+// refund) lands here with a required reason. This is the "who changed
+// what and why" answer once an operator other than the owner exists.
+
+export const quoteAudit = pgTable(
+  "quote_audit",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    quoteId: uuid("quote_id").notNull(),
+    // "price_adjust" | "email_resend" | "refund"
+    action: text("action").notNull(),
+    reason: text("reason"),
+    beforeCents: integer("before_cents"),
+    afterCents: integer("after_cents"),
+    // free-form context: { to } for emails, { stripeRefundId } for refunds
+    meta: jsonb("meta"),
+    actor: text("actor").notNull().default("admin"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    quoteIdx: index("quote_audit_quote_idx").on(t.quoteId),
+  })
+);
 
 // ─── SKUs ─────────────────────────────────────────────────────────────
 

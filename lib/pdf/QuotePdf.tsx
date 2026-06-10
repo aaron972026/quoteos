@@ -140,6 +140,11 @@ export interface QuotePdfData {
     slope_surcharge_cents: number;
     access_surcharge_cents: number;
     steel_upgrade_cents: number;
+    // Newer engine lines — optional so older call sites keep compiling.
+    ironclad_cents?: number;
+    board_on_board_cents?: number;
+    cap_rail_cents?: number;
+    match_vinyl_posts_cents?: number;
     gates_cents: number;
     demo_cents: number;
     stain_cents: number;
@@ -147,6 +152,11 @@ export interface QuotePdfData {
     tear_concrete_cents: number;
     permit_cents: number;
   };
+  // Admin price override delta (persisted total − engine-derived total).
+  // Rendered as its own breakdown line so the itemization always sums to
+  // the printed Total, even after a manual adjustment or for options the
+  // quote row doesn't persist as columns.
+  adjustmentCents?: number;
   validUntil: string;
 }
 
@@ -164,7 +174,11 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
   const breakdownItems = (
     [
       ["Base fence", data.breakdown.base_fence_cents],
+      ["Ironclad Install", data.breakdown.ironclad_cents ?? 0],
       ["Steel post upgrade", data.breakdown.steel_upgrade_cents],
+      ["Board-on-board privacy", data.breakdown.board_on_board_cents ?? 0],
+      ["Cap rail + trim", data.breakdown.cap_rail_cents ?? 0],
+      ["Black vinyl posts", data.breakdown.match_vinyl_posts_cents ?? 0],
       ["Gates", data.breakdown.gates_cents],
       ["Tear-out & haul", data.breakdown.demo_cents],
       ["Stain & seal", data.breakdown.stain_cents],
@@ -172,7 +186,13 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
       ["Concrete-post removal", data.breakdown.tear_concrete_cents],
       ["Permit", data.breakdown.permit_cents],
     ] as Array<[string, number]>
-  ).filter(([, v]) => v > 0);
+  )
+    .concat(
+      data.adjustmentCents != null && data.adjustmentCents !== 0
+        ? [["Selected options & adjustments", data.adjustmentCents]]
+        : []
+    )
+    .filter(([, v]) => v !== 0);
 
   const logo = getBrandLogoBuffer();
   const specLine = [

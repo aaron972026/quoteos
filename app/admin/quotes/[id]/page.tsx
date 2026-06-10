@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, FileDown } from "lucide-react";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { Feature, LineString, Polygon } from "geojson";
 import { db } from "@/lib/db/client";
-import { quotes, skus } from "@/lib/db/schema";
+import { quoteAudit, quotes, skus } from "@/lib/db/schema";
+import { QuoteActions } from "@/components/admin/QuoteActions";
 import { QuoteDetailMap } from "@/components/admin/QuoteDetailMap";
 import { MarginPanel } from "@/components/admin/MarginPanel";
 import { ScopeList } from "@/components/admin/ScopeList";
@@ -47,6 +48,14 @@ export default async function AdminQuoteDetailPage({
         .where(eq(skus.code, q.skuCode))
         .limit(1)
     : [null as null | { familyName: string; description: string }];
+
+  // Audit trail — every admin mutation of this quote, newest first.
+  const audit = await db
+    .select()
+    .from(quoteAudit)
+    .where(eq(quoteAudit.quoteId, q.id))
+    .orderBy(desc(quoteAudit.createdAt))
+    .limit(50);
 
   const lat = q.lat != null ? Number(q.lat) : null;
   const lng = q.lng != null ? Number(q.lng) : null;
@@ -208,8 +217,77 @@ export default async function AdminQuoteDetailPage({
             selectedTierCents={q.selectedTierCents}
           />
 
+          <QuoteActions
+            quoteId={q.id}
+            status={q.status}
+            customerEmail={q.customerEmail}
+            selectedTierCents={q.selectedTierCents}
+            depositCents={q.depositCents}
+            depositPaidAt={q.depositPaidAt ? q.depositPaidAt.toISOString() : null}
+            stripePaymentIntent={q.stripePaymentIntent}
+          />
+
           <ScopeList title="Customer" pairs={customerPairs} />
           <ScopeList title="Lifecycle" pairs={lifecyclePairs} />
+
+          {/* Audit trail — who changed what and why */}
+          <section className="rounded-lg border border-navy/10 bg-white p-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-navy/70">
+              Audit trail
+            </h2>
+            {audit.length === 0 ? (
+              <p className="mt-3 text-sm text-navy/40">
+                No admin actions on this quote yet.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {audit.map((a) => (
+                  <li key={a.id} className="border-l-2 border-navy/15 pl-3">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-navy">
+                        {a.action.replace("_", " ")}
+                      </span>
+                      <span className="whitespace-nowrap text-[11px] text-navy/40">
+                        {fmtDate(a.createdAt)}
+                      </span>
+                    </div>
+                    {a.action === "price_adjust" &&
+                      a.beforeCents != null &&
+                      a.afterCents != null && (
+                        <div className="mt-0.5 text-xs tabular-nums text-navy/70">
+                          {formatCents(a.beforeCents)} → {formatCents(a.afterCents)}
+                        </div>
+                      )}
+                    {a.action === "refund" && a.beforeCents != null && (
+                      <div className="mt-0.5 text-xs tabular-nums text-navy/70">
+                        {formatCents(a.beforeCents)} returned
+                        {(a.meta as { stripeRefundId?: string } | null)
+                          ?.stripeRefundId && (
+                          <span className="ml-1 font-mono text-[10px] text-navy/40">
+                            {(a.meta as { stripeRefundId?: string }).stripeRefundId}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {a.action === "email_resend" &&
+                      (a.meta as { to?: string } | null)?.to && (
+                        <div className="mt-0.5 text-xs text-navy/70">
+                          to {(a.meta as { to?: string }).to}
+                        </div>
+                      )}
+                    {a.reason && (
+                      <p className="mt-0.5 text-xs italic text-navy/60">
+                        &ldquo;{a.reason}&rdquo;
+                      </p>
+                    )}
+                    <div className="mt-0.5 text-[10px] uppercase tracking-wider text-navy/30">
+                      {a.actor}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
       </div>
     </div>

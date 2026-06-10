@@ -31,6 +31,7 @@ const STATUS_PILL: Record<string, string> = {
   won: "bg-emerald-100 text-emerald-900",
   lost: "bg-red-50 text-red-900",
   expired: "bg-navy/5 text-navy/40",
+  refunded: "bg-purple-50 text-purple-900",
 };
 
 const MARGIN_PILL: Record<NonNullable<MarginFlag>, string> = {

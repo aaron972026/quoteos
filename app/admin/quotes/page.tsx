@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, desc, eq, gte, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { quotes } from "@/lib/db/schema";
 import { QuotesTable, type QuoteRow } from "@/components/admin/QuotesTable";
@@ -15,6 +15,7 @@ const STATUSES = [
   "won",
   "lost",
   "expired",
+  "refunded",
 ] as const;
 type StatusFilter = (typeof STATUSES)[number];
 
@@ -29,6 +30,7 @@ type RangeFilter = keyof typeof RANGES;
 const PAGE_SIZE = 25;
 
 interface SearchParams {
+  view?: string;
   status?: string;
   range?: string;
   q?: string;
@@ -56,11 +58,177 @@ function buildHref(base: Record<string, string>, override: Record<string, string
   return `/admin/quotes${qs ? `?${qs}` : ""}`;
 }
 
+const QUEUE_ROW_FIELDS = {
+  id: quotes.id,
+  quoteNumber: quotes.quoteNumber,
+  status: quotes.status,
+  customerName: quotes.customerName,
+  customerEmail: quotes.customerEmail,
+  addressLine: quotes.addressLine,
+  city: quotes.city,
+  zip: quotes.zip,
+  linearFeet: quotes.linearFeet,
+  skuCode: quotes.skuCode,
+  selectedTierCents: quotes.selectedTierCents,
+  subtotalCents: quotes.subtotalCents,
+  marginFlag: quotes.marginFlag,
+  createdAt: quotes.createdAt,
+} as const;
+
+/**
+ * The action queue — the screen the operator opens every morning.
+ * Three buckets, each answering "what do I do next", oldest first
+ * (the oldest lead is the one going cold). The flat filter/search
+ * table lives under ?view=all for record lookup.
+ */
+async function ActionQueue() {
+  const now = Date.now();
+  const hourAgo = new Date(now - 60 * 60 * 1000);
+  const days14 = new Date(now - 14 * 24 * 60 * 60 * 1000);
+  const days30 = new Date(now - 30 * 24 * 60 * 60 * 1000);
+
+  // 1. Money in hand, job not started — highest urgency.
+  const handoff = (await db
+    .select(QUEUE_ROW_FIELDS)
+    .from(quotes)
+    .where(and(eq(quotes.status, "deposit_paid"), isNull(quotes.hcpJobId)))
+    .orderBy(asc(quotes.depositPaidAt))
+    .limit(15)) as QuoteRow[];
+
+  // 2. Priced with contact info, no deposit — the money pile to work.
+  const followUp = (await db
+    .select(QUEUE_ROW_FIELDS)
+    .from(quotes)
+    .where(
+      and(
+        gte(quotes.createdAt, days30),
+        isNotNull(quotes.subtotalCents),
+        isNotNull(quotes.customerEmail),
+        or(eq(quotes.status, "finalized"), eq(quotes.status, "draft"))
+      )
+    )
+    .orderBy(asc(quotes.createdAt))
+    .limit(15)) as QuoteRow[];
+
+  // 3. Drew a fence, never reached a price or left contact info.
+  const abandoned = (await db
+    .select(QUEUE_ROW_FIELDS)
+    .from(quotes)
+    .where(
+      and(
+        eq(quotes.status, "draft"),
+        gte(quotes.createdAt, days14),
+        lt(quotes.createdAt, hourAgo),
+        or(isNull(quotes.subtotalCents), isNull(quotes.customerEmail))
+      )
+    )
+    .orderBy(desc(quotes.createdAt))
+    .limit(15)) as QuoteRow[];
+
+  return (
+    <div className="space-y-8">
+      <QueueBucket
+        title="Deposit paid — needs handoff"
+        nextAction="Create the HCP job, order materials from the BOM, send the customer intro text."
+        tone="green"
+        rows={handoff}
+        emptyText="Nothing waiting — every paid deposit has an HCP job."
+      />
+      <QueueBucket
+        title="Priced, no deposit"
+        nextAction="Follow up. They saw a number and have contact info on file — oldest first."
+        tone="amber"
+        rows={followUp}
+        emptyText="No priced quotes awaiting a deposit in the last 30 days."
+      />
+      <QueueBucket
+        title="Abandoned mid-funnel"
+        nextAction="Recovery — they drew a fence but never finished. The cron texts them; call the big ones."
+        tone="gray"
+        rows={abandoned}
+        emptyText="No abandoned drafts in the last 14 days."
+      />
+    </div>
+  );
+}
+
+function QueueBucket({
+  title,
+  nextAction,
+  tone,
+  rows,
+  emptyText,
+}: {
+  title: string;
+  nextAction: string;
+  tone: "green" | "amber" | "gray";
+  rows: QuoteRow[];
+  emptyText: string;
+}) {
+  const dot =
+    tone === "green"
+      ? "bg-emerald-500"
+      : tone === "amber"
+        ? "bg-amber-500"
+        : "bg-navy/30";
+  return (
+    <section>
+      <div className="flex items-baseline gap-2">
+        <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
+        <h2 className="text-base font-bold text-navy">{title}</h2>
+        <span className="text-sm tabular-nums text-navy/50">{rows.length}</span>
+      </div>
+      <p className="mt-0.5 text-xs text-navy/50">{nextAction}</p>
+      <div className="mt-2">
+        {rows.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-navy/15 bg-white/50 p-4 text-sm text-navy/40">
+            {emptyText}
+          </div>
+        ) : (
+          <QuotesTable rows={rows} />
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default async function AdminQuotesPage({
   searchParams,
 }: {
   searchParams: SearchParams;
 }) {
+  // Queue is the default. Any filter/search/pagination param — or
+  // ?view=all — switches to the flat browse table.
+  const isQueue =
+    searchParams.view !== "all" &&
+    !searchParams.status &&
+    !searchParams.q &&
+    !searchParams.page &&
+    !searchParams.range;
+  if (isQueue) {
+    return (
+      <div>
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-navy">Action queue</h1>
+            <p className="text-sm text-navy/60">
+              What needs a human, oldest first.
+            </p>
+          </div>
+          <Link
+            href="/admin/quotes?view=all"
+            className="rounded-md border border-navy/15 bg-white px-3 py-1.5 text-xs font-semibold text-navy hover:bg-navy/5"
+          >
+            Browse all quotes →
+          </Link>
+        </div>
+        <div className="mt-5">
+          <ActionQueue />
+        </div>
+      </div>
+    );
+  }
+
   const status = parseStatus(searchParams.status);
   const range = parseRange(searchParams.range);
   const q = (searchParams.q ?? "").trim();
@@ -137,6 +305,12 @@ export default async function AdminQuotesPage({
     <div>
       <div className="flex items-end justify-between gap-3">
         <div>
+          <Link
+            href="/admin/quotes"
+            className="text-xs font-semibold text-navy/50 hover:text-navy"
+          >
+            ← Action queue
+          </Link>
           <h1 className="text-2xl font-bold text-navy">Quotes</h1>
           <p className="text-sm text-navy/60">
             {count.toLocaleString()} match{count === 1 ? "" : "es"} this filter
