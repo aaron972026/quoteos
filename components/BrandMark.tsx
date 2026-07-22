@@ -15,7 +15,7 @@ interface Props {
 /**
  * Brand logo wrapper. Points at /public/logo.svg by default. If the asset
  * file is missing or fails to load, falls back to a styled text wordmark
- * ("FENCEPROS · TULSA") so the layout never shows a broken-image icon.
+ * ("IVORY FENCE CO. · TULSA") so the layout never shows a broken-image icon.
  *
  * Client component because the fallback needs to react to the <img> onError
  * event — server components can't track that.
@@ -38,7 +38,7 @@ export function BrandMark({
           className="rounded-md bg-navy px-2 py-1 font-bold tracking-wider text-accent"
           style={{ fontSize: `${Math.round(height * 0.38)}px` }}
         >
-          FENCEPROS
+          IVORY FENCE CO.
         </span>
         <span
           className="font-medium text-navy/60"

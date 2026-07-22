@@ -213,7 +213,7 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
             <Image src={logo} style={styles.brandLogo} />
           ) : (
             <>
-              <Text style={styles.brandBadge}>FENCEPROS</Text>
+              <Text style={styles.brandBadge}>IVORY FENCE CO.</Text>
               <Text style={styles.brandCity}>TULSA</Text>
             </>
           )}

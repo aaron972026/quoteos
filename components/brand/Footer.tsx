@@ -95,7 +95,7 @@ export function Footer() {
         </div>
         <div className="mt-12 flex flex-col items-center justify-between gap-5 border-t border-brass/25 pt-6 md:flex-row">
           <div className="font-mono text-[11px] uppercase tracking-spec text-brass">
-            FENCEPROS · TULSA · OKLAHOMA
+            IVORY FENCE CO. · TULSA · OKLAHOMA
           </div>
           <div className="pickets" aria-hidden="true">
             {Array.from({ length: 9 }).map((_, i) => (
