@@ -23,10 +23,14 @@ export default function LandingPage() {
     <>
       <SessionInit />
       <div className="flex min-h-dvh flex-col bg-paper">
-        <Header />
+        <Header dark />
 
         {/* ─── Hero ─────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden">
+        {/* Noir surface per brand spec (heroes / quote header / footer are
+            the dark brand surfaces). Cream-on-noir reads softer than the
+            near-black-on-ivory it replaced, and the subtle top-to-bottom
+            gradient keeps it from looking like a flat slab. */}
+        <section className="relative overflow-hidden bg-gradient-to-b from-navy-soft via-navy to-navy">
           {/* Decorative pickets, top-right */}
           <div
             className="pickets absolute right-10 top-10 hidden opacity-40 md:flex"
@@ -43,18 +47,20 @@ export default function LandingPage() {
 
               <h1
                 className={cn(
-                  "mt-7 font-display font-bold uppercase text-navy",
+                  "mt-7 font-display font-bold uppercase text-paper",
                   "text-[44px] leading-[0.95] tracking-tightest md:text-[88px]"
                 )}
               >
                 {t.title_pre}{" "}
-                <span className="text-brick">{t.title_highlight}</span>
+                {/* Gold-on-dark for the highlight — forest green on noir is
+                    too low-contrast to carry emphasis. */}
+                <span className="text-brass-soft">{t.title_highlight}</span>
                 {t.title_post}
                 <br />
                 {t.title_sub}
               </h1>
 
-              <p className="mx-auto mt-7 max-w-[58ch] font-body text-[18px] leading-[1.5] text-char md:text-[21px]">
+              <p className="mx-auto mt-7 max-w-[58ch] font-body text-[18px] leading-[1.5] text-cream/75 md:text-[21px]">
                 {t.subtitle}
               </p>
 
@@ -74,7 +80,7 @@ export default function LandingPage() {
               </div>
 
               <div className="mx-auto mt-16 max-w-[920px]">
-                <TrustBar />
+                <TrustBar dark />
               </div>
             </div>
           </div>
