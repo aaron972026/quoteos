@@ -133,7 +133,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   try {
-    const subject = `Your FencePros quote — ${familyName} (${row.skuCode})`;
+    const subject = `Your Ivory Fence Co. quote — ${familyName} (${row.skuCode})`;
     // Resend's emails.send returns { data, error } and does NOT always throw
     // on API rejection (unverified sender, blocked recipient, etc). Treat a
     // non-null `error` as failure so the route doesn't say "sent" for a
@@ -148,11 +148,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         `Attached is a PDF of your ${familyName} quote.`,
         `Price is held for 7 days. Lock it in with a $99 refundable deposit anytime.`,
         ``,
-        `— FencePros Tulsa`,
+        `— Ivory Fence Co.`,
       ].join("\n"),
       attachments: [
         {
-          filename: `FencePros-Quote-${row.quoteNumber ?? row.id.slice(0, 8)}.pdf`,
+          filename: `Ivory-Quote-${row.quoteNumber ?? row.id.slice(0, 8)}.pdf`,
           content: pdfBuffer,
         },
       ],

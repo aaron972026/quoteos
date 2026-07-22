@@ -206,18 +206,18 @@ export async function resendQuoteEmail(
     const result = await getResend().emails.send({
       from: fromAddress(),
       to,
-      subject: `Your FencePros quote — ${familyName} (${row.skuCode})`,
+      subject: `Your Ivory Fence Co. quote — ${familyName} (${row.skuCode})`,
       text: [
         `Thanks for the time you spent on the quote tool.`,
         ``,
         `Attached is an updated PDF of your ${familyName} quote.`,
         `Price is held for 7 days. Lock it in with a $99 refundable deposit anytime.`,
         ``,
-        `— FencePros Tulsa`,
+        `— Ivory Fence Co.`,
       ].join("\n"),
       attachments: [
         {
-          filename: `FencePros-Quote-${row.quoteNumber ?? row.id.slice(0, 8)}.pdf`,
+          filename: `Ivory-Quote-${row.quoteNumber ?? row.id.slice(0, 8)}.pdf`,
           content: pdfBuffer,
         },
       ],

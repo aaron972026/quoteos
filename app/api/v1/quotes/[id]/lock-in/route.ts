@@ -99,7 +99,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           price_data: {
             currency: "usd",
             product_data: {
-              name: "FencePros — Hold deposit",
+              name: "Ivory Fence Co. — Hold deposit",
               description: `Reserves your ${row.skuCode ?? "fence"} quote for ${row.addressLine ?? "your project"}. Refundable for 7 days.`,
             },
             unit_amount: FINANCING.DEPOSIT_CENTS,

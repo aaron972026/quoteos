@@ -27,7 +27,7 @@ const SECTIONS: MaterialSection[] = [
       { label: "Treatment", value: "Kiln-dried, no chemical treatment — cedar's natural oils repel rot and insects" },
     ],
     body:
-      "Cedar grays gracefully — that's the wood doing its job, not failing. A FencePros-applied stain (optional add-on) slows the graying and pulls a 2-year stain warranty along with it.",
+      "Cedar grays gracefully — that's the wood doing its job, not failing. A Ivory Fence Co.-applied stain (optional add-on) slows the graying and pulls a 2-year stain warranty along with it.",
   },
   {
     eyebrow: "02 · Wood",
@@ -101,7 +101,7 @@ const SECTIONS: MaterialSection[] = [
     specs: [
       { label: "Type", value: "Penetrating oil-based, semi-transparent" },
       { label: "Coverage", value: "Both faces, all visible surfaces" },
-      { label: "Warranty", value: "2-year against premature peeling (FencePros-applied only)" },
+      { label: "Warranty", value: "2-year against premature peeling (Ivory Fence Co.-applied only)" },
       { label: "Add-on price", value: "+$8/LF · selectable on the configure step" },
     ],
   },

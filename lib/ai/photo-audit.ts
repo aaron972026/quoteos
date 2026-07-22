@@ -32,7 +32,7 @@ export interface PhotoAuditResult {
   audited_at: string;
 }
 
-const SYSTEM_PROMPT = `You are a fence-quoting assistant for FencePros Tulsa. A homeowner has uploaded 1–3 photos of their yard alongside a request for an instant quote. Your job is to look at the photos and produce a structured assessment for the pricing engine.
+const SYSTEM_PROMPT = `You are a fence-quoting assistant for Ivory Fence Co.. A homeowner has uploaded 1–3 photos of their yard alongside a request for an instant quote. Your job is to look at the photos and produce a structured assessment for the pricing engine.
 
 Identify, where possible:
 

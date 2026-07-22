@@ -249,7 +249,7 @@ const en: Dictionary = {
     step2Body: "Tap each corner. We do the math.",
     step3Title: "See your price",
     step3Body: "Pick your level, add upgrades, lock it for $99.",
-    whyTitle: "Why FencePros?",
+    whyTitle: "Why Ivory Fence Co.?",
     reasons: [
       "Tulsa-based crews — installed 200+ fences locally",
       "Cedar privacy, horizontal cedar, KDAT pine, chain link, ranch rail",
@@ -576,7 +576,7 @@ const es: Dictionary = {
     step2Body: "Toca cada esquina. Nosotros calculamos.",
     step3Title: "Ve tu precio",
     step3Body: "Elige tu nivel, suma extras, resérvala por $99.",
-    whyTitle: "¿Por qué FencePros?",
+    whyTitle: "¿Por qué Ivory Fence Co.?",
     reasons: [
       "Equipos de Tulsa — más de 200 cercas instaladas localmente",
       "Cedro privacidad, cedro horizontal, pino KDAT, malla ciclónica, riel ranchero",

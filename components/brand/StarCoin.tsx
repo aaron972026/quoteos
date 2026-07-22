@@ -20,7 +20,7 @@ export function StarCoin({ size = 56, pulse = false, className }: Props) {
       width={size}
       height={size}
       className={cn(pulse && "animate-coinpulse", className)}
-      aria-label="FencePros"
+      aria-label="Ivory Fence Co."
       role="img"
     >
       <circle cx="32" cy="32" r="30" fill="#1A2A4A" />

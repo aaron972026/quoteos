@@ -25,7 +25,7 @@ export default function QuoteSuccessPage({
         <div className="font-semibold text-navy">What happens next</div>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-navy/70">
           <li>Receipt email from Stripe (already on its way)</li>
-          <li>FencePros calls or texts to lock the install date</li>
+          <li>Ivory Fence Co. calls or texts to lock the install date</li>
           <li>Final walk-through and payment plan (Wisetack if you choose)</li>
           <li>Crew arrives, builds your fence in 1–3 days</li>
         </ol>

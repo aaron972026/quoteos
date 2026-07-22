@@ -5,8 +5,8 @@
 :root {
   /* Brand v1.0 — paper surface as the default page background per spec
      ("Tulsa Cream — paper surface"). Ink as default body color. */
-  --background: #FBF8F0;
-  --foreground: #15161A;
+  --background: #FCF9F1;
+  --foreground: #23201A;
   /* Lock to light UA form styling regardless of system dark-mode preference.
      Without this, browsers in dark mode render <input> with a dark background
      by default — visible on the Google Places web component's internal input. */
@@ -48,14 +48,14 @@ body {
   align-items: center;
   gap: 8px;
   max-width: 100%;
-  font-family: var(--font-display), "Oswald", "Arial Narrow", sans-serif;
+  font-family: var(--font-display), "Fraunces", Georgia, serif;
   font-weight: 600;
-  color: #C8962E;
+  color: #C99A3F;
   text-transform: uppercase;
   letter-spacing: .18em;
   font-size: 12px;
 }
-.dashes .d { display: inline-block; height: 1.5px; background: #C8962E; flex: none; }
+.dashes .d { display: inline-block; height: 1.5px; background: #C99A3F; flex: none; }
 .dashes .d.short { width: 8px; }
 .dashes .d.long { width: 28px; }
 .dashes.tight .d.long { width: 20px; }
@@ -76,7 +76,7 @@ body {
   display: block;
   width: 8px;
   height: 18px;
-  background: #C8962E;
+  background: #C99A3F;
   clip-path: polygon(0 22%, 50% 0, 100% 22%, 100% 100%, 0 100%);
 }
 .pickets span:nth-child(odd) { height: 22px; }
@@ -90,12 +90,12 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 9999px;
-  background: #F4A623;
-  color: #1F3A5F;
+  background: #C99A3F;
+  color: #16120D;
   font-weight: 700;
   font-size: 12px;
-  font-family: var(--font-inter), system-ui, sans-serif;
-  box-shadow: 0 2px 6px rgba(31, 58, 95, 0.35), 0 0 0 3px rgba(255, 255, 255, 0.95);
+  font-family: var(--font-body), system-ui, sans-serif;
+  box-shadow: 0 2px 6px rgba(22, 18, 13, 0.35), 0 0 0 3px rgba(255, 255, 255, 0.95);
   cursor: grab;
   user-select: none;
 }
@@ -113,7 +113,7 @@ body {
   padding: 0;
   border: 1.5px solid #fff;
   border-radius: 9999px;
-  background: #1F3A5F;
+  background: #16120D;
   color: #fff;
   font-size: 14px;
   font-weight: 700;
@@ -122,10 +122,10 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-family: var(--font-inter), system-ui, sans-serif;
+  font-family: var(--font-body), system-ui, sans-serif;
 }
 .qos-gate-marker-delete:hover {
-  background: #b3261e;
+  background: #9E3B2E;
 }
 
 /* Style the Google Places web component to match our Input primitive.
@@ -141,33 +141,33 @@ body {
   width: 100%;
   display: block;
   color-scheme: light;
-  background: #FBF8F0;
+  background: #FCF9F1;
 }
 .qos-address-autocomplete gmp-place-autocomplete::part(input),
 .qos-address-autocomplete gmp-place-autocomplete::part(prediction-item),
 .qos-address-autocomplete gmp-place-autocomplete input {
-  background-color: #FBF8F0 !important;
+  background-color: #FCF9F1 !important;
   background-image: none !important;
-  color: #15161A !important;
+  color: #23201A !important;
   color-scheme: light !important;
-  font-family: var(--font-body), "Source Sans 3", system-ui, sans-serif !important;
+  font-family: var(--font-body), "Inter", system-ui, sans-serif !important;
 }
 .qos-address-autocomplete gmp-place-autocomplete::part(input),
 .qos-address-autocomplete gmp-place-autocomplete input {
   height: 3.5rem;
   width: 100%;
   border-radius: 3px;
-  border: 1px solid rgb(26 42 74 / 0.25);
+  border: 1px solid rgb(35 32 26 / 0.22);
   padding: 0.75rem 1rem;
   font-size: 1.125rem;
 }
 .qos-address-autocomplete gmp-place-autocomplete::part(input)::placeholder,
 .qos-address-autocomplete gmp-place-autocomplete input::placeholder {
-  color: rgb(107 111 118 / 0.7) !important;
+  color: rgb(138 129 114 / 0.8) !important;
 }
 .qos-address-autocomplete gmp-place-autocomplete::part(input):focus,
 .qos-address-autocomplete gmp-place-autocomplete input:focus {
-  outline: 2px solid #1A2A4A;
+  outline: 2px solid #2F5D43;
   outline-offset: 2px;
 }
 

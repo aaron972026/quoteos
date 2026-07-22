@@ -170,10 +170,10 @@ function smsBody(
   const lf = linearFeet != null ? `${Math.round(Number(linearFeet))} ft of ` : "";
   switch (interval) {
     case "15m":
-      return `FencePros: still thinking about your ${lf}fence quote? Pick up where you left off: ${link}`;
+      return `Ivory Fence Co.: still thinking about your ${lf}fence quote? Pick up where you left off: ${link}`;
     case "1h":
-      return `FencePros: your ${lf}fence quote is saved. Lock it in for $99 (refundable): ${link}`;
+      return `Ivory Fence Co.: your ${lf}fence quote is saved. Lock it in for $99 (refundable): ${link}`;
     case "24h":
-      return `FencePros: your fence quote expires soon — finish in 60s: ${link}. Reply STOP to opt out.`;
+      return `Ivory Fence Co.: your fence quote expires soon — finish in 60s: ${link}. Reply STOP to opt out.`;
   }
 }

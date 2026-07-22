@@ -197,14 +197,14 @@ const SECTIONS: Section[] = [
   },
   {
     num: "06",
-    title: "Stain & Seal — 2 Years (When Applied by FencePros)",
+    title: "Stain & Seal — 2 Years (When Applied by Ivory Fence Co.)",
     body: (
       <p>
-        If FencePros applies stain or sealant as part of your installation, we
+        If Ivory Fence Co. applies stain or sealant as part of your installation, we
         warrant that application against{" "}
         <strong>premature peeling or failure</strong> for{" "}
         <strong>two (2) years</strong>. We do not warrant stain or sealant
-        applied by anyone other than FencePros.
+        applied by anyone other than Ivory Fence Co..
       </p>
     ),
   },
@@ -221,7 +221,7 @@ const SECTIONS: Section[] = [
           {[
             ["Acts of God", "Storms, tornadoes, hail, flood, fire, lightning, or other extreme weather events. (If a storm damages your fence, this is typically a homeowner's insurance matter — and we're glad to help. Call our Storm Line.)"],
             ["Soil movement", "Erosion, expansive-clay heave, settling, sinkholes, or grade changes after installation."],
-            ["Third-party or external damage", "Vehicles, equipment, livestock, pets, falling trees or limbs, vandalism, or the actions of any person other than FencePros."],
+            ["Third-party or external damage", "Vehicles, equipment, livestock, pets, falling trees or limbs, vandalism, or the actions of any person other than Ivory Fence Co.."],
             ["Natural weathering of wood", "Graying, minor checking, slight warping within tolerance, and other normal characteristics of natural cedar or wood."],
             ["Modifications", "Any alteration, addition, attachment, paint, or stain applied by you or a third party after installation."],
             ["Neglect", "Failure to perform reasonable maintenance, or failure to report a problem promptly so it can be addressed before it worsens."],
@@ -291,7 +291,7 @@ const SECTIONS: Section[] = [
         The <strong>Workmanship Warranty</strong> transfers automatically to a
         new owner for the remainder of its term. The{" "}
         <strong>Post & Structural Warranty</strong> transfers with written
-        notice to FencePros within 30 days of a property sale. A transferable
+        notice to Ivory Fence Co. within 30 days of a property sale. A transferable
         warranty is a genuine asset when you sell — it tells a buyer the fence
         was built right.
       </p>
@@ -303,10 +303,10 @@ const SECTIONS: Section[] = [
     body: (
       <p>
         This is a <strong>limited warranty</strong>. It is the complete and
-        exclusive warranty offered by FencePros and supersedes any prior verbal
-        or written representations. FencePros&apos; obligation under this
+        exclusive warranty offered by Ivory Fence Co. and supersedes any prior verbal
+        or written representations. Ivory Fence Co.&apos; obligation under this
         warranty is limited to repair or replacement of the covered defect, at
-        our reasonable discretion. FencePros is not liable for incidental,
+        our reasonable discretion. Ivory Fence Co. is not liable for incidental,
         consequential, or indirect damages except where required by law. This
         warranty does not affect any rights you may have under applicable
         Oklahoma consumer-protection law.
@@ -341,7 +341,7 @@ export default function WarrantyPage() {
         </div>
         <div className="mx-auto max-w-[1280px] px-5 py-14 md:px-10 md:py-20">
           <div className="max-w-[820px]">
-            <Eyebrow>The FencePros Promise</Eyebrow>
+            <Eyebrow>The Ivory Fence Co. Promise</Eyebrow>
             <h1 className="mt-6 font-display text-[44px] font-bold uppercase leading-[0.95] tracking-tightest text-navy md:text-[72px]">
               Limited Warranty.
               <br />
@@ -349,7 +349,7 @@ export default function WarrantyPage() {
             </h1>
             <p className="mt-6 max-w-[58ch] font-body text-[18px] leading-[1.5] text-char md:text-[21px]">
               A fence is only as good as the company that stands behind it.
-              Every FencePros fence is built post-by-post, concrete-set, and
+              Every Ivory Fence Co. fence is built post-by-post, concrete-set, and
               backed in writing. This document explains exactly what we cover,
               for how long, and what to do if something isn&apos;t right.
             </p>
@@ -410,9 +410,9 @@ export default function WarrantyPage() {
           {/* Footer disclaimer */}
           <div className="mt-16 border-t border-navy/15 pt-6 text-center">
             <p className="font-body text-[13px] italic leading-[1.55] text-steel">
-              FencePros — {BUSINESS.city}, {BUSINESS.state}. Licensed, bonded,
+              Ivory Fence Co. — {BUSINESS.city}, {BUSINESS.state}. Licensed, bonded,
               and insured. This warranty applies to residential fence
-              installations completed by FencePros within our service area.
+              installations completed by Ivory Fence Co. within our service area.
             </p>
           </div>
         </div>

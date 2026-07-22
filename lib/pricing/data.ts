@@ -92,7 +92,7 @@ interface SkuSeed {
   posts_standard: "cedar_wood" | "galv_line";
 }
 
-// Standard warranty bullet shown on every SKU card. Reflects the FencePros
+// Standard warranty bullet shown on every SKU card. Reflects the Ivory Fence Co.
 // Limited Warranty doc — 2-year workmanship + 5-year cedar post (or 15-year
 // with the steel-post upgrade purchased on /configure).
 const STD_WARRANTY_BULLET = "2-Year workmanship · 5-Year cedar post";

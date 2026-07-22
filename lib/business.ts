@@ -6,8 +6,13 @@
 
 export const BUSINESS = {
   /** Friendly brand name. */
-  name: "FencePros Tulsa",
-  /** Legal LLC name — used in quote PDF footer and ToS. */
+  name: "Ivory Fence Co.",
+  /**
+   * Legal LLC name — used in quote PDF footer and ToS.
+   * DELIBERATELY NOT REBRANDED: this names the legal entity that carries the
+   * warranty and contract obligations. Only change once the registered entity
+   * (or the correct d/b/a phrasing) is confirmed.
+   */
   legalName: "FencePros Tulsa LLC",
   /** Display phone (national format). */
   phone: "918-345-7246",

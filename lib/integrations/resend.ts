@@ -16,6 +16,6 @@ export function getResend(): Resend {
 /** From-address; defaults to the verified production sender. */
 export function fromAddress(): string {
   return (
-    process.env.RESEND_FROM_EMAIL ?? "FencePros Tulsa <quotes@fenceprostulsa.com>"
+    process.env.RESEND_FROM_EMAIL ?? "Ivory Fence Co. <quotes@fenceprostulsa.com>"
   );
 }
