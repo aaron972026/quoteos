@@ -29,6 +29,38 @@
 
 ## L1 — High-impact, ready to build
 
+### Rep visit scheduler — remaining slices (IN PROGRESS)
+**Decision (2026-07-22):** the $99 customer deposit is being removed. The funnel now ends
+in a booked **scope-confirmation visit**; the rep confirms scope, shows samples, upsells,
+presents the final price, and **collects the deposit in Housecall Pro** — not in this app.
+**Settled params:** Tue/Wed/Fri · 90-minute arrival windows (9:00, 10:30, 12:00, 13:30,
+15:00 Central) · 24h minimum lead · 21-day horizon · America/Chicago · email **and** SMS.
+Stripe stays in the codebase behind a flag (so a deposit can return if no-shows spike).
+
+- **Slice 1 — DONE:** `lib/scheduling/availability.ts` + tests, `appointments` table,
+  `visit_scheduled`/`visit_completed` statuses, `scripts/add-appointments.ts`.
+- **Slice 2** — booking API (availability + create), partial-unique double-booking
+  handling, rate limiting. *Ship rate limiting WITH this*: once the funnel books rep
+  visits, calendar-flooding burns real windshield time — see SECURITY_AUDIT.md.
+- **Slice 3** — customer slot-picker UI on `/quote/[id]`, replacing the deposit CTA.
+- **Slice 4** — notifications: confirmation email w/ `.ics`, SMS confirm, 24h reminder,
+  **owner/rep ping on every new booking** (Aaron explicitly wants this).
+- **Slice 5** — copy sweep: `$99` out of the customer path (flagged, not deleted),
+  dictionaries EN **and** ES, landing, abandoned-cart. Soften the accuracy claim
+  ("within $400, 90% of the time") until there's data, and unify the install-window
+  copy ("two weeks" vs "10–17 days" vs the new 10-day/5-day target).
+- **Slice 6** — admin: appointments view + rebuild the action-queue buckets around
+  visits instead of deposits.
+
+### Calendar sync for the rep (Google Calendar)
+**Status:** deferred — Aaron: "I will absolutely want calendar sync with my or the rep's
+calendar." Slice 4 ships an `.ics` attachment as the cheap stand-in (one tap to add).
+**What:** real two-way Google Calendar sync so a booking lands on the rep's calendar
+automatically and the rep's existing busy blocks suppress slots in `generateSlots`.
+**Where:** `lib/scheduling/availability.ts` already takes a `booked` list — feed it
+busy times from the Calendar API. Needs a Google Cloud OAuth app + token storage.
+**Size:** medium. Do after the scheduler is live and the slot shape has settled.
+
 ### CRIT-3 — Tap-to-reposition vertex on `/draw`
 **Status:** partially mitigated. CRIT-1 auto-mode-revert keeps the user from getting stuck, but the real fix per the build spec is hit-test on tap so tapping near a vertex repositions it instead of doing nothing.
 **Spec source:** `QuoteOS_Critical_Draw_Bugs.md` § CRIT-1 fix req #1, also referenced as P1-1 (loupe).

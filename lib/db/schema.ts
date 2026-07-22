@@ -27,6 +27,19 @@ export const quoteStatusEnum = pgEnum("quote_status", [
   // Deposit refunded by admin — terminal like "lost" but distinguishes
   // money returned from deals that simply died.
   "refunded",
+  // Scope-confirmation visit flow: the customer booked a rep visit off the
+  // 90-second estimate, and later the rep completed it. The deal closes in
+  // Housecall Pro (deposit is collected there), so `won` still terminates.
+  "visit_scheduled",
+  "visit_completed",
+]);
+
+/** Lifecycle of a booked scope-confirmation visit. */
+export const appointmentStatusEnum = pgEnum("appointment_status", [
+  "scheduled",
+  "completed",
+  "canceled",
+  "no_show",
 ]);
 
 export const tierEnum = pgEnum("tier", ["good", "better", "best"]);
@@ -250,6 +263,45 @@ export const quoteAudit = pgTable(
   },
   (t) => ({
     quoteIdx: index("quote_audit_quote_idx").on(t.quoteId),
+  })
+);
+
+// ─── Appointments ─────────────────────────────────────────────────────
+// Scope-confirmation visits booked off the 90-second estimate. Slots are
+// defined in Tulsa wall-clock time but stored as UTC instants — see
+// lib/scheduling/availability.ts for the timezone contract.
+//
+// DOUBLE-BOOKING is prevented by a PARTIAL unique index on starts_at
+// limited to status='scheduled', so a canceled slot frees up for rebooking.
+// Drizzle can't express the partial predicate here, so the index is created
+// in scripts/add-appointments.ts — keep the two in sync.
+
+export const appointments = pgTable(
+  "appointments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    quoteId: uuid("quote_id").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    status: appointmentStatusEnum("status").notNull().default("scheduled"),
+    // Contact snapshot at booking time — the quote row can change later,
+    // and the rep needs to know who they agreed to meet.
+    customerName: text("customer_name"),
+    customerEmail: text("customer_email"),
+    customerPhone: text("customer_phone"),
+    /** Anything the customer wants the rep to know (gate side, dogs, etc). */
+    notes: text("notes"),
+    canceledAt: timestamp("canceled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    quoteIdx: index("appointments_quote_idx").on(t.quoteId),
+    startsAtIdx: index("appointments_starts_at_idx").on(t.startsAt),
   })
 );
 
