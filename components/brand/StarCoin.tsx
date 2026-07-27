@@ -9,9 +9,9 @@ interface Props {
 }
 
 /**
- * Brand mark in coin form — navy disc, brick roundel, brass ring, cream
- * 5-point star. Used as favicon (when raster), loaders, and small placements
- * where the full lockup is overkill. Self-contained SVG — no external assets.
+ * Decorative coin mark — noir disc, gold ring, cream 5-point star (Ivory
+ * palette). Small accent placements only; the loading state uses
+ * <PicketLoader/> now. Self-contained SVG — no external assets.
  */
 export function StarCoin({ size = 56, pulse = false, className }: Props) {
   return (
@@ -23,18 +23,18 @@ export function StarCoin({ size = 56, pulse = false, className }: Props) {
       aria-label="Ivory Fence Co."
       role="img"
     >
-      <circle cx="32" cy="32" r="30" fill="#1A2A4A" />
+      <circle cx="32" cy="32" r="30" fill="#16120D" />
       <circle
         cx="32"
         cy="32"
         r="22"
-        fill="#8B2332"
-        stroke="#C8962E"
+        fill="#211C15"
+        stroke="#C99A3F"
         strokeWidth="2.5"
       />
       <polygon
         points="32,16 37,27 49,28 40,36 43,49 32,42 21,49 24,36 15,28 27,27"
-        fill="#F4F1E8"
+        fill="#FCF9F1"
       />
     </svg>
   );

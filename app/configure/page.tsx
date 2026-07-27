@@ -913,7 +913,9 @@ function ConfigurePageInner() {
                     {t.configure.coverageTitle}
                   </div>
                   <p className="mt-2 font-body text-[12.5px] leading-[1.5] text-char">
-                    {t.configure.coverageBody}
+                    {ironclad
+                      ? t.configure.coverageBodyIvory
+                      : t.configure.coverageBody}
                   </p>
                 </div>
               </div>

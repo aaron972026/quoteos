@@ -81,6 +81,26 @@ body {
 }
 .pickets span:nth-child(odd) { height: 22px; }
 
+/* Picket loader — a row of gold pickets whose brightness sweeps left→right
+   like a loading bar. Each picket runs the same fade loop, offset by an
+   animation-delay set inline per index (see PicketLoader.tsx). */
+.picket-loader { display: inline-flex; align-items: flex-end; gap: 6px; }
+.picket-loader span {
+  display: block;
+  background: #C99A3F;
+  border-radius: 1.5px 1.5px 0 0;
+  clip-path: polygon(0 22%, 50% 0, 100% 22%, 100% 100%, 0 100%);
+  opacity: 0.18;
+  animation: picketWave 1.15s ease-in-out infinite;
+}
+@keyframes picketWave {
+  0%, 100% { opacity: 0.18; transform: translateY(2px) scaleY(0.9); }
+  45%      { opacity: 1;    transform: translateY(0)   scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .picket-loader span { animation-duration: 2.4s; }
+}
+
 /* Gate markers on the fence map — circular badge with width label */
 .qos-gate-marker {
   position: relative;

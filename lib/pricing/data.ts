@@ -129,7 +129,7 @@ const SKU_SEEDS: SkuSeed[] = [
     code: "CPF-PRM",
     family: "CPF",
     family_name: "Cedar Privacy",
-    display_name: "Cedar Premium",
+    display_name: "Premium Cedar",
     description: "#1 cedar, dog-ear top, 3-rail framing.",
     height_inches: 72,
     material_dollars_per_lf: 13,

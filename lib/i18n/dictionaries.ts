@@ -158,6 +158,7 @@ export interface Dictionary {
     estimateHelper: string; // "Final range shown on the next step."
     coverageTitle: string;
     coverageBody: string;
+    coverageBodyIvory: string; // shown when the Ivory Standard install is selected
     continueCta: string;
     backLink: string;
     backToDrawing: string;
@@ -447,6 +448,8 @@ const en: Dictionary = {
     coverageTitle: "What This Covers",
     coverageBody:
       "Materials, labor, concrete, fasteners, cleanup, and our 2-year workmanship + 5-year post warranty. Permits and OK811 line inspection handled by us.",
+    coverageBodyIvory:
+      "Ivory Standard: PostMaster+ steel posts (lifetime rot & bend), stain & seal, and a 36″-deep, 240 lb concrete set — plus 3-year workmanship, 10-year post & picket coverage, and manufacturer warranties on every material. Permits and OK811 line inspection handled by us.",
     continueCta: "See Final Price",
     backLink: "Back To Map",
     backToDrawing: "Back to drawing",
@@ -774,6 +777,8 @@ const es: Dictionary = {
     coverageTitle: "Qué incluye",
     coverageBody:
       "Materiales, mano de obra, concreto, herrajes, limpieza y garantía de mano de obra de 2 años + poste de 5 años. Permisos e inspección OK811 a nuestro cargo.",
+    coverageBodyIvory:
+      "Ivory Standard: postes de acero PostMaster+ (garantía de por vida contra pudrición y flexión), sellado y barniz, y postes a 36″ de profundidad con 240 lb de concreto — más 3 años de mano de obra, 10 años de cobertura de postes y tablas, y garantías del fabricante en cada material. Permisos e inspección OK811 a nuestro cargo.",
     continueCta: "Ver precio final",
     backLink: "Volver al mapa",
     backToDrawing: "Volver al dibujo",

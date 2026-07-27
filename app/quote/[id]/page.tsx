@@ -17,6 +17,7 @@ import { Progress } from "@/components/brand/Progress";
 import { Eyebrow } from "@/components/brand/Eyebrow";
 import { Footer } from "@/components/brand/Footer";
 import { StarCoin } from "@/components/brand/StarCoin";
+import { PicketLoader } from "@/components/brand/PicketLoader";
 import { QuoteCountdown } from "@/components/quote/QuoteCountdown";
 import { EmailSheet } from "@/components/quote/EmailSheet";
 import { WisetackWidget } from "@/components/quote/WisetackWidget";
@@ -195,8 +196,8 @@ export default function QuotePage({ params }: { params: { id: string } }) {
       <div className="flex min-h-dvh flex-col bg-paper">
         <Header dark />
         <Progress step={4} dark />
-        <main className="flex flex-1 flex-col items-center justify-center gap-3">
-          <StarCoin size={56} pulse />
+        <main className="flex flex-1 flex-col items-center justify-center gap-4">
+          <PicketLoader height={30} label={t.quote.loading} />
           <p className="font-mono text-[11px] uppercase tracking-spec text-steel">
             {t.quote.loading}
           </p>
