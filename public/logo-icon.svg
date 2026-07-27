@@ -1,7 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <title>Ivory Fence Co. Star Coin</title>
-  <rect width="512" height="512" rx="96" ry="96" fill="#1A2A4A"></rect>
-  <circle cx="256" cy="256" r="180" fill="#C8962E"></circle>
-  <circle cx="256" cy="256" r="160" fill="#8B2332"></circle>
-  <polygon points="256.00,138.00 283.63,217.98 368.22,219.54 300.70,270.52 325.36,351.46 256.00,303.00 186.64,351.46 211.30,270.52 143.78,219.54 228.37,217.98" fill="#F4F1E8"></polygon>
+  <title>Ivory Fence Co.</title>
+  <!-- Noir field, cream serif "I", gold dot — font-free geometry so it
+       renders identically as a favicon (SVG favicons don't load web fonts). -->
+  <rect width="512" height="512" rx="112" ry="112" fill="#16120D"/>
+  <!-- Serif "I": vertical stem + top/bottom slabs -->
+  <g fill="#FCF9F1">
+    <rect x="232" y="150" width="48" height="212" rx="4"/>
+    <rect x="196" y="150" width="120" height="26" rx="6"/>
+    <rect x="196" y="336" width="120" height="26" rx="6"/>
+  </g>
+  <!-- The gold dot — the brand's single accent -->
+  <circle cx="336" cy="348" r="26" fill="#C99A3F"/>
 </svg>

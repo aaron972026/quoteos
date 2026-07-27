@@ -48,7 +48,7 @@ export function Footer() {
       <div className="mx-auto max-w-[1280px] px-5 py-14 md:px-10">
         <div className="grid gap-10 md:grid-cols-[1.6fr_1fr_1fr_1fr]">
           <div>
-            <BrandMark height={40} />
+            <BrandMark height={40} dark />
             <p className="mt-5 max-w-[36ch] font-body text-[14px] leading-relaxed text-cream/75">
               Cedar privacy fencing built post-by-post. Concrete-set,
               weather-graded, warranty-backed in writing.

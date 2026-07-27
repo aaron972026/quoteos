@@ -51,7 +51,7 @@ export function Header({
           className="flex items-center gap-3 select-none"
           aria-label={`${BUSINESS.name} home`}
         >
-          <BrandMark height={40} />
+          <BrandMark height={40} dark={dark} />
         </Link>
 
         {links && links.length > 0 && (
