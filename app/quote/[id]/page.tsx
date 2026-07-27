@@ -236,7 +236,7 @@ export default function QuotePage({ params }: { params: { id: string } }) {
   const concreteRow = {
     title: "Concrete-Set Posts, Plumb",
     body:
-      "Posts set 32–36″ deep · 160–240 lbs of 3,000-psi concrete per post (Ironclad sets deepest, with the most concrete). Plumb and square, checked twice with a 4-foot level.",
+      "Posts set 32–36″ deep · 160–240 lbs of 3,000-psi concrete per post (Ivory Standard sets deepest, with the most concrete). Plumb and square, checked twice with a 4-foot level.",
   };
 
   const inclusionsRendered = [
@@ -539,13 +539,14 @@ function InvoiceCard({
   const lines: Array<{ label: string; cents: number; included?: string[] }> = [
     { label: baseFenceLabel, cents: adjustedBaseFence },
     {
-      label: "Ironclad Install upgrade",
+      label: "Ivory Standard upgrade",
       cents: breakdown.ironclad_cents,
       included: [
-        "Steel posts · lifetime rot warranty",
+        "PostMaster steel posts · lifetime rot & bend warranty",
         "Stain & seal",
         "36″ post set · 240+ lbs concrete each",
-        "3-yr workmanship · 15-yr post & picket warranty",
+        "3-yr workmanship · 10-yr post & picket warranty",
+        "Manufacturer warranties on all materials",
       ],
     },
     { label: "Board-on-board privacy", cents: breakdown.board_on_board_cents },

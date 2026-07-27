@@ -364,7 +364,7 @@ export const ADDONS = {
   ROCK_PER_POST_CENTS: 2500,           // $25/post (rock/hard-clay drilling)
   TEAR_CONCRETE_PER_POST_CENTS: 2000,  // $20/post for old concrete-set posts
   ACCESS_SURCHARGE_PCT: 0.08,          // +8% on fence subtotal for difficult access
-  // Ironclad Install bundle: steel posts (lifetime rot warranty) + stain &
+  // Ironclad Install bundle (customer-facing name: Ivory Standard): PostMaster steel posts (lifetime rot & bend warranty) + stain &
   // seal + 36" deep / 240+ lb concrete set + 3-yr workmanship + 15-yr post
   // & cedar-picket coverage. Priced below the $13 a-la-carte component sum
   // anchor ($5 steel + $8 standalone stain) once warranty value is stacked;
@@ -428,7 +428,7 @@ export const MARGIN_THRESHOLDS = {
 
 // Families that allow steel-post upgrade. Chain Link already has galv posts;
 // wood-post families (cedar, horizontal cedar, budget pine) can upgrade
-// wood → steel for the 15-year structural warranty.
+// wood → steel for the lifetime rot & bend warranty.
 export const STEEL_UPGRADE_FAMILIES: Set<SkuFamily> = new Set<SkuFamily>([
   "CPF",
   "HCF",

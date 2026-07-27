@@ -48,31 +48,33 @@ const SECTIONS: Section[] = [
           worth noting if you sell your home.
         </p>
         <p className="mt-4">
-          Fences built with the <strong>Ironclad Install</strong> carry an
-          extended <strong>three (3) year</strong> workmanship warranty under
-          the same terms — see the Ironclad section below.
+          Fences built with the <strong>Ivory Standard</strong> installation
+          carry an extended <strong>three (3) year</strong> workmanship warranty
+          under the same terms — see the Ivory Standard section below.
         </p>
       </>
     ),
   },
   {
     num: "1B",
-    title: "Ironclad Install — 15-Year Coverage",
+    title: "Ivory Standard — Warranty-Protected Installation",
     body: (
       <>
         <p>
-          The <strong>Ironclad Install</strong> is our upgraded build and
-          warranty package. Every Ironclad fence is built with galvanized
-          steel posts set at least <strong>36 inches deep</strong> in{" "}
+          <strong>Ivory Standard</strong> is our premium build and warranty
+          package. Every Ivory Standard fence is built with{" "}
+          <strong>PostMaster+ galvanized steel posts</strong> set at least{" "}
+          <strong>36 inches deep</strong> in{" "}
           <strong>240 or more pounds of concrete per post</strong>, and the
           cedar is stained and sealed at installation. Because of how it&apos;s
           built, we stand behind it longer than anything else we sell:
         </p>
         <ul className="mt-4 space-y-2">
           {[
-            "Lifetime rot warranty on steel posts (manufacturer's limited lifetime warranty, passed through in full)",
-            "15-year coverage against post failure — leaning, heaving, or structural collapse under normal conditions",
-            "15-year coverage against cedar picket rot-through (Ironclad fences include Stain & Seal, which this coverage requires)",
+            "Lifetime rot & bend warranty on PostMaster+ steel posts (manufacturer's limited lifetime warranty, passed through in full)",
+            "10-year coverage against post failure — leaning, heaving, or structural collapse under normal conditions",
+            "10-year coverage against cedar picket rot-through (Ivory Standard fences include Stain & Seal, which this coverage requires)",
+            "Manufacturer warranties on all materials, passed through in full",
             "3-year workmanship warranty — one year beyond standard",
           ].map((line) => (
             <li key={line} className="flex items-start gap-3">
@@ -88,8 +90,8 @@ const SECTIONS: Section[] = [
         <p className="mt-4">
           If a covered failure occurs within the coverage period, we repair or
           replace the affected section at <strong>no cost to you</strong> —
-          parts and labor. Like our standard warranty, Ironclad coverage is{" "}
-          <strong>transferable</strong> to a new property owner.
+          parts and labor. Like our standard warranty, Ivory Standard coverage
+          is <strong>transferable</strong> to a new property owner.
         </p>
         <p className="mt-4">
           Exclusions: damage from vehicle or equipment impact, ground
@@ -122,21 +124,22 @@ const SECTIONS: Section[] = [
           from substantial completion.
         </p>
         <h3 className="mt-5 font-display text-[16px] font-semibold uppercase tracking-eyebrow text-navy">
-          Upgraded PostMaster+ Steel Posts — 15 Years
+          Upgraded PostMaster+ Steel Posts — Lifetime Rot &amp; Bend
         </h3>
         <p className="mt-2">
           Galvanized, powder-coated steel posts don&apos;t rot. When you upgrade
           to our <strong>PostMaster+ Hidden Steel Post System</strong>, your
-          posts are warranted against <strong>structural failure</strong> for{" "}
-          <strong>fifteen (15) years</strong>, rated to withstand winds up to
-          130 mph. This is the strongest post warranty we offer, and the upgrade
-          most of our premium customers choose.
+          posts carry a <strong>lifetime warranty against rot and bending</strong>,
+          rated to withstand winds up to 130 mph. This is the strongest post
+          warranty we offer — the manufacturer&apos;s limited lifetime warranty,
+          passed through to you in full — and the upgrade most of our premium
+          customers choose.
         </p>
         <p className="mt-4">
-          &ldquo;Structural failure&rdquo; means the post fails to perform its
-          load-bearing function. It does <strong>not</strong> include cosmetic
-          changes such as powder-coat fading or surface oxidation, which do not
-          affect performance.
+          The lifetime rot &amp; bend warranty covers a post that rots through
+          or bends out of plumb under normal conditions. It does{" "}
+          <strong>not</strong> include cosmetic changes such as powder-coat
+          fading or surface oxidation, which do not affect performance.
         </p>
       </>
     ),
@@ -175,10 +178,12 @@ const SECTIONS: Section[] = [
     body: (
       <>
         <p>
-          All fence materials carry the warranties of their original
-          manufacturers, which we pass through to you in full. We will provide
-          manufacturer warranty documentation on request and assist you in
-          filing any manufacturer claim.
+          Every material we install — cedar and pine lumber, PostMaster+ steel
+          posts, chain-link mesh and fittings, gate hardware, and stain —
+          carries the warranty of its original manufacturer, which we pass
+          through to you in full. We will provide manufacturer warranty
+          documentation on request and assist you in filing any manufacturer
+          claim.
         </p>
         <p className="mt-4">
           <strong>A note on cedar:</strong> Natural cedar weathers. Over time it
@@ -318,7 +323,8 @@ const SECTIONS: Section[] = [
 const AT_A_GLANCE: Array<{ term: string; def: string }> = [
   { term: "2-Year Workmanship Warranty", def: "every fence we build · transferable" },
   { term: "5-Year Post Warranty", def: "standard cedar posts, against structural failure" },
-  { term: "15-Year Structural Warranty", def: "upgraded PostMaster+ steel posts · 130 mph wind rated" },
+  { term: "10-Year Post & Picket", def: "Ivory Standard installation" },
+  { term: "Lifetime Steel Post Warranty", def: "PostMaster+ posts, against rot & bending · 130 mph wind rated" },
   { term: "12-Month No-Warp Warranty", def: "our KDAT premium pine line" },
   { term: "1-Year Gate & Hardware", def: "against defects" },
   { term: "Manufacturer warranties", def: "pass through on all materials" },

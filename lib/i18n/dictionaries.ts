@@ -310,7 +310,7 @@ const en: Dictionary = {
         eyebrow: "03 · Warranty",
         title: "Warranted In Writing.",
         body:
-          "2-year workmanship (transferable) and a 5-year cedar post warranty come standard. Upgrade to PostMaster+ steel posts for 15-year structural — fifteen years, one handshake.",
+          "2-year workmanship (transferable) and a 5-year cedar post warranty come standard. Upgrade to PostMaster+ steel posts for a lifetime rot & bend warranty.",
       },
     ],
     missingZip:
@@ -524,7 +524,7 @@ const en: Dictionary = {
       {
         title: "2-Year Workmanship · 5-Year Post",
         body:
-          "Workmanship is warranted for two years (transferable). Cedar posts: five years against structural failure. Upgrade to PostMaster+ steel posts for the 15-year structural warranty.",
+          "Workmanship is warranted for two years (transferable). Cedar posts: five years against structural failure. Upgrade to PostMaster+ steel posts for a lifetime rot & bend warranty (manufacturer's limited lifetime, passed through in full).",
       },
     ],
     trustTagline: "— Built Right · Stands Strong —",
@@ -636,7 +636,7 @@ const es: Dictionary = {
         eyebrow: "03 · Garantía",
         title: "Garantía por escrito.",
         body:
-          "Mano de obra garantizada por 2 años (transferible) y postes de cedro por 5 años contra falla estructural. Mejora a postes de acero PostMaster+ para 15 años estructurales — quince años, un apretón de manos.",
+          "Mano de obra garantizada por 2 años (transferible) y postes de cedro por 5 años contra falla estructural. Mejora a postes de acero PostMaster+ para una garantía de por vida contra pudrición y flexión.",
       },
     ],
     missingZip:
@@ -851,7 +851,7 @@ const es: Dictionary = {
       {
         title: "Mano de obra 2 años · Poste 5 años",
         body:
-          "Mano de obra garantizada por dos años (transferible). Postes de cedro: cinco años contra falla estructural. Mejora a postes de acero PostMaster+ para garantía estructural de 15 años.",
+          "Mano de obra garantizada por dos años (transferible). Postes de cedro: cinco años contra falla estructural. Mejora a postes de acero PostMaster+ para una garantía de por vida contra pudrición y flexión.",
       },
     ],
     trustTagline: "— Construido bien · Permanece firme —",

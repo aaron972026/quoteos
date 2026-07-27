@@ -64,7 +64,7 @@ const SECTIONS: MaterialSection[] = [
       { label: "Standard", value: "4×4 cedar (or KDAT pine), 8' length, concrete-set" },
       { label: "Footing depth", value: "30 inches · 8\" diameter · 3,000-psi concrete" },
       { label: "Spacing", value: "8 ft on center (wood families) · 10 ft (chain link)" },
-      { label: "Upgrade", value: "PostMaster+ galvanized + powder-coated steel · 15-year structural warranty · rated to 130 mph wind" },
+      { label: "Upgrade", value: "PostMaster+ galvanized + powder-coated steel · lifetime rot & bend warranty · rated to 130 mph wind" },
     ],
     body:
       "The PostMaster+ upgrade is a hidden steel post that drives inside the wood post profile — you get the cedar look on the outside, the steel structure on the inside. Most premium customers choose it.",

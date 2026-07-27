@@ -499,11 +499,12 @@ function ConfigurePageInner() {
                     {displayVariants.map((v) => {
                       const selected = skuCode === v.code && !ironclad;
                       const slot = v.tier;
-                      // On Ironclad-eligible families this is the lone base
-                      // card paired against Ironclad — label it "Standard" so
-                      // it reads as basic-vs-upgraded, not a tier name.
+                      // On Ivory-Standard-eligible families this is the lone
+                      // base card paired against the Ivory Standard upgrade —
+                      // label it "Essential" so the two tiers read distinctly
+                      // (not "Standard" vs "Ivory Standard").
                       const slotLabel = ironcladEligible
-                        ? "Standard"
+                        ? "Essential"
                         : slot
                           ? TIER_SLOT_LABEL[slot]
                           : "Option";
@@ -647,7 +648,7 @@ function ConfigurePageInner() {
                             ironclad ? "text-brass" : "text-brick"
                           )}
                         >
-                          Ironclad
+                          Ivory Standard
                         </div>
 
                         <div
@@ -656,7 +657,7 @@ function ConfigurePageInner() {
                             ironclad ? "text-cream" : "text-navy"
                           )}
                         >
-                          {ironcladAnchor.displayName} · Ironclad Install
+                          Premium Cedar · Warranty-Protected Installation
                         </div>
                         <p
                           className={cn(
@@ -664,7 +665,8 @@ function ConfigurePageInner() {
                             ironclad ? "text-cream/80" : "text-steel"
                           )}
                         >
-                          A 15-year asset instead of a 5-year liability.
+                          {ironcladAnchor.displayName}, built and backed to
+                          outlast the weather.
                         </p>
 
                         <div className="mt-4 flex items-baseline gap-1.5">
@@ -690,10 +692,11 @@ function ConfigurePageInner() {
 
                         <ul className="mt-3 space-y-1.5">
                           {[
-                            "Steel posts — lifetime rot warranty",
+                            "PostMaster steel posts — lifetime rot & bend warranty",
                             "Set 36″ deep · 240+ lbs concrete each",
                             "Stain & Seal included ($6/LF value)",
-                            "3-Year workmanship · 15-Year post & picket coverage",
+                            "3-Year workmanship · 10-Year post & picket coverage",
+                            "Manufacturer warranties on all materials, passed through in full",
                           ].map((bullet) => (
                             <li
                               key={bullet}
@@ -728,7 +731,7 @@ function ConfigurePageInner() {
                             <span className="font-semibold">
                               {formatCents(Math.round((1300 * lf) / 180))}/month
                             </span>{" "}
-                            more over the 15 years it&rsquo;s guaranteed. One
+                            more over the 10 years it&rsquo;s guaranteed. One
                             wood-post repair runs $200–300.
                           </p>
                         )}
@@ -750,18 +753,18 @@ function ConfigurePageInner() {
                   priceLabel={ironclad ? "Included" : t.configure.addonStainPrice}
                   checked={stainSeal || ironclad}
                   disabled={ironclad}
-                  disabledReason="Included with Ironclad Install."
+                  disabledReason="Included with Ivory Standard."
                   onChange={setStainSeal}
                 />
                 <AddonRow
                   label="Steel Post Upgrade (PostMaster+)"
-                  description="Galvanized, powder-coated steel posts — 15-year structural warranty, rated to 130 mph wind."
+                  description="Galvanized, powder-coated PostMaster+ steel posts — lifetime rot & bend warranty, rated to 130 mph wind."
                   priceLabel={ironclad ? "Included" : "+$5/LF"}
                   checked={steelPostUpgrade || ironclad}
                   disabled={!steelUpgradeAvailable || ironclad}
                   disabledReason={
                     ironclad
-                      ? "Included with Ironclad Install."
+                      ? "Included with Ivory Standard."
                       : "Available on cedar + pine wood-post families."
                   }
                   onChange={setSteelPostUpgrade}
@@ -857,7 +860,7 @@ function ConfigurePageInner() {
                       <EstimateRow label="Tear-out & haul" value="incl." />
                     )}
                     {ironclad && (
-                      <EstimateRow label="Ironclad Install" value="✓" />
+                      <EstimateRow label="Ivory Standard" value="✓" />
                     )}
                     {stainSeal && !ironclad && (
                       <EstimateRow label={t.configure.addonStain} value="✓" />
