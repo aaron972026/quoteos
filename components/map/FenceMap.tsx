@@ -82,6 +82,21 @@ export interface FenceMapHandle {
     linear_feet: number;
     corner_count: number;
   } | null;
+  // ─── Aim-and-drop (mobile) support ───────────────────────────────
+  /** Current map center as [lng, lat] — the reticle sits here. */
+  getMapCenter(): [number, number] | null;
+  /** Current zoom (for the accuracy guard). */
+  getZoom(): number | null;
+  /**
+   * Render the aim-mode geometry into the dedicated `qos-aim` layer:
+   * committed gold segments through `runCoords`, a dashed champagne preview
+   * from the last post to `previewTo`, and a post dot at each coordinate.
+   * Independent of gl-draw, so it never disturbs the desktop draw path.
+   */
+  setAimGeometry(
+    runCoords: number[][],
+    previewTo: [number, number] | null
+  ): void;
 }
 
 export type ParcelBoundary = {
@@ -118,6 +133,9 @@ interface Props {
     position: { lat: number; lng: number },
     phase: "move" | "end"
   ) => void;
+  // Aim-and-drop: fires on every map move with the new center [lng, lat] so
+  // the page can update the live preview segment to the reticle.
+  onMapMove?: (center: [number, number]) => void;
 }
 
 const GATE_WIDTH_LABEL: Record<GateType, string> = {
@@ -177,6 +195,7 @@ export default function FenceMap({
   adjacentBoundaries,
   trimHandles,
   onTrimHandleDrag,
+  onMapMove,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -196,6 +215,8 @@ export default function FenceMap({
   };
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onMapMoveRef = useRef(onMapMove);
+  onMapMoveRef.current = onMapMove;
   const onGatePointPickedRef = useRef(onGatePointPicked);
   onGatePointPickedRef.current = onGatePointPicked;
   const onGateMoveRef = useRef(onGateMove);
@@ -350,6 +371,69 @@ export default function FenceMap({
       } catch (err) {
         console.warn("[FenceMap] house-number overlay failed:", err);
       }
+
+      // Aim-and-drop layer (mobile). Independent of gl-draw — committed gold
+      // segments + dashed champagne preview + noir post dots, over a dark halo
+      // for legibility on lawns/trees. Inert until setAimGeometry() feeds it.
+      try {
+        if (!map.getSource("qos-aim")) {
+          map.addSource("qos-aim", {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          });
+          map.addLayer({
+            id: "qos-aim-halo",
+            type: "line",
+            source: "qos-aim",
+            filter: ["match", ["get", "kind"], ["committed", "preview"], true, false],
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: { "line-color": "rgba(22,18,13,0.55)", "line-width": 5 },
+          });
+          map.addLayer({
+            id: "qos-aim-committed",
+            type: "line",
+            source: "qos-aim",
+            filter: ["==", ["get", "kind"], "committed"],
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: { "line-color": "#C99A3F", "line-width": 3 },
+          });
+          map.addLayer({
+            id: "qos-aim-preview",
+            type: "line",
+            source: "qos-aim",
+            filter: ["==", ["get", "kind"], "preview"],
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: {
+              "line-color": "#E9C87E",
+              "line-width": 3,
+              "line-dasharray": [2, 1.5],
+            },
+          });
+          map.addLayer({
+            id: "qos-aim-posts",
+            type: "circle",
+            source: "qos-aim",
+            filter: ["==", ["get", "kind"], "post"],
+            paint: {
+              "circle-radius": 6,
+              "circle-color": "#16120D",
+              "circle-stroke-color": "#FCF9F1",
+              "circle-stroke-width": 2,
+            },
+          });
+        }
+      } catch (err) {
+        console.warn("[FenceMap] aim layer init failed:", err);
+      }
+    });
+
+    // Aim-and-drop: stream the map center to the page so it can move the live
+    // preview segment under the reticle. No-op unless onMapMove is provided.
+    map.on("move", () => {
+      const cb = onMapMoveRef.current;
+      if (!cb) return;
+      const c = map.getCenter();
+      cb([c.lng, c.lat]);
     });
 
     // ResizeObserver — keep the map sized to its container even if the parent
@@ -1522,6 +1606,46 @@ export default function FenceMap({
         linear_feet: geometryLF(feature),
         corner_count: cornerCount(feature),
       };
+    },
+    getMapCenter() {
+      const c = mapRef.current?.getCenter();
+      return c ? [c.lng, c.lat] : null;
+    },
+    getZoom() {
+      return mapRef.current?.getZoom() ?? null;
+    },
+    setAimGeometry(runCoords, previewTo) {
+      const map = mapRef.current;
+      const src = map?.getSource("qos-aim") as
+        | mapboxgl.GeoJSONSource
+        | undefined;
+      if (!src) return;
+      const features: Feature[] = [];
+      if (runCoords.length >= 2) {
+        features.push({
+          type: "Feature",
+          properties: { kind: "committed" },
+          geometry: { type: "LineString", coordinates: runCoords },
+        });
+      }
+      if (runCoords.length >= 1 && previewTo) {
+        features.push({
+          type: "Feature",
+          properties: { kind: "preview" },
+          geometry: {
+            type: "LineString",
+            coordinates: [runCoords[runCoords.length - 1], previewTo],
+          },
+        });
+      }
+      for (const c of runCoords) {
+        features.push({
+          type: "Feature",
+          properties: { kind: "post" },
+          geometry: { type: "Point", coordinates: c },
+        });
+      }
+      src.setData({ type: "FeatureCollection", features });
     },
   }));
 
