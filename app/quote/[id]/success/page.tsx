@@ -56,13 +56,13 @@ export default async function QuoteSuccessPage({
                 "Recibe un correo con la confirmación de su reserva.",
                 "Verificamos las medidas en sitio en los próximos días.",
                 "Le presentamos el plan y precio final — usted lo aprueba.",
-                "Comenzamos su proyecto: meta de 5 días, 10 o menos.",
+                "Comenzamos su proyecto — la mayoría de instalaciones dentro de dos semanas de la aprobación del plan final.",
               ]
             : [
                 "You get a confirmation email for your reservation.",
                 "We verify your measurements on site in the next few days.",
                 "We present the final plan and price — you approve it.",
-                "We start your project: target 5 days, 10 or fewer.",
+                "We start your project — most installs within two weeks of final plan approval.",
               ]
           ).map((step) => (
             <li key={step}>{step}</li>

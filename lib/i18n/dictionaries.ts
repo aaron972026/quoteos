@@ -275,7 +275,7 @@ const en: Dictionary = {
       "Cedar privacy, horizontal cedar, KDAT pine, chain link, ranch rail",
       "Wisetack financing — soft pull, no credit hit",
       "Free 14-day price hold, or reserve your week for $99 — applied to your project",
-      "Most jobs installed in 10–17 days",
+      "Most installs within two weeks of final plan approval",
       "2-year workmanship warranty (transferable)",
     ],
     faqTitle: "Common questions",
@@ -286,7 +286,7 @@ const en: Dictionary = {
       },
       {
         q: "Will my final price match this quote?",
-        a: "We hit ≤7% variance on 9 of 10 jobs. If the site has a surprise we couldn't see from satellite, we tell you before we charge anything more.",
+        a: "Your online price is based on a satellite measurement of your actual property line. Before anything is final, we confirm the exact footage at your on-site visit — and the price you held stands.",
       },
       {
         q: "Do you handle permits?",
@@ -294,7 +294,7 @@ const en: Dictionary = {
       },
       {
         q: "How fast can you install?",
-        a: "Most jobs go in 10–17 days from when you approve your final plan on site.",
+        a: "Most installs happen within two weeks of final plan approval.",
       },
     ],
     step: "Step",
@@ -626,7 +626,7 @@ const es: Dictionary = {
       "Cedro privacidad, cedro horizontal, pino KDAT, malla ciclónica, riel ranchero",
       "Financiamiento Wisetack — sin afectar tu crédito",
       "Mantén tu precio gratis 14 días, o reserva tu semana por $99 — aplicado a tu proyecto",
-      "La mayoría de trabajos se instalan en 10–17 días",
+      "La mayoría de las instalaciones dentro de dos semanas de la aprobación del plan final",
       "Garantía de mano de obra de 2 años (transferible)",
     ],
     faqTitle: "Preguntas frecuentes",
@@ -637,7 +637,7 @@ const es: Dictionary = {
       },
       {
         q: "¿El precio final coincidirá con esta cotización?",
-        a: "Logramos ≤7% de variación en 9 de cada 10 trabajos. Si hay una sorpresa que no pudimos ver desde el satélite, te avisamos antes de cobrar cualquier cosa adicional.",
+        a: "Tu precio en línea se basa en una medición satelital de la línea real de tu propiedad. Antes de que algo sea final, confirmamos las medidas exactas en tu visita en sitio — y el precio que mantuviste se respeta.",
       },
       {
         q: "¿Manejan los permisos?",
@@ -645,7 +645,7 @@ const es: Dictionary = {
       },
       {
         q: "¿Qué tan rápido pueden instalar?",
-        a: "La mayoría de trabajos se instalan en 10–17 días desde que apruebas tu plan final en sitio.",
+        a: "La mayoría de las instalaciones ocurren dentro de dos semanas de la aprobación del plan final.",
       },
     ],
     step: "Paso",
