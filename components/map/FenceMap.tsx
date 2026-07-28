@@ -136,6 +136,13 @@ interface Props {
   // Aim-and-drop: fires on every map move with the new center [lng, lat] so
   // the page can update the live preview segment to the reticle.
   onMapMove?: (center: [number, number]) => void;
+  /**
+   * Mobile aim mode: suspends the loupe/long-press/tap touch handlers so the
+   * map pans freely under the reticle, and parks gl-draw in the inert
+   * place_gate mode so taps never place a vertex. The page owns geometry via
+   * the shared draw reducer + setAimGeometry.
+   */
+  aimMode?: boolean;
 }
 
 const GATE_WIDTH_LABEL: Record<GateType, string> = {
@@ -196,6 +203,7 @@ export default function FenceMap({
   trimHandles,
   onTrimHandleDrag,
   onMapMove,
+  aimMode,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -229,6 +237,17 @@ export default function FenceMap({
   // intentionally in simple_select for gate placement.
   const gatePlacementModeRef = useRef(!!gatePlacementMode);
   gatePlacementModeRef.current = !!gatePlacementMode;
+  const aimModeRef = useRef(!!aimMode);
+  aimModeRef.current = !!aimMode;
+  // In aim mode, park gl-draw in the inert place_gate mode so no stray tap can
+  // add a vertex — the page owns geometry via the shared reducer. Runs when
+  // aim mode flips (typically post-mount, once draw is initialised).
+  useEffect(() => {
+    const draw = drawRef.current;
+    if (!draw || !aimMode) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (draw as any).changeMode("place_gate");
+  }, [aimMode]);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const trimMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const onTrimHandleDragRef = useRef(onTrimHandleDrag);
@@ -847,6 +866,7 @@ export default function FenceMap({
     }
 
     map.on("touchstart", (e) => {
+      if (aimModeRef.current) return; // aim mode: let the map pan natively
       if (e.points.length > 1) {
         if (touchPhase === "loupe") exitLoupeMode();
         touchPhase = "idle";
@@ -874,6 +894,7 @@ export default function FenceMap({
       }, LOUPE_LONG_PRESS_MS);
     });
     map.on("touchmove", (e) => {
+      if (aimModeRef.current) return;
       if (e.points.length > 1) {
         if (touchPhase === "loupe") exitLoupeMode();
         touchPhase = "idle";
@@ -911,6 +932,7 @@ export default function FenceMap({
       }
     });
     map.on("touchend", (e) => {
+      if (aimModeRef.current) return;
       if (longPressTimer) {
         clearTimeout(longPressTimer);
         longPressTimer = null;
@@ -933,6 +955,7 @@ export default function FenceMap({
       touchPhase = "idle";
     });
     map.on("touchcancel", () => {
+      if (aimModeRef.current) return;
       if (longPressTimer) {
         clearTimeout(longPressTimer);
         longPressTimer = null;

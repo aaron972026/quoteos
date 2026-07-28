@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition, Suspense } from "react";
+import {
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useTransition,
+  Suspense,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -49,9 +57,20 @@ import {
   sliceChainByLocation,
   traceFenceFromParcel,
 } from "@/lib/map/trace-parcel";
-import type { Position } from "geojson";
+import type { Feature, LineString, Polygon, Position } from "geojson";
 import { useT } from "@/lib/i18n/use-locale";
 import { cn } from "@/lib/utils";
+import { AimDrawOverlay } from "@/components/map/AimDrawOverlay";
+import {
+  drawReducer,
+  EMPTY_DRAW_STATE,
+  toFeature,
+  totalLF,
+  totalPosts,
+  previewSegmentLF,
+  canFinish,
+  canUndo,
+} from "@/lib/map/draw-state";
 
 const FenceMap = dynamic(() => import("@/components/map/FenceMap"), {
   ssr: false,
@@ -61,6 +80,10 @@ const FenceMap = dynamic(() => import("@/components/map/FenceMap"), {
     </div>
   ),
 });
+
+// Stable no-op for FenceMap.onChange while aim mode owns stats (keeps gl-draw
+// render-stats from clobbering the reducer-driven geometry).
+const noopStats = () => {};
 
 const GATE_SIZES: Array<{ type: GateType; label: string; sublabel: string }> = [
   { type: "W3", label: "3'", sublabel: "Walk" },
@@ -140,6 +163,117 @@ function DrawPageInner() {
   const [adjacentBoundaries, setAdjacentBoundaries] = useState<ParcelBoundary[]>([]);
   const [isPending, startTransition] = useTransition();
   const [helpOpen, setHelpOpen] = useState(false);
+
+  // ─── Aim-and-drop (mobile / pointer:coarse) ──────────────────────────
+  // Shared draw reducer is the source of truth; the map only renders it.
+  const AIM_MIN_ZOOM = 18;
+  const [aimMode, setAimMode] = useState(false);
+  const [drawState, dispatch] = useReducer(drawReducer, EMPTY_DRAW_STATE);
+  const [aimStage, setAimStage] = useState<"draw" | "review">("draw");
+  const [aimCenter, setAimCenter] = useState<[number, number] | null>(null);
+  const [aimZoom, setAimZoom] = useState<number | null>(null);
+
+  // Touch devices get aim mode; fine pointers keep the desktop draw. Set once.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    setAimMode(window.matchMedia("(pointer: coarse)").matches);
+  }, []);
+
+  const aimAiming = totalPosts(drawState) === 0;
+  const aimZoomOk = aimZoom == null || aimZoom >= AIM_MIN_ZOOM;
+  const aimActiveCoords = useMemo(
+    () =>
+      aimStage === "review"
+        ? (drawState.runs[0]?.posts ?? [])
+        : drawState.current,
+    [aimStage, drawState]
+  );
+  const aimPreviewTo = useMemo(
+    () =>
+      aimStage === "draw" && aimActiveCoords.length >= 1 && aimZoomOk
+        ? aimCenter
+        : null,
+    [aimStage, aimActiveCoords, aimZoomOk, aimCenter]
+  );
+  const aimTotalLf = totalLF(drawState);
+  const aimSegmentDeltaLf = previewSegmentLF(
+    drawState,
+    aimZoomOk ? aimCenter : null
+  );
+
+  function handleMapMove(center: [number, number]) {
+    setAimCenter(center);
+    const z = mapRef.current?.getZoom();
+    if (z != null) setAimZoom(z);
+  }
+
+  function aimDrop() {
+    const c = mapRef.current?.getMapCenter();
+    if (!c || !aimZoomOk) return;
+    dispatch({ type: "DROP_POST", pos: c });
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(10);
+    }
+  }
+  function aimUndo() {
+    dispatch({ type: "UNDO" });
+  }
+  function aimFinish() {
+    if (!canFinish(drawState)) return;
+    dispatch({ type: "FINISH_LINE" });
+    setAimStage("review");
+  }
+  function aimStartOver() {
+    dispatch({ type: "START_OVER" });
+    setAimStage("draw");
+  }
+  function aimEdit() {
+    setAimStage("draw");
+  }
+
+  // Render the reducer geometry to the map layer as it changes / as the map
+  // pans under the reticle.
+  useEffect(() => {
+    if (!aimMode) return;
+    mapRef.current?.setAimGeometry(aimActiveCoords, aimPreviewTo);
+  }, [aimMode, aimActiveCoords, aimPreviewTo]);
+
+  // Bridge the committed drawing into the existing stats/save pipeline. Single
+  // run only (decision B): if a second run somehow exists, block loudly rather
+  // than persist a MultiLineString the current pipeline would price at 0 LF.
+  useEffect(() => {
+    if (!aimMode) return;
+    const runCount =
+      drawState.runs.length + (drawState.current.length >= 2 ? 1 : 0);
+    if (runCount > 1) {
+      console.error(
+        "[aim] unexpected multi-run state — refusing to save. a2 owns MultiLineString.",
+        drawState
+      );
+      return;
+    }
+    const feature = toFeature(drawState);
+    if (feature && feature.geometry.type === "LineString") {
+      const coords = feature.geometry.coordinates;
+      setStats({
+        feature: feature as Feature<LineString | Polygon>,
+        linear_feet: aimTotalLf,
+        corner_count: Math.max(0, coords.length - 2),
+        closed: false,
+        vertex_count: coords.length,
+      });
+    } else {
+      setStats({
+        feature: null,
+        linear_feet: 0,
+        corner_count: 0,
+        closed: false,
+        vertex_count: 0,
+      });
+    }
+    // aimTotalLf derives from drawState; deliberately keyed on drawState only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aimMode, drawState]);
   // One-time "Tap a corner to begin" coachmark — shows on first visit until
   // the user taps anywhere on the map (= first vertex placed) or hits Help,
   // then never reappears in the session. Replaces the persistent
@@ -628,7 +762,9 @@ function DrawPageInner() {
                   handleRef={mapRef}
                   centerLat={lat}
                   centerLng={lng}
-                  onChange={setStats}
+                  onChange={aimMode ? noopStats : setStats}
+                  aimMode={aimMode}
+                  onMapMove={aimMode ? handleMapMove : undefined}
                   gates={gates}
                   gatePlacementMode={gateMode}
                   onGatePointPicked={setPendingGatePoint}
@@ -641,8 +777,25 @@ function DrawPageInner() {
                 />
               </MapErrorBoundary>
 
+              <AimDrawOverlay
+                active={aimMode}
+                stage={aimStage}
+                totalLf={aimTotalLf}
+                segmentDeltaLf={aimSegmentDeltaLf}
+                aiming={aimAiming}
+                canUndo={canUndo(drawState)}
+                canFinish={canFinish(drawState)}
+                zoomOk={aimZoomOk}
+                t={t}
+                onDrop={aimDrop}
+                onUndo={aimUndo}
+                onFinish={aimFinish}
+                onStartOver={aimStartOver}
+                onEdit={aimEdit}
+              />
+
               {/* One-time coachmark — slim pill, dismisses on first vertex. */}
-              {coachmarkVisible && stats.linear_feet === 0 && !gateMode && (
+              {!aimMode && coachmarkVisible && stats.linear_feet === 0 && !gateMode && (
                 <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-pill border border-brass/50 bg-navy/95 px-4 py-1.5 shadow-card-lg backdrop-blur">
                   <span className="font-display text-[11px] font-semibold uppercase tracking-eyebrow text-cream">
                     {t.draw.emptyEyebrow} ·{" "}
