@@ -266,6 +266,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         expiresAt: holdExpiry,
         locale: getDict().locale,
         origin,
+        ironclad: d.ironclad ?? existing.ironclad ?? false,
       })
         .then((sent) => {
           if (sent) {

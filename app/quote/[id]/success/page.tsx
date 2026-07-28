@@ -22,16 +22,21 @@ export default async function QuoteSuccessPage({
   // The reserved install week was stamped at reservation time — read it back
   // (session-scoped) so the confirmation matches what checkout promised.
   let week = "";
+  let isIvoryStandard = false;
   const sid = await getCurrentSessionId();
   if (sid) {
     const [row] = await db
-      .select({ reservedWeekStart: quotes.reservedWeekStart })
+      .select({
+        reservedWeekStart: quotes.reservedWeekStart,
+        ironclad: quotes.ironclad,
+      })
       .from(quotes)
       .where(and(eq(quotes.id, params.id), eq(quotes.sessionId, sid)))
       .limit(1);
     if (row?.reservedWeekStart) {
       week = formatInstallWeek(row.reservedWeekStart, locale);
     }
+    isIvoryStandard = row?.ironclad ?? false;
   }
 
   return (
@@ -69,6 +74,17 @@ export default async function QuoteSuccessPage({
           ))}
         </ol>
       </div>
+
+      {isIvoryStandard && (
+        <div className="mt-6 w-full rounded-sm border border-forest-600/20 bg-forest-50/60 p-5 text-left">
+          <div className="font-mono text-[11px] uppercase tracking-spec text-forest-600">
+            {locale === "es" ? "Cuidado incluido" : "Care included"}
+          </div>
+          <p className="mt-2 font-body text-[13.5px] leading-[1.55] text-char">
+            {dict.configure.careSchedule}
+          </p>
+        </div>
+      )}
 
       <div className="mt-6 font-body text-[12.5px] text-steel">
         {locale === "es" ? "¿Necesita cambiar algo? " : "Need to change something? "}

@@ -19,6 +19,7 @@ interface HoldEmailOpts {
   expiresAt: Date;
   locale: string; // 'en' | 'es'
   origin: string; // site base URL, no trailing slash
+  ironclad?: boolean; // show the Ivory Standard care-schedule block
 }
 
 function fmtDate(d: Date, locale: string): string {
@@ -54,6 +55,10 @@ function copy(o: HoldEmailOpts) {
       ? "¿Quieres también tu semana de instalación? Resérvala por $99 — aplicado directo a tu proyecto."
       : "Want your install week too? Reserve it for $99 — applied straight to your project.",
     ctaButton: es ? "Reservar mi semana de instalación" : "Reserve my install week",
+    careLabel: es ? "Cuidado incluido" : "Care included",
+    careBody: es
+      ? "Incluye tu visita de barniz y sellado una vez que la madera se ha curado, y tu Renovación de 2 Años — regresamos, reaplicamos el sellador UV y revisamos cada tabla y puerta. Las renovaciones del Año 4 y Año 7 están disponibles como visitas de Cuidado programadas."
+      : "Includes your stain & seal visit once the wood has cured, and your 2-Year Renewal — we come back, re-apply UV seal, and check every board and gate. Year 4 and Year 7 renewals are available as scheduled Care visits.",
     footer: es
       ? "Ivory Fence Co. · Tulsa, OK"
       : "Ivory Fence Co. · Tulsa, OK",
@@ -80,6 +85,14 @@ function renderHtml(o: HoldEmailOpts): string {
             <td style="padding:6px 0;text-align:right;color:#23201A;font-size:15px;font-weight:700;border-top:1px solid #EFE4CC;">${c.date}</td></tr>
       </table>
       <p style="margin:16px 0;color:#23201A;font-size:15px;line-height:1.55;font-family:Arial,sans-serif;">${c.whatsNext}</p>
+      ${
+        o.ironclad
+          ? `<div style="margin:20px 0;background:#F1F5F0;border:1px solid #DCE7DC;border-radius:8px;padding:16px 18px;">
+        <div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#2F5D43;font-family:Arial,sans-serif;">${c.careLabel}</div>
+        <p style="margin:8px 0 0;color:#23201A;font-size:13.5px;line-height:1.55;font-family:Arial,sans-serif;">${c.careBody}</p>
+      </div>`
+          : ""
+      }
       <div style="margin-top:24px;border-top:1px solid #EFE4CC;padding-top:20px;">
         <p style="margin:0 0 14px;color:#5C554A;font-size:14px;line-height:1.5;font-family:Arial,sans-serif;">${c.ctaLine}</p>
         <a href="${link}" style="display:inline-block;background:#2F5D43;color:#FCF9F1;text-decoration:none;font-family:Arial,sans-serif;font-size:14px;font-weight:600;padding:12px 22px;border-radius:8px;">${c.ctaButton}</a>

@@ -53,6 +53,19 @@ export const metadata: Metadata = {
     description: "No sales calls. No waiting. Lock it in for $99.",
     images: ["/opengraph-image.png"],
   },
+  // Icons live in public/ (the supplied Ivory set). Explicit entries so the
+  // app/favicon.ico + app/icon.png file-conventions no longer win — those
+  // old FencePros files are deleted alongside this change.
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon-16.png", type: "image/png", sizes: "16x16" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
 };
 
 export const viewport: Viewport = {

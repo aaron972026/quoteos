@@ -41,6 +41,8 @@ export interface Dictionary {
     step3Body: string;
     whyTitle: string;
     reasons: string[];
+    comeBackTitle: string;
+    comeBackBody: string;
     faqTitle: string;
     faqs: Array<{ q: string; a: string }>;
     step: string;
@@ -159,6 +161,8 @@ export interface Dictionary {
     coverageTitle: string;
     coverageBody: string;
     coverageBodyIvory: string; // shown when the Ivory Standard install is selected
+    careSchedule: string; // Ivory Standard return-visit / renewal schedule
+    ivoryPineDesc: string; // Ivory Standard subtitle copy on the budget-pine line
     continueCta: string;
     backLink: string;
     backToDrawing: string;
@@ -283,6 +287,10 @@ const en: Dictionary = {
       "Most installs within two weeks of final plan approval",
       "2-year workmanship warranty (transferable)",
     ],
+    comeBackTitle:
+      "Most fence companies disappear after the last post. We come back.",
+    comeBackBody:
+      "Every Ivory Standard install includes a return visit to stain and seal once your wood has cured, and a 2-Year Renewal — we re-apply UV seal and check every board and gate. Your fence gets a service history, like a car.",
     faqTitle: "Common questions",
     faqs: [
       {
@@ -474,6 +482,10 @@ const en: Dictionary = {
       "Materials, labor, concrete, fasteners, cleanup, and our 2-year workmanship + 5-year post warranty. Permits and OK811 line inspection handled by us.",
     coverageBodyIvory:
       "Ivory Standard: PostMaster+ steel posts (lifetime rot & bend), stain & seal, and a 36″-deep, 240 lb concrete set — plus 3-year workmanship, 10-year post & picket coverage, and manufacturer warranties on every material. Permits and OK811 line inspection handled by us.",
+    careSchedule:
+      "Includes your stain & seal visit once the wood has cured, and your 2-Year Renewal — we come back, re-apply UV seal, and check every board and gate. Year 4 and Year 7 renewals are available as scheduled Care visits.",
+    ivoryPineDesc:
+      "Budget-smart pine, built on the same Ivory install spec — deep-set posts, clean lines, and our 2-year workmanship warranty.",
     continueCta: "See Final Price",
     backLink: "Back To Map",
     backToDrawing: "Back to drawing",
@@ -642,6 +654,10 @@ const es: Dictionary = {
       "La mayoría de las instalaciones dentro de dos semanas de la aprobación del plan final",
       "Garantía de mano de obra de 2 años (transferible)",
     ],
+    comeBackTitle:
+      "La mayoría de las empresas de cercas desaparecen tras el último poste. Nosotros regresamos.",
+    comeBackBody:
+      "Cada instalación Ivory Standard incluye una visita de regreso para barnizar y sellar una vez que la madera se ha curado, y una Renovación de 2 Años — reaplicamos el sellador UV y revisamos cada tabla y puerta. Tu cerca recibe un historial de servicio, como un auto.",
     faqTitle: "Preguntas frecuentes",
     faqs: [
       {
@@ -833,6 +849,10 @@ const es: Dictionary = {
       "Materiales, mano de obra, concreto, herrajes, limpieza y garantía de mano de obra de 2 años + poste de 5 años. Permisos e inspección OK811 a nuestro cargo.",
     coverageBodyIvory:
       "Ivory Standard: postes de acero PostMaster+ (garantía de por vida contra pudrición y flexión), sellado y barniz, y postes a 36″ de profundidad con 240 lb de concreto — más 3 años de mano de obra, 10 años de cobertura de postes y tablas, y garantías del fabricante en cada material. Permisos e inspección OK811 a nuestro cargo.",
+    careSchedule:
+      "Incluye tu visita de barniz y sellado una vez que la madera se ha curado, y tu Renovación de 2 Años — regresamos, reaplicamos el sellador UV y revisamos cada tabla y puerta. Las renovaciones del Año 4 y Año 7 están disponibles como visitas de Cuidado programadas.",
+    ivoryPineDesc:
+      "Pino inteligente y económico, construido con la misma especificación de instalación Ivory — postes bien anclados, líneas limpias y nuestra garantía de mano de obra de 2 años.",
     continueCta: "Ver precio final",
     backLink: "Volver al mapa",
     backToDrawing: "Volver al dibujo",

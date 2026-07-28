@@ -116,6 +116,21 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* ─── We come back ─────────────────────────────────────── */}
+        <section className="border-b border-navy/10 bg-paper">
+          <div className="mx-auto max-w-[1280px] px-5 py-14 md:px-10 md:py-20">
+            <div className="mx-auto max-w-[860px] text-center">
+              <Eyebrow>Care, Not Just Install</Eyebrow>
+              <h2 className="mt-4 text-balance font-display text-[28px] font-bold uppercase leading-[1.05] tracking-[0.01em] text-navy md:text-[38px]">
+                {t.comeBackTitle}
+              </h2>
+              <p className="mx-auto mt-5 max-w-[620px] text-pretty font-body text-[15.5px] leading-[1.6] text-char">
+                {t.comeBackBody}
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* ─── Why Ivory Fence Co. ────────────────────────────────────── */}
         <section className="bg-paper">
           <div className="mx-auto max-w-[1280px] px-5 py-14 md:px-10 md:py-20">

@@ -377,6 +377,8 @@ function ConfigurePageInner() {
   // customer compares basic cost vs. the upgraded install — nothing else.
   const baseVariant = selectedFamily?.variants[0] ?? null;
   const ironcladAnchor = baseVariant;
+  // Budget-pine family: the Ivory Standard card must not read "Premium Cedar".
+  const ivoryIsPine = ironcladAnchor?.family === "BP";
   const displayVariants =
     ironcladEligible && baseVariant
       ? [baseVariant]
@@ -657,7 +659,8 @@ function ConfigurePageInner() {
                             ironclad ? "text-cream" : "text-navy"
                           )}
                         >
-                          Premium Cedar · Warranty-Protected Installation
+                          {ivoryIsPine ? "Budget-Smart Pine" : "Premium Cedar"} ·
+                          Warranty-Protected Installation
                         </div>
                         <p
                           className={cn(
@@ -665,8 +668,17 @@ function ConfigurePageInner() {
                             ironclad ? "text-cream/80" : "text-steel"
                           )}
                         >
-                          {ironcladAnchor.displayName}, built and backed to
-                          outlast the weather.
+                          {ivoryIsPine
+                            ? t.configure.ivoryPineDesc
+                            : `${ironcladAnchor.displayName}, built and backed to outlast the weather.`}
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-2 font-body text-[12px] leading-[1.45]",
+                            ironclad ? "text-cream/70" : "text-steel"
+                          )}
+                        >
+                          {t.configure.careSchedule}
                         </p>
 
                         <div className="mt-4 flex items-baseline gap-1.5">
