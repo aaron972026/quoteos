@@ -166,6 +166,9 @@ export interface Dictionary {
     warrantyPostCedar: string;
     warrantyPostSteel: string;
     warrantyWorkmanship: string;
+    addonBobLabel: string;
+    addonBobDesc: string;
+    addonBobPrice: string;
     addonHeight: string;
     addonHeightDesc: string;
     addonHeightPrice: string;
@@ -504,6 +507,10 @@ const en: Dictionary = {
     warrantyPostSteel:
       "Lifetime post warranty (rust-through, bend, break) + 10-year structure warranty",
     warrantyWorkmanship: "2-year workmanship warranty (transferable)",
+    addonBobLabel: "Board-on-board pickets",
+    addonBobDesc:
+      "Overlapped pickets — stays fully private as cedar dries. No gaps in year five.",
+    addonBobPrice: "+$7/LF",
     addonHeight: "Height Upgrade — 8 ft",
     addonHeightDesc: "Bumps the standard 6 ft fence up to 8 ft tall.",
     addonHeightPrice: "+18%",
@@ -890,6 +897,10 @@ const es: Dictionary = {
     warrantyPostSteel:
       "Garantía de postes de por vida (oxidación, flexión, rotura) + garantía de estructura de 10 años",
     warrantyWorkmanship: "Garantía de mano de obra de 2 años (transferible)",
+    addonBobLabel: "Tablas traslapadas (board-on-board)",
+    addonBobDesc:
+      "Tablas traslapadas — mantiene privacidad total mientras el cedro se seca. Sin espacios en el año cinco.",
+    addonBobPrice: "+$7/pie",
     addonHeight: "Altura 8 pies",
     addonHeightDesc: "Sube la cerca estándar de 6 pies a 8 pies.",
     addonHeightPrice: "+18%",

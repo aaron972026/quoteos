@@ -786,9 +786,9 @@ function ConfigurePageInner() {
                   />
                 )}
                 <AddonRow
-                  label="Board-on-Board Privacy"
-                  description="Overlapped pickets — zero gaps as the wood dries. Full privacy from every angle."
-                  priceLabel="+$7/LF"
+                  label={t.configure.addonBobLabel}
+                  description={t.configure.addonBobDesc}
+                  priceLabel={t.configure.addonBobPrice}
                   checked={boardOnBoard}
                   disabled={
                     !selectedSku || !CAP_RAIL_FAMILIES.has(selectedSku.family)
@@ -888,7 +888,7 @@ function ConfigurePageInner() {
                       <EstimateRow label={t.configure.postSteelLabel} value="✓" />
                     )}
                     {boardOnBoard && (
-                      <EstimateRow label="Board-on-board" value="✓" />
+                      <EstimateRow label={t.configure.addonBobLabel} value="✓" />
                     )}
                     {capRailTrim && (
                       <EstimateRow label="Cap rail + trim" value="✓" />
