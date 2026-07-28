@@ -48,6 +48,10 @@ const PatchBody = z.object({
   city: z.string().min(2).max(64).optional(),
   gates: z.array(GateSchema).max(10).optional(),
   ownership: z.enum(["owner", "consent"]).optional(),
+  // Free "hold my price" lane. Only 'price_hold' is client-settable; the
+  // 'reserved' lane is stamped server-side in the lock-in route. The expiry
+  // is computed on the server (never trusted from the client) — see below.
+  commitment_lane: z.enum(["price_hold"]).optional(),
 });
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -206,6 +210,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           ? {
               ownership: d.ownership,
               ownershipConfirmedAt: new Date(),
+            }
+          : {}),
+        // Free price-hold lane: server sets the 14-day expiry; reserved-week
+        // stays null (that anchor only exists for the paid reservation lane).
+        ...(d.commitment_lane === "price_hold"
+          ? {
+              commitmentLane: "price_hold",
+              priceHoldExpiresAt: new Date(Date.now() + 14 * 86_400_000),
+              reservedWeekStart: null,
             }
           : {}),
         ...pricingPatch,

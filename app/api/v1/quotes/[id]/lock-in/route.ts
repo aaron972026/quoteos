@@ -15,6 +15,7 @@ import { LIMITS, checkLimit } from "@/lib/api/rate-limit";
 import { getCurrentSessionId } from "@/lib/api/session-helper";
 import { pushGhl } from "@/lib/integrations/ghl";
 import { FINANCING } from "@/lib/pricing/data";
+import { nextInstallWeekStartISO } from "@/lib/scheduling/install-week";
 
 // Pricing v2: SKU IS the variant. The lock-in request no longer needs a tier;
 // the price already locked on PATCH /quotes/:id sits on `selectedTierCents`.
@@ -54,6 +55,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .set({
       selectedTierCents: totalCents,
       status: "finalized",
+      // Reserved lane: stamp the promised install week now, before checkout,
+      // so the customer is told the same week on every later page load.
+      commitmentLane: "reserved",
+      reservedWeekStart: nextInstallWeekStartISO(),
       updatedAt: new Date(),
     })
     .where(eq(quotes.id, params.id));
@@ -99,8 +104,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           price_data: {
             currency: "usd",
             product_data: {
-              name: "Ivory Fence Co. — Hold deposit",
-              description: `Reserves your ${row.skuCode ?? "fence"} quote for ${row.addressLine ?? "your project"}. Refundable for 7 days.`,
+              name: "Ivory Fence Co. — Install week reservation",
+              description: `Reserves your install week and holds your price for ${row.addressLine ?? "your project"}. Applied to your project total; fully refundable until you approve the final plan.`,
             },
             unit_amount: FINANCING.DEPOSIT_CENTS,
           },

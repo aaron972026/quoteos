@@ -217,6 +217,24 @@ export interface Dictionary {
     checkoutFailed: string;
     loading: string;
   };
+  // Two-lane commitment step (after the instant quote). Never the word
+  // "deposit" / "depósito"; the $99 is a "reservation" that is "applied to
+  // your project". {date} is interpolated at render.
+  commitment: {
+    reservePill: string;
+    reserveHeading: string;
+    reserveBody: string;
+    reserveButton: string;
+    holdHeading: string;
+    holdBody: string;
+    holdButton: string;
+    reassurance: string;
+    reservedConfirm: string; // uses {date}
+    creditLineLabel: string;
+    heldConfirm: string; // uses {date}
+    heldReserveButton: string;
+    errorGeneric: string;
+  };
 }
 
 const en: Dictionary = {
@@ -542,6 +560,27 @@ const en: Dictionary = {
       "Stripe isn't configured yet. Add STRIPE_SECRET_KEY to .env.local and restart the dev server.",
     checkoutFailed: "Could not start checkout",
     loading: "Plumb, square, priced…",
+  },
+
+  commitment: {
+    reservePill: "Most Popular",
+    reserveHeading: "Reserve my install week — $99",
+    reserveBody:
+      "Locks your price and your week on our calendar. The $99 goes straight toward your project, and it's fully refundable until you approve the final plan on site. You risk nothing and skip the line.",
+    reserveButton: "Reserve my week",
+    holdHeading: "Hold my price free for 14 days",
+    holdBody:
+      "No payment, no card. We'll verify measurements on site in the next few days; the price stands for two weeks. Install weeks stay first-come, first-served until you reserve.",
+    holdButton: "Hold my price",
+    reassurance:
+      "Either way, nothing else is due until you approve the final plan.",
+    reservedConfirm:
+      "You're on the calendar for the week of {date}. Your $99 is applied to your project total.",
+    creditLineLabel: "Install week reservation — applied to your project",
+    heldConfirm:
+      "Your price is held through {date}. Want your install week too? Reserve it anytime before then.",
+    heldReserveButton: "Reserve my week — $99",
+    errorGeneric: "Something went wrong. Please try again.",
   },
 } as const;
 
@@ -871,6 +910,27 @@ const es: Dictionary = {
       "Stripe no está configurado. Agrega STRIPE_SECRET_KEY al .env.local y reinicia el servidor.",
     checkoutFailed: "No se pudo iniciar el pago",
     loading: "A plomo, a escuadra, con precio…",
+  },
+
+  commitment: {
+    reservePill: "Más popular",
+    reserveHeading: "Reserve su semana de instalación — $99",
+    reserveBody:
+      "Fija su precio y su semana en nuestro calendario. Los $99 se aplican directamente a su proyecto, y son totalmente reembolsables hasta que apruebe el plan final en sitio. No arriesga nada y evita la fila.",
+    reserveButton: "Reservar mi semana",
+    holdHeading: "Mantenga su precio gratis por 14 días",
+    holdBody:
+      "Sin pago y sin tarjeta. Verificamos las medidas en sitio en los próximos días; el precio se mantiene por dos semanas. Las semanas de instalación son por orden de llegada hasta que reserve.",
+    holdButton: "Mantener mi precio",
+    reassurance:
+      "De cualquier forma, no se debe nada más hasta que apruebe el plan final.",
+    reservedConfirm:
+      "Está en el calendario para la semana del {date}. Sus $99 se aplican al total de su proyecto.",
+    creditLineLabel: "Reserva de semana de instalación — aplicada a su proyecto",
+    heldConfirm:
+      "Su precio está retenido hasta el {date}. ¿Quiere también su semana de instalación? Resérvela en cualquier momento antes de esa fecha.",
+    heldReserveButton: "Reservar mi semana — $99",
+    errorGeneric: "Algo salió mal. Inténtelo de nuevo.",
   },
 };
 

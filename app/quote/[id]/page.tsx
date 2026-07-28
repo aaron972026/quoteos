@@ -4,8 +4,8 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  CalendarCheck,
   Check,
-  Lock,
   Loader2,
   Mail,
   Phone,
@@ -21,9 +21,10 @@ import { PicketLoader } from "@/components/brand/PicketLoader";
 import { QuoteCountdown } from "@/components/quote/QuoteCountdown";
 import { EmailSheet } from "@/components/quote/EmailSheet";
 import { WisetackWidget } from "@/components/quote/WisetackWidget";
-import { useT } from "@/lib/i18n/use-locale";
+import { useT, useLocale } from "@/lib/i18n/use-locale";
+import { formatInstallWeek } from "@/lib/scheduling/install-week";
 import { BUSINESS, PHONE_HREF } from "@/lib/business";
-import { cn, formatCents } from "@/lib/utils";
+import { formatCents } from "@/lib/utils";
 
 interface QuoteShape {
   id: string;
@@ -44,6 +45,9 @@ interface QuoteShape {
   ironclad: boolean | null;
   boardOnBoard: boolean | null;
   priceValidUntil: string | null;
+  commitmentLane: string | null; // 'reserved' | 'price_hold'
+  priceHoldExpiresAt: string | null;
+  reservedWeekStart: string | null; // 'YYYY-MM-DD'
   gates?: Array<{ type: string; count: number }> | null;
 }
 
@@ -86,11 +90,13 @@ interface SkuRow {
 
 export default function QuotePage({ params }: { params: { id: string } }) {
   const t = useT();
+  const locale = useLocale();
   const [quote, setQuote] = useState<QuoteShape | null>(null);
   const [pricing, setPricing] = useState<PricingResponse | null>(null);
   const [skuMeta, setSkuMeta] = useState<SkuRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLocking, startLockIn] = useTransition();
+  const [isHolding, startHold] = useTransition();
   const [emailSheetOpen, setEmailSheetOpen] = useState(false);
 
   useEffect(() => {
@@ -167,6 +173,29 @@ export default function QuotePage({ params }: { params: { id: string } }) {
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : t.quote.checkoutFailed);
+      }
+    });
+  }
+
+  // Free "hold my price" lane — no payment. Persist the choice, then refetch
+  // the quote so the held state (and its server-stored expiry) render.
+  function handleHold() {
+    setError(null);
+    startHold(async () => {
+      try {
+        const r = await fetch(`/api/v1/quotes/${params.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ commitment_lane: "price_hold" }),
+        });
+        if (!r.ok) throw new Error(t.commitment.errorGeneric);
+        const fresh = await fetch(`/api/v1/quotes/${params.id}`, {
+          credentials: "include",
+        });
+        if (fresh.ok) setQuote((await fresh.json()) as QuoteShape);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t.commitment.errorGeneric);
       }
     });
   }
@@ -309,33 +338,15 @@ export default function QuotePage({ params }: { params: { id: string } }) {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleLockIn}
-                disabled={isLocking}
-                className={cn(
-                  "mt-6 flex h-16 w-full items-center justify-center gap-2.5 rounded-sm bg-brick px-10",
-                  "font-display text-[15px] font-semibold uppercase tracking-eyebrow text-cream",
-                  "shadow-cta transition-colors hover:bg-brick-deep",
-                  "disabled:cursor-not-allowed disabled:bg-steel-soft"
-                )}
-              >
-                {isLocking ? (
-                  <>
-                    <Loader2 className="animate-spin" size={18} />
-                    {t.quote.lockingCta}
-                  </>
-                ) : (
-                  <>
-                    <Lock size={16} strokeWidth={2.5} />
-                    {t.quote.lockCta}
-                  </>
-                )}
-              </button>
-
-              <p className="mt-3 font-body text-[13px] leading-[1.5] text-steel">
-                {t.quote.refundNote}
-              </p>
+              <CommitmentStep
+                t={t}
+                locale={locale}
+                quote={quote}
+                reserving={isLocking}
+                holding={isHolding}
+                onReserve={handleLockIn}
+                onHold={handleHold}
+              />
 
               {error && (
                 <div className="mt-4 rounded-sm border border-brick/30 bg-brick/5 px-3 py-2 text-sm text-brick">
@@ -379,6 +390,11 @@ export default function QuotePage({ params }: { params: { id: string } }) {
                 breakdown={pricing.breakdown}
                 rawSubtotal={pricing.raw_subtotal_cents}
                 finalPrice={pricing.final_price_cents}
+                reservationCreditCents={
+                  quote.status === "deposit_paid" || quote.status === "won"
+                    ? pricing.deposit_cents
+                    : 0
+                }
               />
 
               {/* Schedule preview */}
@@ -499,6 +515,148 @@ export default function QuotePage({ params }: { params: { id: string } }) {
   );
 }
 
+interface CommitmentStepProps {
+  t: ReturnType<typeof useT>;
+  locale: string;
+  quote: QuoteShape;
+  reserving: boolean;
+  holding: boolean;
+  onReserve: () => void;
+  onHold: () => void;
+}
+
+/**
+ * Two-lane commitment step, shown after the instant quote:
+ *  - reserved (paid)  → confirmation with the promised install week
+ *  - price_hold       → held confirmation + a low-key "reserve" nudge
+ *  - initial          → the two choice cards + reassurance line
+ * Copy is bilingual and never uses the word "deposit".
+ */
+function CommitmentStep({
+  t,
+  locale,
+  quote,
+  reserving,
+  holding,
+  onReserve,
+  onHold,
+}: CommitmentStepProps) {
+  const c = t.commitment;
+  const reserved = quote.status === "deposit_paid" || quote.status === "won";
+  const held = quote.commitmentLane === "price_hold" && !reserved;
+
+  if (reserved) {
+    const week = quote.reservedWeekStart
+      ? formatInstallWeek(quote.reservedWeekStart, locale)
+      : "";
+    return (
+      <div className="mt-6 rounded-sm border border-forest-600/30 bg-forest-50 p-5">
+        <div className="flex items-start gap-3">
+          <CalendarCheck
+            size={20}
+            strokeWidth={2}
+            className="mt-0.5 flex-shrink-0 text-forest-600"
+          />
+          <p className="font-body text-[14px] leading-[1.55] text-char">
+            {c.reservedConfirm.replace("{date}", week)}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (held) {
+    const through = quote.priceHoldExpiresAt
+      ? new Intl.DateTimeFormat(locale === "es" ? "es-US" : "en-US", {
+          month: "long",
+          day: "numeric",
+          timeZone: "America/Chicago",
+        }).format(new Date(quote.priceHoldExpiresAt))
+      : "";
+    return (
+      <div className="mt-6 rounded-sm border border-cream-deep bg-cream p-5">
+        <p className="font-body text-[14px] leading-[1.55] text-char">
+          {c.heldConfirm.replace("{date}", through)}
+        </p>
+        <button
+          type="button"
+          onClick={onReserve}
+          disabled={reserving}
+          className="mt-4 inline-flex h-11 items-center gap-2 rounded-sm border border-navy/30 px-5 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:border-navy hover:bg-navy/5 disabled:opacity-50"
+        >
+          {reserving ? (
+            <Loader2 className="animate-spin" size={14} />
+          ) : (
+            <CalendarCheck size={14} strokeWidth={2.5} />
+          )}
+          {c.heldReserveButton}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6">
+      <div className="grid gap-4 sm:grid-cols-2">
+        {/* Card 1 — featured, champagne top border + MOST POPULAR pill */}
+        <div className="relative overflow-hidden rounded-sm border border-cream-deep bg-white shadow-card">
+          <div className="h-[3px] w-full bg-champagne" />
+          <div className="flex h-full flex-col p-5">
+            <span className="self-start rounded-pill bg-champagne px-3 py-0.5 font-display text-[10px] font-semibold uppercase tracking-eyebrow text-navy">
+              {c.reservePill}
+            </span>
+            <h3 className="mt-3 font-display text-[19px] font-bold uppercase leading-[1.05] tracking-[0.01em] text-navy">
+              {c.reserveHeading}
+            </h3>
+            <p className="mt-2 font-body text-[13px] leading-[1.5] text-char">
+              {c.reserveBody}
+            </p>
+            <button
+              type="button"
+              onClick={onReserve}
+              disabled={reserving}
+              aria-label={c.reserveButton}
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-sm bg-champagne px-6 font-display text-[14px] font-semibold uppercase tracking-eyebrow text-navy shadow-cta transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {reserving ? (
+                <Loader2 className="animate-spin" size={16} />
+              ) : (
+                <CalendarCheck size={15} strokeWidth={2.5} />
+              )}
+              {c.reserveButton}
+            </button>
+          </div>
+        </div>
+
+        {/* Card 2 — plain */}
+        <div className="rounded-sm border border-cream-deep bg-white">
+          <div className="flex h-full flex-col p-5">
+            <h3 className="font-display text-[19px] font-bold uppercase leading-[1.05] tracking-[0.01em] text-navy">
+              {c.holdHeading}
+            </h3>
+            <p className="mt-2 font-body text-[13px] leading-[1.5] text-char">
+              {c.holdBody}
+            </p>
+            <button
+              type="button"
+              onClick={onHold}
+              disabled={holding}
+              className="mt-auto flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-navy/30 px-6 font-display text-[14px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:border-navy hover:bg-navy/5 disabled:opacity-50"
+            >
+              {holding && <Loader2 className="animate-spin" size={16} />}
+              {c.holdButton}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <p className="mt-4 text-center font-body text-[13px] leading-[1.5] text-steel">
+        {c.reassurance}
+      </p>
+    </div>
+  );
+}
+
 interface InvoiceCardProps {
   t: ReturnType<typeof useT>;
   lf: number;
@@ -506,6 +664,8 @@ interface InvoiceCardProps {
   breakdown: PricingBreakdown;
   rawSubtotal: number;
   finalPrice: number;
+  /** $ applied after an install-week reservation (0 otherwise). */
+  reservationCreditCents: number;
 }
 
 function InvoiceCard({
@@ -515,6 +675,7 @@ function InvoiceCard({
   breakdown,
   rawSubtotal,
   finalPrice,
+  reservationCreditCents,
 }: InvoiceCardProps) {
   const ratePerLf = lf > 0 ? breakdown.base_fence_cents / lf : 0;
   // Guards (margin floor + min profit) are INTERNAL pricing protections.
@@ -632,13 +793,22 @@ function InvoiceCard({
           ))}
         </ul>
 
+        {reservationCreditCents > 0 && (
+          <div className="mt-3 flex items-baseline justify-between gap-4 border-t border-navy/10 pt-3 font-body text-[13.5px]">
+            <span className="text-forest-600">{t.commitment.creditLineLabel}</span>
+            <span className="font-mono text-[13px] tabular-nums text-forest-600">
+              −{formatCents(reservationCreditCents)}
+            </span>
+          </div>
+        )}
+
         <div className="mt-4 border-t-2 border-navy/20 pt-4">
           <div className="flex items-baseline justify-between gap-4">
             <span className="font-display text-[15px] font-semibold uppercase tracking-eyebrow text-navy">
               {t.quote.invoiceTotal}
             </span>
             <span className="font-display text-[24px] font-bold tabular-nums text-brick">
-              {formatCents(finalPrice)}
+              {formatCents(finalPrice - reservationCreditCents)}
             </span>
           </div>
         </div>

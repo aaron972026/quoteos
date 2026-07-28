@@ -1,45 +1,84 @@
 import Link from "next/link";
-import { CheckCircle2 } from "lucide-react";
+import { CalendarCheck } from "lucide-react";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/lib/db/client";
+import { quotes } from "@/lib/db/schema";
+import { getCurrentSessionId } from "@/lib/api/session-helper";
+import { getDict } from "@/lib/i18n/server";
+import { formatInstallWeek } from "@/lib/scheduling/install-week";
 import { TrustStrip } from "@/components/TrustStrip";
+import { BUSINESS } from "@/lib/business";
 
-export default function QuoteSuccessPage({
+export const dynamic = "force-dynamic";
+
+export default async function QuoteSuccessPage({
   params,
 }: {
   params: { id: string };
 }) {
+  const { locale, dict } = getDict();
+  const c = dict.commitment;
+
+  // The reserved install week was stamped at reservation time — read it back
+  // (session-scoped) so the confirmation matches what checkout promised.
+  let week = "";
+  const sid = await getCurrentSessionId();
+  if (sid) {
+    const [row] = await db
+      .select({ reservedWeekStart: quotes.reservedWeekStart })
+      .from(quotes)
+      .where(and(eq(quotes.id, params.id), eq(quotes.sessionId, sid)))
+      .limit(1);
+    if (row?.reservedWeekStart) {
+      week = formatInstallWeek(row.reservedWeekStart, locale);
+    }
+  }
+
   return (
-    <main className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center px-6 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent/15 text-accent">
-        <CheckCircle2 size={36} />
+    <main className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center px-6 py-16 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-forest-50 text-forest-600">
+        <CalendarCheck size={34} strokeWidth={2} />
       </div>
-      <h1 className="mt-5 text-3xl font-bold text-navy">
-        You&rsquo;re locked in.
+      <h1 className="mt-5 font-display text-3xl font-bold uppercase tracking-[0.01em] text-navy">
+        {locale === "es" ? "Su semana está reservada." : "Your week is reserved."}
       </h1>
-      <p className="mt-3 max-w-md text-pretty text-navy/70">
-        Your $99 deposit is held. Our team will reach out within{" "}
-        <span className="font-semibold text-navy">one business day</span> to
-        confirm install timing. Most projects start in 10&ndash;17 days.
+      <p className="mt-4 max-w-md text-pretty font-body text-[15px] leading-[1.6] text-char">
+        {c.reservedConfirm.replace("{date}", week)}
       </p>
 
-      <div className="mt-8 rounded-xl border border-navy/10 bg-navy/5 p-4 text-left text-sm">
-        <div className="font-semibold text-navy">What happens next</div>
-        <ol className="mt-2 list-decimal space-y-1 pl-5 text-navy/70">
-          <li>Receipt email from Stripe (already on its way)</li>
-          <li>Ivory Fence Co. calls or texts to lock the install date</li>
-          <li>Final walk-through and payment plan (Wisetack if you choose)</li>
-          <li>Crew arrives, builds your fence in 1–3 days</li>
+      <div className="mt-8 w-full rounded-sm border border-navy/10 bg-cream p-5 text-left">
+        <div className="font-mono text-[11px] uppercase tracking-spec text-brick">
+          {locale === "es" ? "Qué sigue" : "What happens next"}
+        </div>
+        <ol className="mt-3 list-decimal space-y-1.5 pl-5 font-body text-[13.5px] text-char">
+          {(locale === "es"
+            ? [
+                "Recibe un correo con la confirmación de su reserva.",
+                "Verificamos las medidas en sitio en los próximos días.",
+                "Le presentamos el plan y precio final — usted lo aprueba.",
+                "Comenzamos su proyecto: meta de 5 días, 10 o menos.",
+              ]
+            : [
+                "You get a confirmation email for your reservation.",
+                "We verify your measurements on site in the next few days.",
+                "We present the final plan and price — you approve it.",
+                "We start your project: target 5 days, 10 or fewer.",
+              ]
+          ).map((step) => (
+            <li key={step}>{step}</li>
+          ))}
         </ol>
       </div>
 
-      <div className="mt-6 text-xs text-navy/50">
-        Need to change something?{" "}
+      <div className="mt-6 font-body text-[12.5px] text-steel">
+        {locale === "es" ? "¿Necesita cambiar algo? " : "Need to change something? "}
         <Link
           href={`/quote/${params.id}`}
-          className="underline-offset-4 hover:underline"
+          className="text-navy underline-offset-4 hover:underline"
         >
-          Back to your quote
+          {locale === "es" ? "Volver a su cotización" : "Back to your quote"}
         </Link>{" "}
-        or call (918) 555-0100.
+        {locale === "es" ? "o llame al" : "or call"} {BUSINESS.phone}.
       </div>
 
       <div className="mt-10">

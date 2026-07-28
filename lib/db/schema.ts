@@ -12,6 +12,7 @@ import {
   serial,
   pgEnum,
   index,
+  date,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -192,6 +193,18 @@ export const quotes = pgTable(
     selectedTierCents: integer("selected_tier_cents"),
     depositCents: integer("deposit_cents"),
     monthly24moCents: integer("monthly_24mo_cents"),
+
+    // Commitment step (after the instant quote). The customer picks a lane:
+    //   'reserved'   → $99 reservation (existing Stripe flow), credited to the
+    //                  project; reservedWeekStart holds the promised install week.
+    //   'price_hold' → free 14-day price hold; priceHoldExpiresAt holds the
+    //                  expiry; reservedWeekStart stays null.
+    // Anything promised on screen is stored, never recomputed.
+    commitmentLane: text("commitment_lane"), // 'reserved' | 'price_hold'
+    priceHoldExpiresAt: timestamp("price_hold_expires_at", {
+      withTimezone: true,
+    }),
+    reservedWeekStart: date("reserved_week_start"), // Monday of the reserved install week
 
     // Margin (internal — never returned to client)
     estimatedMaterialCostCents: integer("estimated_material_cost_cents"),

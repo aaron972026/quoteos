@@ -29,6 +29,26 @@
 
 ## L1 — High-impact, ready to build
 
+### Two-lane commitment step — post-deploy QA + follow-ups (SHIPPED, code only)
+The $99 "deposit" step is replaced by two lanes: **Reserve my install week — $99**
+(existing Stripe flow, credited to the project, stamps `reserved_week_start`) and
+**Hold my price free for 14 days** (no payment; stamps `commitment_lane='price_hold'`
++ `price_hold_expires_at`). Copy never says "deposit"; bilingual EN/ES.
+- **Deploy order (HARD RULE):** run `scripts/add-commitment.ts` on prod FIRST (3
+  nullable columns — old code ignores them), THEN deploy the code.
+- **Pre-announce QA (do before telling anyone):** (1) walk both lanes on mobile, EN
+  and ES; (2) one real $99 reservation in Stripe **test mode** — confirm the line item
+  reads "Ivory Fence Co. — Install week reservation" and the quote page shows the
+  −$99.00 credit + reduced total; (3) confirm the Stripe-dashboard refund is one click.
+- **Copy note:** using "in the next few days" / "en los próximos días" (not a hard
+  "3 days") — Tue/Wed/Fri + 24h lead can't back 3 days from a Friday commit. Swap to a
+  number only if slot days are added.
+- **Follow-up ticket:** the quote GET uses `db.select()` (all schema columns) — switch
+  it to an **explicit column list** so a future additive migration can never 500 the
+  quote page if code lands before the migration. `app/api/v1/quotes/[id]/route.ts`.
+- **On Slice 3 landing:** swap the hold-card body line to "pick your visit time on the
+  next screen" and route both lanes into the slot-picker.
+
 ### Rep visit scheduler — remaining slices (IN PROGRESS)
 **Decision (2026-07-22):** the $99 customer deposit is being removed. The funnel now ends
 in a booked **scope-confirmation visit**; the rep confirms scope, shows samples, upsells,
