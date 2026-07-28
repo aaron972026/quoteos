@@ -58,6 +58,7 @@ interface PricingBreakdown {
   slope_surcharge_cents: number;
   access_surcharge_cents: number;
   steel_upgrade_cents: number;
+  cedar_post_cents: number;
   ironclad_cents: number;
   board_on_board_cents: number;
   cap_rail_cents: number;
@@ -822,15 +823,16 @@ function InvoiceCard({
       label: "Ivory Standard upgrade",
       cents: breakdown.ironclad_cents,
       included: [
-        "PostMaster steel posts · lifetime rot & bend warranty",
+        "PostMaster steel posts · lifetime post warranty (rust-through, bend, break)",
         "Stain & seal",
         "36″ post set · 240+ lbs concrete each",
-        "3-yr workmanship · 10-yr post & picket warranty",
+        "3-yr workmanship · 10-yr structure warranty",
         "Manufacturer warranties on all materials",
       ],
     },
     { label: "Board-on-board privacy", cents: breakdown.board_on_board_cents },
-    { label: "Steel post upgrade", cents: breakdown.steel_upgrade_cents },
+    { label: "Cedar posts", cents: breakdown.cedar_post_cents },
+    { label: "Steel Postmaster posts", cents: breakdown.steel_upgrade_cents },
     { label: "Cap rail + trim", cents: breakdown.cap_rail_cents },
     { label: "Black vinyl posts", cents: breakdown.match_vinyl_posts_cents },
     { label: t.quote.invoiceLineGates, cents: breakdown.gates_cents },

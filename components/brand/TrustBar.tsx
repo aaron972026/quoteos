@@ -17,7 +17,7 @@ interface Props {
 const DEFAULT_ITEMS: Item[] = [
   { label: "Xactimate Certified", detail: "Insurance claims handled" },
   { label: "Bonded", detail: "& Insured" },
-  { label: "Warranty", detail: "2-Yr Workmanship · Lifetime Steel Post" },
+  { label: "Warranty", detail: "Posts warranted up to lifetime · 2-yr workmanship, transferable" },
   { label: "Locally Owned", detail: "& Operated · Tulsa, OK" },
 ];
 

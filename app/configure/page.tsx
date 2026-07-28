@@ -24,6 +24,7 @@ import { FenceSketch } from "@/components/configure/FenceSketch";
 import { cn, formatCents } from "@/lib/utils";
 import { useT } from "@/lib/i18n/use-locale";
 import type { PostType } from "@/lib/pricing/types";
+import { postWarrantyLine } from "@/lib/warranty";
 
 interface SkuApiRow {
   code: string;
@@ -712,10 +713,10 @@ function ConfigurePageInner() {
 
                         <ul className="mt-3 space-y-1.5">
                           {[
-                            "PostMaster steel posts — lifetime rot & bend warranty",
+                            "PostMaster steel posts — lifetime post warranty (rust-through, bend, break)",
                             "Set 36″ deep · 240+ lbs concrete each",
                             "Stain & Seal included ($6/LF value)",
-                            "3-Year workmanship · 10-Year post & picket coverage",
+                            "3-Year workmanship · 10-Year structure coverage",
                             "Manufacturer warranties on all materials, passed through in full",
                           ].map((bullet) => (
                             <li
@@ -935,6 +936,19 @@ function ConfigurePageInner() {
                       ? t.configure.coverageBodyIvory
                       : t.configure.coverageBody}
                   </p>
+                  {!ironclad && steelUpgradeAvailable && (
+                    <div className="mt-3 flex items-start gap-1.5 border-t border-navy/10 pt-3 font-body text-[12px] leading-[1.45] text-char">
+                      <Check
+                        size={13}
+                        strokeWidth={2.5}
+                        className="mt-0.5 flex-shrink-0 text-brick"
+                      />
+                      <span>
+                        {postWarrantyLine(t, postType)} ·{" "}
+                        {t.configure.warrantyWorkmanship}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </aside>

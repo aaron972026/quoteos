@@ -161,6 +161,11 @@ export interface Dictionary {
     postSteelPrice: string;
     postSteelPill: string;
     postIncludedIvory: string;
+    // Warranty matrix — the displayed post warranty derives from post_type.
+    warrantyPostPt: string;
+    warrantyPostCedar: string;
+    warrantyPostSteel: string;
+    warrantyWorkmanship: string;
     addonHeight: string;
     addonHeightDesc: string;
     addonHeightPrice: string;
@@ -355,7 +360,7 @@ const en: Dictionary = {
         eyebrow: "03 · Warranty",
         title: "Warranted In Writing.",
         body:
-          "2-year workmanship (transferable) and a 5-year cedar post warranty come standard. Upgrade to PostMaster+ steel posts for a lifetime rot & bend warranty.",
+          "2-year workmanship (transferable) and a 5-year post warranty come standard. Upgrade to PostMaster+ steel posts for a lifetime post warranty (rust-through, bend, break).",
       },
     ],
     missingZip:
@@ -494,6 +499,11 @@ const en: Dictionary = {
     postSteelPrice: "+$6/LF",
     postSteelPill: "Most Durable",
     postIncludedIvory: "Included with Ivory Standard",
+    warrantyPostPt: "5-year post warranty",
+    warrantyPostCedar: "5-year structural post warranty (no rot)",
+    warrantyPostSteel:
+      "Lifetime post warranty (rust-through, bend, break) + 10-year structure warranty",
+    warrantyWorkmanship: "2-year workmanship warranty (transferable)",
     addonHeight: "Height Upgrade — 8 ft",
     addonHeightDesc: "Bumps the standard 6 ft fence up to 8 ft tall.",
     addonHeightPrice: "+18%",
@@ -507,7 +517,7 @@ const en: Dictionary = {
     coverageBody:
       "Materials, labor, concrete, fasteners, cleanup, and our 2-year workmanship + 5-year post warranty. Permits and OK811 line inspection handled by us.",
     coverageBodyIvory:
-      "Ivory Standard: PostMaster+ steel posts (lifetime rot & bend), stain & seal, and a 36″-deep, 240 lb concrete set — plus 3-year workmanship, 10-year post & picket coverage, and manufacturer warranties on every material. Permits and OK811 line inspection handled by us.",
+      "Ivory Standard: PostMaster+ steel posts (lifetime post warranty — rust-through, bend, break), stain & seal, and a 36″-deep, 240 lb concrete set — plus 3-year workmanship, 10-year structure coverage, and manufacturer warranties on every material. Permits and OK811 line inspection handled by us.",
     careSchedule:
       "Includes your stain & seal visit once the wood has cured, and your 2-Year Renewal — we come back, re-apply UV seal, and check every board and gate. Year 4 and Year 7 renewals are available as scheduled Care visits.",
     ivoryPineDesc:
@@ -589,7 +599,7 @@ const en: Dictionary = {
       {
         title: "2-Year Workmanship · 5-Year Post",
         body:
-          "Workmanship is warranted for two years (transferable). Cedar posts: five years against structural failure. Upgrade to PostMaster+ steel posts for a lifetime rot & bend warranty (manufacturer's limited lifetime, passed through in full).",
+          "Workmanship is warranted for two years (transferable). Posts: five years against structural failure (PT or cedar). Upgrade to PostMaster+ steel posts for a lifetime post warranty against rust-through, bend, or break (manufacturer's limited lifetime, passed through in full).",
       },
     ],
     trustTagline: "— Built Right · Stands Strong —",
@@ -735,7 +745,7 @@ const es: Dictionary = {
         eyebrow: "03 · Garantía",
         title: "Garantía por escrito.",
         body:
-          "Mano de obra garantizada por 2 años (transferible) y postes de cedro por 5 años contra falla estructural. Mejora a postes de acero PostMaster+ para una garantía de por vida contra pudrición y flexión.",
+          "Mano de obra garantizada por 2 años (transferible) y postes por 5 años contra falla estructural. Mejora a postes de acero PostMaster+ para una garantía de postes de por vida (oxidación, flexión, rotura).",
       },
     ],
     missingZip:
@@ -875,6 +885,11 @@ const es: Dictionary = {
     postSteelPrice: "+$6/pie",
     postSteelPill: "Más duradero",
     postIncludedIvory: "Incluido con Ivory Standard",
+    warrantyPostPt: "Garantía de postes de 5 años",
+    warrantyPostCedar: "Garantía estructural de postes de 5 años (sin pudrición)",
+    warrantyPostSteel:
+      "Garantía de postes de por vida (oxidación, flexión, rotura) + garantía de estructura de 10 años",
+    warrantyWorkmanship: "Garantía de mano de obra de 2 años (transferible)",
     addonHeight: "Altura 8 pies",
     addonHeightDesc: "Sube la cerca estándar de 6 pies a 8 pies.",
     addonHeightPrice: "+18%",
@@ -888,7 +903,7 @@ const es: Dictionary = {
     coverageBody:
       "Materiales, mano de obra, concreto, herrajes, limpieza y garantía de mano de obra de 2 años + poste de 5 años. Permisos e inspección OK811 a nuestro cargo.",
     coverageBodyIvory:
-      "Ivory Standard: postes de acero PostMaster+ (garantía de por vida contra pudrición y flexión), sellado y barniz, y postes a 36″ de profundidad con 240 lb de concreto — más 3 años de mano de obra, 10 años de cobertura de postes y tablas, y garantías del fabricante en cada material. Permisos e inspección OK811 a nuestro cargo.",
+      "Ivory Standard: postes de acero PostMaster+ (garantía de postes de por vida — oxidación, flexión, rotura), sellado y barniz, y postes a 36″ de profundidad con 240 lb de concreto — más 3 años de mano de obra, 10 años de cobertura de estructura, y garantías del fabricante en cada material. Permisos e inspección OK811 a nuestro cargo.",
     careSchedule:
       "Incluye tu visita de barniz y sellado una vez que la madera se ha curado, y tu Renovación de 2 Años — regresamos, reaplicamos el sellador UV y revisamos cada tabla y puerta. Las renovaciones del Año 4 y Año 7 están disponibles como visitas de Cuidado programadas.",
     ivoryPineDesc:
@@ -970,7 +985,7 @@ const es: Dictionary = {
       {
         title: "Mano de obra 2 años · Poste 5 años",
         body:
-          "Mano de obra garantizada por dos años (transferible). Postes de cedro: cinco años contra falla estructural. Mejora a postes de acero PostMaster+ para una garantía de por vida contra pudrición y flexión.",
+          "Mano de obra garantizada por dos años (transferible). Postes: cinco años contra falla estructural (PT o cedro). Mejora a postes de acero PostMaster+ para una garantía de postes de por vida (oxidación, flexión, rotura).",
       },
     ],
     trustTagline: "— Construido bien · Permanece firme —",

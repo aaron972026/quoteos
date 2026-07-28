@@ -103,6 +103,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       heightUpgrade: !!row.heightUpgrade,
       frenchGothic: !!row.frenchGothic,
       stainSeal: !!row.stainSeal,
+      postType: (row.postType as "pt" | "cedar" | "steel" | null) ?? undefined,
       finalPriceCents: priced.final_price_cents,
       displayRangeLowCents: priced.display_range_low_cents,
       displayRangeHighCents: priced.display_range_high_cents,

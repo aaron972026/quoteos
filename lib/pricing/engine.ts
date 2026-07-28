@@ -106,7 +106,7 @@ export function calculatePrice(
 
   // ─── Ironclad Install bundle ($13/LF, wood-post families only) ─────
   // Bundles steel posts + stain & seal + the 36"-deep / 240+ lb post set
-  // + extended warranties (3-yr workmanship, 15-yr post & picket). The
+  // + extended warranties (3-yr workmanship, 10-yr structure). The
   // bundle ABSORBS the standalone steel and stain charges: if those
   // flags also arrive (e.g. stain_seal is persisted true so the BOM
   // orders stain materials), their line items zero out with a warning

@@ -93,10 +93,10 @@ interface SkuSeed {
   posts_standard: "pt" | "cedar_wood" | "galv_line";
 }
 
-// Standard warranty bullet shown on every SKU card. Reflects the Ivory Fence Co.
-// Limited Warranty doc — 2-year workmanship + 5-year cedar post (or 15-year
-// with the steel-post upgrade purchased on /configure).
-const STD_WARRANTY_BULLET = "2-Year workmanship · 5-Year cedar post";
+// Standard warranty bullet shown on every SKU card (the baseline before any
+// post upgrade). Posts ship PT (5-yr) — cedar (5-yr structural) and steel
+// (lifetime) are chosen in /configure and surface the matrix line there.
+const STD_WARRANTY_BULLET = "2-Year workmanship · 5-Year post";
 
 const SKU_SEEDS: SkuSeed[] = [
   // ── Budget Pine Fence (1 variant — its own family) ──────────────────
@@ -368,8 +368,8 @@ export const ADDONS = {
   TEAR_CONCRETE_PER_POST_CENTS: 2000,  // $20/post for old concrete-set posts
   ACCESS_SURCHARGE_PCT: 0.08,          // +8% on fence subtotal for difficult access
   // Ironclad Install bundle (customer-facing name: Ivory Standard): PostMaster steel posts (lifetime rot & bend warranty) + stain &
-  // seal + 36" deep / 240+ lb concrete set + 3-yr workmanship + 15-yr post
-  // & cedar-picket coverage. Priced below the $13 a-la-carte component sum
+  // seal + 36" deep / 240+ lb concrete set + 3-yr workmanship + 10-yr
+  // structure coverage. Priced below the $13 a-la-carte component sum
   // anchor ($5 steel + $8 standalone stain) once warranty value is stacked;
   // bundled cost ~= $7.05/LF (steel 2.75 + in-build stain 2.80 + deeper
   // set/extra concrete 1.00 + warranty reserve 0.50) -> 45.8% margin.

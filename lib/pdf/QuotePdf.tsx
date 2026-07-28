@@ -8,6 +8,7 @@ import {
 } from "@react-pdf/renderer";
 import { BUSINESS } from "@/lib/business";
 import { getBrandLogoBuffer } from "./brand-logo";
+import type { PostType } from "@/lib/pricing/types";
 
 const NAVY = "#1A2A4A";
 const BRICK = "#8B2332";
@@ -131,6 +132,7 @@ export interface QuotePdfData {
   heightUpgrade: boolean;
   frenchGothic: boolean;
   stainSeal: boolean;
+  postType?: PostType;
   steelPostUpgrade?: boolean;
   finalPriceCents: number;
   displayRangeLowCents: number;
@@ -141,6 +143,7 @@ export interface QuotePdfData {
     access_surcharge_cents: number;
     steel_upgrade_cents: number;
     // Newer engine lines — optional so older call sites keep compiling.
+    cedar_post_cents?: number;
     ironclad_cents?: number;
     board_on_board_cents?: number;
     cap_rail_cents?: number;
@@ -175,7 +178,8 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
     [
       ["Base fence", data.breakdown.base_fence_cents],
       ["Ironclad Install", data.breakdown.ironclad_cents ?? 0],
-      ["Steel post upgrade", data.breakdown.steel_upgrade_cents],
+      ["Cedar posts", data.breakdown.cedar_post_cents ?? 0],
+      ["Steel Postmaster posts", data.breakdown.steel_upgrade_cents],
       ["Board-on-board privacy", data.breakdown.board_on_board_cents ?? 0],
       ["Cap rail + trim", data.breakdown.cap_rail_cents ?? 0],
       ["Black vinyl posts", data.breakdown.match_vinyl_posts_cents ?? 0],
@@ -266,10 +270,20 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
             <Text style={styles.scopeValue}>French Gothic</Text>
           </View>
         )}
-        {data.steelPostUpgrade && (
+        {data.postType === "cedar" && (
           <View style={styles.scopeRow}>
             <Text style={styles.scopeLabel}>Posts</Text>
-            <Text style={styles.scopeValue}>Steel-post upgrade (15-yr structural)</Text>
+            <Text style={styles.scopeValue}>
+              Cedar posts — 5-yr structural warranty (no rot)
+            </Text>
+          </View>
+        )}
+        {(data.postType === "steel" || data.steelPostUpgrade) && (
+          <View style={styles.scopeRow}>
+            <Text style={styles.scopeLabel}>Posts</Text>
+            <Text style={styles.scopeValue}>
+              Steel Postmaster — lifetime post warranty + 10-yr structure
+            </Text>
           </View>
         )}
         {data.stainSeal && (

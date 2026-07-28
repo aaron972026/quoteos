@@ -182,6 +182,7 @@ export async function resendQuoteEmail(
       heightUpgrade: !!row.heightUpgrade,
       frenchGothic: !!row.frenchGothic,
       stainSeal: !!row.stainSeal,
+      postType: (row.postType as "pt" | "cedar" | "steel" | null) ?? undefined,
       finalPriceCents,
       displayRangeLowCents: displayLow,
       displayRangeHighCents: displayHigh,

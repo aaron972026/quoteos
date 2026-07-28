@@ -322,8 +322,8 @@ const SECTIONS: Section[] = [
 
 const AT_A_GLANCE: Array<{ term: string; def: string }> = [
   { term: "2-Year Workmanship Warranty", def: "every fence we build · transferable" },
-  { term: "5-Year Post Warranty", def: "standard cedar posts, against structural failure" },
-  { term: "10-Year Post & Picket", def: "Ivory Standard installation" },
+  { term: "5-Year Post Warranty", def: "standard PT & cedar posts, against structural failure" },
+  { term: "10-Year Structure", def: "Ivory Standard installation" },
   { term: "Lifetime Steel Post Warranty", def: "PostMaster+ posts, against rot & bending · 130 mph wind rated" },
   { term: "12-Month No-Warp Warranty", def: "our KDAT premium pine line" },
   { term: "1-Year Gate & Hardware", def: "against defects" },
