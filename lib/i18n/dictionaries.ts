@@ -102,6 +102,21 @@ export interface Dictionary {
     missingCoords: string;
     couldNotLoadQuote: string;
     couldNotSaveFence: string;
+    // Aim-and-drop mode (mobile / pointer:coarse)
+    aimHelperStart: string;
+    aimZoomGuard: string;
+    aimDrop: string;
+    aimUndo: string;
+    aimFinish: string;
+    aimStartOver: string;
+    aimEdit: string;
+    aimAddGates: string;
+    aimReviewTitle: string;
+    aimTotalLabel: string;
+    aimFtUnit: string;
+    aimClearTitle: string;
+    aimClearConfirm: string;
+    aimClearCancel: string;
     // Brand v1.0 — Screen 3 redesign
     eyebrow: string; // "Step Three · Trace The Run"
     panelTitle: string; // "Trace The Fence Run"
@@ -417,6 +432,20 @@ const en: Dictionary = {
     missingCoords: "Quote is missing coordinates.",
     couldNotLoadQuote: "Could not load quote",
     couldNotSaveFence: "Could not save your fence",
+    aimHelperStart: "Move the map to aim — then drop your first post.",
+    aimZoomGuard: "Zoom in a little for accuracy",
+    aimDrop: "Drop Post",
+    aimUndo: "Undo",
+    aimFinish: "Finish Drawing",
+    aimStartOver: "Start over",
+    aimEdit: "Edit drawing",
+    aimAddGates: "Add Gates",
+    aimReviewTitle: "Your drawing",
+    aimTotalLabel: "Total",
+    aimFtUnit: "ft",
+    aimClearTitle: "Clear the whole drawing?",
+    aimClearConfirm: "Clear",
+    aimClearCancel: "Keep drawing",
     eyebrow: "Step Three · Trace The Run",
     panelTitle: "Trace The Fence Run",
     panelHelp:
@@ -807,6 +836,20 @@ const es: Dictionary = {
     missingCoords: "La cotización no tiene coordenadas.",
     couldNotLoadQuote: "No se pudo cargar la cotización",
     couldNotSaveFence: "No se pudo guardar tu cerca",
+    aimHelperStart: "Mueve el mapa para apuntar — luego suelta tu primer poste",
+    aimZoomGuard: "Acércate un poco para mayor precisión",
+    aimDrop: "Suelta un poste",
+    aimUndo: "Deshacer",
+    aimFinish: "Terminar dibujo",
+    aimStartOver: "Empezar de nuevo",
+    aimEdit: "Editar dibujo",
+    aimAddGates: "Agregar puertas",
+    aimReviewTitle: "Tu dibujo",
+    aimTotalLabel: "Total",
+    aimFtUnit: "pies",
+    aimClearTitle: "¿Borrar todo el dibujo?",
+    aimClearConfirm: "Borrar",
+    aimClearCancel: "Seguir dibujando",
     eyebrow: "Paso Tres · Traza la línea",
     panelTitle: "Traza el recorrido",
     panelHelp:
