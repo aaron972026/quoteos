@@ -517,6 +517,68 @@ describe("ironclad install bundle", () => {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// Pricing regression locks (slice 3a) — pin the CURRENT delivered totals
+// so a future edit can't silently move them. No constant changed here; the
+// proposed $53 bundle target was voided (it was computed off a stale $47
+// belief — the real cedar-privacy Ivory Standard total is $57.82/LF).
+// ════════════════════════════════════════════════════════════════════
+describe("delivered-total regression locks", () => {
+  // 100 LF, clean config (no gates/demo/slope). base_fence + ironclad is
+  // LF-linear, so per-LF is exact regardless of permit/gates lines.
+  const at100 = (over: Partial<PricingInput> = {}) =>
+    calculatePrice(input({ linear_feet: 100, city: "Owasso", ...over }));
+
+  it("cedar-privacy Ivory Standard delivers exactly $57.82/LF (base $44.82 + bundle $13)", () => {
+    const iv = at100({ ironclad: true });
+    const perLf =
+      (iv.breakdown.base_fence_cents + iv.breakdown.ironclad_cents) / 100;
+    expect(perLf).toBe(5782);
+    expect(iv.breakdown.base_fence_cents).toBe(448200);
+    expect(iv.breakdown.ironclad_cents).toBe(130000);
+  });
+
+  it("cedar-privacy Essential (no bundle) delivers exactly $44.82/LF, unchanged", () => {
+    const ess = at100();
+    expect(ess.breakdown.base_fence_cents / 100).toBe(4482);
+    expect(ess.breakdown.ironclad_cents).toBe(0);
+  });
+
+  it("budget-pine Essential delivers $35.41/LF; Ivory Standard $48.41/LF", () => {
+    const ess = at100({ sku_code: "BP-STD" });
+    const iv = at100({ sku_code: "BP-STD", ironclad: true });
+    expect(ess.breakdown.base_fence_cents / 100).toBe(3541);
+    expect(
+      (iv.breakdown.base_fence_cents + iv.breakdown.ironclad_cents) / 100
+    ).toBe(4841);
+  });
+
+  it("board-on-board adds exactly $7/LF", () => {
+    const bob = at100({ board_on_board: true });
+    expect(bob.breakdown.board_on_board_cents).toBe(700 * 100);
+  });
+
+  it("steel / cedar post adders are unchanged ($6 / $3 per LF)", () => {
+    expect(at100({ post_type: "steel" }).breakdown.steel_upgrade_cents).toBe(
+      600 * 100
+    );
+    expect(at100({ post_type: "cedar" }).breakdown.cedar_post_cents).toBe(
+      300 * 100
+    );
+  });
+
+  it("Ivory Standard + board-on-board: BOB adds $7/LF on top, steel not double-charged", () => {
+    const ivOnly = at100({ ironclad: true });
+    const ivBob = at100({ ironclad: true, board_on_board: true, post_type: "steel" });
+    // Bundle unchanged, BOB is purely additive, steel rides the bundle once.
+    expect(ivBob.breakdown.ironclad_cents).toBe(130000);
+    expect(ivBob.breakdown.board_on_board_cents).toBe(700 * 100);
+    expect(ivBob.breakdown.steel_upgrade_cents).toBe(0);
+    expect(ivBob.raw_subtotal_cents - ivOnly.raw_subtotal_cents).toBe(700 * 100);
+    expect(ivBob.warnings).toContain("steel_absorbed_by_ironclad");
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
 // Board-on-board — $7/LF toggle, wood-picket families
 // ════════════════════════════════════════════════════════════════════
 describe("board-on-board add-on", () => {
