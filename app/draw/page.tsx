@@ -21,6 +21,7 @@ import {
   Plus,
   RotateCcw,
   Spline,
+  SlidersHorizontal,
   Sparkles,
   TriangleAlert,
   Undo2,
@@ -169,7 +170,9 @@ function DrawPageInner() {
   const AIM_MIN_ZOOM = 18;
   const [aimMode, setAimMode] = useState(false);
   const [drawState, dispatch] = useReducer(drawReducer, EMPTY_DRAW_STATE);
-  const [aimStage, setAimStage] = useState<"draw" | "review">("draw");
+  const [aimUiMode, setAimUiMode] = useState<"draw" | "adjust">("draw");
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [tracedHelper, setTracedHelper] = useState(false);
   const [aimCenter, setAimCenter] = useState<[number, number] | null>(null);
   const [aimZoom, setAimZoom] = useState<number | null>(null);
 
@@ -181,19 +184,15 @@ function DrawPageInner() {
 
   const aimAiming = totalPosts(drawState) === 0;
   const aimZoomOk = aimZoom == null || aimZoom >= AIM_MIN_ZOOM;
-  const aimActiveCoords = useMemo(
-    () =>
-      aimStage === "review"
-        ? (drawState.runs[0]?.posts ?? [])
-        : drawState.current,
-    [aimStage, drawState]
-  );
+  // Single run lives in `current` (no FINISH_LINE in aim mode); Finish is a UI
+  // mode switch, not a reducer commit.
+  const aimActiveCoords = drawState.current;
   const aimPreviewTo = useMemo(
     () =>
-      aimStage === "draw" && aimActiveCoords.length >= 1 && aimZoomOk
+      aimUiMode === "draw" && aimActiveCoords.length >= 1 && aimZoomOk
         ? aimCenter
         : null,
-    [aimStage, aimActiveCoords, aimZoomOk, aimCenter]
+    [aimUiMode, aimActiveCoords, aimZoomOk, aimCenter]
   );
   const aimTotalLf = totalLF(drawState);
   const [traceConfirm, setTraceConfirm] = useState(false);
@@ -275,7 +274,9 @@ function DrawPageInner() {
       type: "SET",
       state: { runs: [], current: coords as Position[] },
     });
-    setAimStage("draw");
+    // Land in ADJUST so the customer drags corners to match their yard.
+    setAimUiMode("adjust");
+    setTracedHelper(true);
     mapRef.current?.fitToCoords(coords as number[][]);
   }
   function handleAimTraceClick() {
@@ -289,17 +290,29 @@ function DrawPageInner() {
   function aimUndo() {
     dispatch({ type: "UNDO" });
   }
+  // Finish is a mode switch — the run stays in `current` so Add Posts can keep
+  // appending. No FINISH_LINE (that's for multi-run, a2).
   function aimFinish() {
     if (!canFinish(drawState)) return;
-    dispatch({ type: "FINISH_LINE" });
-    setAimStage("review");
+    setAimUiMode("adjust");
+    setTracedHelper(false);
   }
   function aimStartOver() {
     dispatch({ type: "START_OVER" });
-    setAimStage("draw");
+    setAimUiMode("draw");
+    setTracedHelper(false);
   }
-  function aimEdit() {
-    setAimStage("draw");
+  function aimAddPosts() {
+    setAimUiMode("draw");
+    setTracedHelper(false);
+  }
+  function handlePostDrag(postIndex: number, coord: [number, number]) {
+    dispatch({
+      type: "MOVE_POST",
+      runIndex: drawState.runs.length, // active run (single run lives in current)
+      postIndex,
+      coord,
+    });
   }
 
   // Render the reducer geometry to the map layer as it changes / as the map
@@ -739,17 +752,59 @@ function DrawPageInner() {
   const lng = Number(quote.lng);
   const canContinue =
     !!stats.feature && stats.linear_feet >= 5 && !isPending && !crossesItself;
+  const detailsBadge = (demoRequired ? 1 : 0) + photos.length;
+
+  // Slope / demo / neighbors / photos — shown in the right column on desktop
+  // and (on aim/touch) inside the Details drawer so the draw screen stays
+  // full-viewport. Same components/state either way.
+  const detailsInputs = (
+    <div className="space-y-4">
+      <SlopeSelfReport
+        value={slopeCode}
+        onChange={handleSlopeOverride}
+        detected={detectedSlope}
+        detecting={slopeDetecting}
+      />
+      <DemoToggle value={demoRequired} onChange={setDemoRequired} />
+      {neighbors.length > 0 && <NeighborPanel neighbors={neighbors} />}
+      {quoteId && (
+        <PhotoUpload
+          quoteId={quoteId}
+          photos={photos}
+          onChange={setPhotos}
+          initialAudit={initialAudit}
+        />
+      )}
+    </div>
+  );
 
   return (
-    <div className="flex min-h-dvh flex-col bg-paper pb-20 lg:pb-0">
+    <div
+      className={cn(
+        "flex flex-col bg-paper",
+        aimMode
+          ? "h-dvh overflow-hidden pb-0"
+          : "min-h-dvh pb-20 lg:pb-0"
+      )}
+    >
       <Header dark />
       <Progress step={2} dark />
 
-      <section className="flex-1">
-        <div className="mx-auto grid max-w-[1280px] gap-6 px-5 py-6 md:px-10 md:py-10 lg:grid-cols-[1fr_360px]">
-          {/* Mobile-only intro — sits above the map so customers see the
-              core instruction before the satellite. Hidden on desktop where
-              the right column carries the same content. */}
+      <section className={cn("flex-1", aimMode && "flex min-h-0 flex-col")}>
+        <div
+          className={
+            aimMode
+              ? "mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-2 px-3 pb-2 pt-1 min-h-0"
+              : "mx-auto grid max-w-[1280px] gap-6 px-5 py-6 md:px-10 md:py-10 lg:grid-cols-[1fr_360px]"
+          }
+        >
+          {/* Aim/touch: collapse the heading block to one thin row — the
+              on-map helper chip already says what to do. */}
+          {aimMode ? (
+            <div className="order-1 lg:hidden">
+              <Eyebrow>{t.draw.aimStepRow}</Eyebrow>
+            </div>
+          ) : (
           <div className="order-1 lg:hidden">
             <Eyebrow>{t.draw.eyebrow}</Eyebrow>
             <h2 className="mt-3 font-display text-[26px] font-bold uppercase leading-[1.05] tracking-[0.01em] text-navy">
@@ -759,12 +814,18 @@ function DrawPageInner() {
               {t.draw.panelHelp}
             </p>
           </div>
+          )}
 
           {/* ── Map column — three zones top-to-bottom on mobile:
                 Zone 2 mode toggle / Zone 3 map / Zone 4 action bar.
                 The map itself stays clean — no floating chrome competing
                 with the satellite or covering parcel labels. ──────── */}
-          <div className="order-2 lg:order-1">
+          <div
+            className={cn(
+              "order-2 lg:order-1",
+              aimMode && "flex min-h-0 flex-1 flex-col"
+            )}
+          >
             {/* Zone 2 — Mode toggle (above map, full-width 50/50 split).
                 Two items only, so ADD GATE can never clip. */}
             <div className="mb-3 grid grid-cols-2 overflow-hidden rounded-sm border border-navy/25 bg-paper shadow-card">
@@ -825,7 +886,9 @@ function DrawPageInner() {
             <div
               className={cn(
                 "relative overflow-hidden rounded-md border-2 border-brass/40 bg-navy/5 shadow-card-lg",
-                "h-[60vh] min-h-[420px] lg:h-[calc(100dvh-280px)]"
+                aimMode
+                  ? "min-h-0 flex-1"
+                  : "h-[60vh] min-h-[420px] lg:h-[calc(100dvh-280px)]"
               )}
             >
               <MapErrorBoundary>
@@ -835,6 +898,8 @@ function DrawPageInner() {
                   centerLng={lng}
                   onChange={aimMode ? noopStats : setStats}
                   aimMode={aimMode}
+                  adjustMode={aimMode && aimUiMode === "adjust"}
+                  onPostDrag={handlePostDrag}
                   onMapMove={aimMode ? handleMapMove : undefined}
                   gates={gates}
                   gatePlacementMode={gateMode}
@@ -849,18 +914,23 @@ function DrawPageInner() {
               </MapErrorBoundary>
 
               <AimDrawOverlay
-                active={aimMode}
-                stage={aimStage}
+                active={aimMode && !detailsOpen}
+                stage={aimUiMode}
                 aiming={aimAiming}
                 canUndo={canUndo(drawState)}
                 canFinish={canFinish(drawState)}
                 zoomOk={aimZoomOk}
+                adjustHelper={
+                  tracedHelper
+                    ? t.draw.aimTraceAdjustHelper
+                    : t.draw.aimAdjustHelper
+                }
                 t={t}
                 onDrop={aimDrop}
                 onUndo={aimUndo}
                 onFinish={aimFinish}
                 onStartOver={aimStartOver}
-                onEdit={aimEdit}
+                onAddPosts={aimAddPosts}
                 onSheetHeight={handleSheetHeight}
               />
 
@@ -1032,7 +1102,12 @@ function DrawPageInner() {
           </div>
 
           {/* ── Right panel ─────────────────────────────────────── */}
-          <div className="order-3 lg:order-2">
+          <div
+            className={cn(
+              "order-3 lg:order-2",
+              aimMode && "hidden lg:block"
+            )}
+          >
             {/* Desktop intro — hidden on mobile because the mobile-only
                 intro above the map already shows this content. */}
             <div className="hidden lg:block">
@@ -1077,26 +1152,7 @@ function DrawPageInner() {
               </div>
             </div>
 
-            <div className="mt-6 space-y-4">
-              <SlopeSelfReport
-                value={slopeCode}
-                onChange={handleSlopeOverride}
-                detected={detectedSlope}
-                detecting={slopeDetecting}
-              />
-              <DemoToggle value={demoRequired} onChange={setDemoRequired} />
-
-              {neighbors.length > 0 && <NeighborPanel neighbors={neighbors} />}
-
-              {quoteId && (
-                <PhotoUpload
-                  quoteId={quoteId}
-                  photos={photos}
-                  onChange={setPhotos}
-                  initialAudit={initialAudit}
-                />
-              )}
-            </div>
+            <div className="mt-6">{detailsInputs}</div>
 
             {error && (
               <div className="mt-4 rounded-sm border border-brick/30 bg-brick/5 px-3 py-2 text-sm text-brick">
@@ -1143,10 +1199,15 @@ function DrawPageInner() {
           z-30 keeps it BELOW the gate-size sheet (z-40), which should
           cover it while a gate is being picked. */}
       <div
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-navy/15 bg-paper/95 backdrop-blur lg:hidden"
+        className={cn(
+          "border-t border-navy/15 bg-paper/95 backdrop-blur",
+          aimMode
+            ? "relative z-20 shrink-0"
+            : "fixed inset-x-0 bottom-0 z-30 lg:hidden"
+        )}
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-5 py-3">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-2 px-4 py-2.5">
           <div className="min-w-0">
             <div className="font-display text-[20px] font-bold leading-none tabular-nums text-navy">
               {stats.linear_feet.toFixed(0)}{" "}
@@ -1157,8 +1218,31 @@ function DrawPageInner() {
             <div className="mt-0.5 truncate font-mono text-[10px] uppercase tracking-spec text-steel">
               {gates.length} {t.draw.labelGates} · {stats.corner_count}{" "}
               {t.draw.labelCorners}
+              {/* Tear-out changes the price — surface it even when its input is
+                  hidden in the Details drawer. */}
+              {demoRequired && (
+                <span className="text-brick"> · {t.draw.aimDetailsDemo} ✓</span>
+              )}
             </div>
           </div>
+
+          {/* Details drawer trigger — badge so hidden inputs are never silently
+              forgotten. */}
+          {aimMode && (
+            <button
+              type="button"
+              onClick={() => setDetailsOpen(true)}
+              className="relative flex h-11 flex-shrink-0 items-center gap-1.5 rounded-sm border border-navy/25 px-3.5 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:bg-navy/5"
+            >
+              <SlidersHorizontal size={14} strokeWidth={2.5} />
+              {t.draw.aimDetails}
+              {detailsBadge > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brick px-1 font-mono text-[9px] text-cream">
+                  {detailsBadge}
+                </span>
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={handleContinue}
@@ -1181,6 +1265,39 @@ function DrawPageInner() {
           </button>
         </div>
       </div>
+
+      {/* Details drawer (aim/touch) — slope / demo / neighbors / photos. Opens
+          over the map; the draw control sheet is hidden while it's open (one
+          sheet at a time). Dismisses by tap-out or Close. */}
+      {aimMode && detailsOpen && (
+        <div
+          className="fixed inset-0 z-40 flex items-end bg-navy/40"
+          onClick={() => setDetailsOpen(false)}
+        >
+          <div
+            className="max-h-[80dvh] w-full overflow-y-auto rounded-t-[18px] border-t border-cream-deep bg-paper px-5 pb-[calc(env(safe-area-inset-bottom)+18px)] pt-3 shadow-card-lg"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label={t.draw.aimDetailsTitle}
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-navy/15" />
+            <div className="mb-3 flex items-center justify-between">
+              <div className="font-display text-[15px] font-semibold uppercase tracking-eyebrow text-navy">
+                {t.draw.aimDetailsTitle}
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailsOpen(false)}
+                aria-label="Close"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-navy transition-colors hover:bg-navy/5"
+              >
+                <X size={18} strokeWidth={2.5} />
+              </button>
+            </div>
+            {detailsInputs}
+          </div>
+        </div>
+      )}
 
       {/* Gate-size bottom sheet (rendered outside map so it can overlay everything) */}
       {pendingGatePoint && (

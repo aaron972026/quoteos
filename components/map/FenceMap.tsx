@@ -158,6 +158,17 @@ interface Props {
    * the shared draw reducer + setAimGeometry.
    */
   aimMode?: boolean;
+  /**
+   * Adjust mode (a sub-mode of aim): no reticle, posts render enlarged, and a
+   * touch on a post drags it (map pan is captured so it holds still). Reports
+   * moves via onPostDrag; the page dispatches MOVE_POST.
+   */
+  adjustMode?: boolean;
+  onPostDrag?: (
+    postIndex: number,
+    coord: [number, number],
+    phase: "move" | "end"
+  ) => void;
 }
 
 const GATE_WIDTH_LABEL: Record<GateType, string> = {
@@ -223,6 +234,27 @@ function aimCoord(map: mapboxgl.Map, bottomPad: number): [number, number] {
   return [pt.lng, pt.lat];
 }
 
+/** Post index under `point` within a ≥44px hit box, or null. */
+function hitPost(map: mapboxgl.Map, point: mapboxgl.Point): number | null {
+  const r = 22;
+  try {
+    const feats = map.queryRenderedFeatures(
+      [
+        [point.x - r, point.y - r],
+        [point.x + r, point.y + r],
+      ],
+      { layers: ["qos-aim-posts"] }
+    );
+    for (const f of feats) {
+      const i = f.properties?.i;
+      if (typeof i === "number") return i;
+    }
+  } catch {
+    /* layer may not exist yet */
+  }
+  return null;
+}
+
 export default function FenceMap({
   centerLat,
   centerLng,
@@ -239,6 +271,8 @@ export default function FenceMap({
   onTrimHandleDrag,
   onMapMove,
   aimMode,
+  adjustMode,
+  onPostDrag,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -274,6 +308,14 @@ export default function FenceMap({
   gatePlacementModeRef.current = !!gatePlacementMode;
   const aimModeRef = useRef(!!aimMode);
   aimModeRef.current = !!aimMode;
+  const adjustModeRef = useRef(!!adjustMode);
+  adjustModeRef.current = !!adjustMode;
+  const onPostDragRef = useRef(onPostDrag);
+  onPostDragRef.current = onPostDrag;
+  // Active post-drag: index + last coord (for the release phase).
+  const postDragRef = useRef<{ index: number; last: [number, number] } | null>(
+    null
+  );
   // Bottom padding (px) reserved for the aim control sheet — drives the
   // reticle position + camera centring so both track the visible area.
   const bottomPaddingRef = useRef(0);
@@ -301,6 +343,12 @@ export default function FenceMap({
     null
   );
   const [aimTick, setAimTick] = useState(0);
+  // Enlarge post dots in Adjust mode (28px visual) so they're easy to grab.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer("qos-aim-posts")) return;
+    map.setPaintProperty("qos-aim-posts", "circle-radius", adjustMode ? 14 : 6);
+  }, [adjustMode, aimTick]);
   useEffect(() => {
     const map = mapRef.current;
     if (!aimMode || !map) {
@@ -517,6 +565,40 @@ export default function FenceMap({
       // Same single source as the reticle + Drop — never raw getCenter.
       cb(aimCoord(map, bottomPaddingRef.current));
     });
+
+    // Adjust mode: drag an existing post. Capture the gesture (disable pan +
+    // preventDefault) only when a post is under the finger — otherwise the map
+    // pans normally. Reports each move + the release so the page can dispatch
+    // MOVE_POST and buzz on drop.
+    map.on("touchstart", (e) => {
+      if (!adjustModeRef.current) return;
+      const idx = hitPost(map, e.point);
+      if (idx == null) return;
+      const ll = map.unproject(e.point);
+      postDragRef.current = { index: idx, last: [ll.lng, ll.lat] };
+      map.dragPan.disable();
+      e.preventDefault();
+    });
+    map.on("touchmove", (e) => {
+      const d = postDragRef.current;
+      if (!adjustModeRef.current || !d) return;
+      const ll = map.unproject(e.point);
+      d.last = [ll.lng, ll.lat];
+      onPostDragRef.current?.(d.index, d.last, "move");
+      e.preventDefault();
+    });
+    const endPostDrag = () => {
+      const d = postDragRef.current;
+      if (!d) return;
+      onPostDragRef.current?.(d.index, d.last, "end");
+      postDragRef.current = null;
+      map.dragPan.enable();
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate(10);
+      }
+    };
+    map.on("touchend", endPostDrag);
+    map.on("touchcancel", endPostDrag);
 
     // ResizeObserver — keep the map sized to its container even if the parent
     // flex layout settles after init. Cheap; drives map.resize() on any change.
@@ -1725,13 +1807,13 @@ export default function FenceMap({
           },
         });
       }
-      for (const c of runCoords) {
+      runCoords.forEach((c, i) => {
         features.push({
           type: "Feature",
-          properties: { kind: "post" },
+          properties: { kind: "post", i },
           geometry: { type: "Point", coordinates: c },
         });
-      }
+      });
       src.setData({ type: "FeatureCollection", features });
     },
     setBottomPadding(px) {
@@ -1781,7 +1863,7 @@ export default function FenceMap({
       {/* Aim reticle — rendered here (not in the overlay) so its DOM position
           IS aimScreenPoint, the same source the preview + Drop unproject from.
           No independent centre math anywhere else. */}
-      {aimMode && aimReticle && (
+      {aimMode && !adjustMode && aimReticle && (
         <div
           className="pointer-events-none absolute z-[5]"
           style={{

@@ -17,17 +17,20 @@ import type { useT } from "@/lib/i18n/use-locale";
 
 export interface AimDrawOverlayProps {
   active: boolean;
-  stage: "draw" | "review";
+  stage: "draw" | "adjust";
   aiming: boolean;
   canUndo: boolean;
   canFinish: boolean;
   zoomOk: boolean;
+  /** Helper text shown in Adjust mode (drag prompt, or the traced-line copy). */
+  adjustHelper?: string;
   t: ReturnType<typeof useT>;
   onDrop: () => void;
   onUndo: () => void;
   onFinish: () => void;
   onStartOver: () => void;
-  onEdit: () => void;
+  /** Adjust → back to Draw, appending from the last post. */
+  onAddPosts: () => void;
   onAddGates?: () => void;
   /** Reports the rendered sheet height (px) so the page can pad the camera. */
   onSheetHeight?: (px: number) => void;
@@ -41,12 +44,13 @@ export function AimDrawOverlay(props: AimDrawOverlayProps) {
     canUndo,
     canFinish,
     zoomOk,
+    adjustHelper,
     t,
     onDrop,
     onUndo,
     onFinish,
     onStartOver,
-    onEdit,
+    onAddPosts,
     onAddGates,
     onSheetHeight,
   } = props;
@@ -84,14 +88,19 @@ export function AimDrawOverlay(props: AimDrawOverlayProps) {
       {/* Helper chip — floats just ABOVE the sheet (its own layout slot, well
           clear of the top-anchored trace pill). Auto-hides once the first post
           drops; the same slot shows the zoom guard when it triggers. */}
-      {stage === "draw" && (aiming || !zoomOk) && (
+      {((stage === "draw" && (aiming || !zoomOk)) ||
+        (stage === "adjust" && !!adjustHelper)) && (
         <div
           data-aim-slot="helper"
           className="pointer-events-none absolute left-1/2 z-30 -translate-x-1/2"
           style={{ bottom: sheetH + 12 }}
         >
-          <div className="rounded-pill bg-navy/95 px-4 py-2 text-center font-body text-[13px] leading-[1.3] text-cream shadow-card-lg">
-            {!zoomOk ? c.aimZoomGuard : c.aimHelperStart}
+          <div className="max-w-[88vw] rounded-pill bg-navy/95 px-4 py-2 text-center font-body text-[13px] leading-[1.3] text-cream shadow-card-lg">
+            {stage === "adjust"
+              ? adjustHelper
+              : !zoomOk
+                ? c.aimZoomGuard
+                : c.aimHelperStart}
           </div>
         </div>
       )}
@@ -142,27 +151,37 @@ export function AimDrawOverlay(props: AimDrawOverlayProps) {
             </button>
           </>
         ) : (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onEdit}
-              className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-sm border border-navy/25 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:bg-navy/5"
-            >
-              <Pencil size={14} strokeWidth={2.5} />
-              {c.aimEdit}
-            </button>
-            {onAddGates && (
+          <>
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={onAddGates}
-                className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-sm border font-display text-[13px] font-semibold uppercase tracking-eyebrow transition-colors"
-                style={{ borderColor: "#8A6722", color: "#8A6722" }}
+                onClick={onAddPosts}
+                className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-sm bg-brick font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream transition-colors hover:bg-brick-deep"
               >
-                <DoorOpen size={14} strokeWidth={2.5} />
-                {c.aimAddGates}
+                <Pencil size={14} strokeWidth={2.5} />
+                {c.aimAddPosts}
               </button>
-            )}
-          </div>
+              {onAddGates && (
+                <button
+                  type="button"
+                  onClick={onAddGates}
+                  className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-sm border font-display text-[13px] font-semibold uppercase tracking-eyebrow transition-colors"
+                  style={{ borderColor: "#8A6722", color: "#8A6722" }}
+                >
+                  <DoorOpen size={14} strokeWidth={2.5} />
+                  {c.aimAddGates}
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfirmClear(true)}
+              className="mx-auto mt-2 block font-display text-[11px] font-semibold uppercase tracking-eyebrow"
+              style={{ color: "#9E3B2E" }}
+            >
+              {c.aimStartOver}
+            </button>
+          </>
         )}
       </div>
 

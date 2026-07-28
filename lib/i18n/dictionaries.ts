@@ -121,6 +121,14 @@ export interface Dictionary {
     aimTraceReplaceTitle: string;
     aimTraceReplaceConfirm: string;
     aimTraceReplaceCancel: string;
+    aimStepRow: string;
+    aimAdjustHelper: string;
+    aimTraceAdjustHelper: string;
+    aimAddPosts: string;
+    aimDetails: string;
+    aimDetailsTitle: string;
+    aimDetailsDemo: string;
+    aimDetailsPhotos: string;
     // Brand v1.0 — Screen 3 redesign
     eyebrow: string; // "Step Three · Trace The Run"
     panelTitle: string; // "Trace The Fence Run"
@@ -454,6 +462,15 @@ const en: Dictionary = {
     aimTraceReplaceTitle: "Replace your current drawing with the property line?",
     aimTraceReplaceConfirm: "Replace",
     aimTraceReplaceCancel: "Keep mine",
+    aimStepRow: "Step 3 · Draw your fence",
+    aimAdjustHelper: "Drag any post to fine-tune",
+    aimTraceAdjustHelper:
+      "Property line traced — drag any corner to match your yard.",
+    aimAddPosts: "Add Posts",
+    aimDetails: "Details",
+    aimDetailsTitle: "Project details",
+    aimDetailsDemo: "Demo",
+    aimDetailsPhotos: "photos",
     eyebrow: "Step Three · Trace The Run",
     panelTitle: "Trace The Fence Run",
     panelHelp:
@@ -862,6 +879,15 @@ const es: Dictionary = {
     aimTraceReplaceTitle: "¿Reemplazar tu dibujo actual con la línea de propiedad?",
     aimTraceReplaceConfirm: "Reemplazar",
     aimTraceReplaceCancel: "Conservar el mío",
+    aimStepRow: "Paso 3 · Dibuja tu cerca",
+    aimAdjustHelper: "Arrastra cualquier poste para ajustar",
+    aimTraceAdjustHelper:
+      "Línea de propiedad trazada — arrastra las esquinas para ajustarla a tu patio.",
+    aimAddPosts: "Agregar postes",
+    aimDetails: "Detalles",
+    aimDetailsTitle: "Detalles del proyecto",
+    aimDetailsDemo: "Demolición",
+    aimDetailsPhotos: "fotos",
     eyebrow: "Paso Tres · Traza la línea",
     panelTitle: "Traza el recorrido",
     panelHelp:
