@@ -78,33 +78,18 @@ export function AimDrawOverlay(props: AimDrawOverlayProps) {
 
   return (
     <>
-      {/* Reticle at the centre of the visible area (container centre shifted
-          up by half the sheet height). */}
-      {stage === "draw" && (
-        <div
-          className="pointer-events-none absolute left-1/2 z-30 -translate-x-1/2 -translate-y-1/2"
-          style={{ top: `calc(50% - ${sheetH / 2}px)` }}
-        >
-          <div
-            className="flex items-center justify-center rounded-full"
-            style={{
-              width: 44,
-              height: 44,
-              border: "1.5px solid #FCF9F1",
-              boxShadow: "0 0 0 3px rgba(22,18,13,0.30)",
-            }}
-          >
-            <span
-              className="rounded-full"
-              style={{ width: 8, height: 8, background: "#C99A3F" }}
-            />
-          </div>
-        </div>
-      )}
+      {/* Reticle is rendered by FenceMap (single-sourced to aimScreenPoint) —
+          not here — so the crosshair, preview, and Drop can never diverge. */}
 
-      {/* Helper chip — aim prompt, or the zoom guard when too far out. */}
+      {/* Helper chip — floats just ABOVE the sheet (its own layout slot, well
+          clear of the top-anchored trace pill). Auto-hides once the first post
+          drops; the same slot shows the zoom guard when it triggers. */}
       {stage === "draw" && (aiming || !zoomOk) && (
-        <div className="pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2">
+        <div
+          data-aim-slot="helper"
+          className="pointer-events-none absolute left-1/2 z-30 -translate-x-1/2"
+          style={{ bottom: sheetH + 12 }}
+        >
           <div className="rounded-pill bg-navy/95 px-4 py-2 text-center font-body text-[13px] leading-[1.3] text-cream shadow-card-lg">
             {!zoomOk ? c.aimZoomGuard : c.aimHelperStart}
           </div>

@@ -203,6 +203,26 @@ function makeGateMarkerEl(
   return el;
 }
 
+/**
+ * THE single source of truth for the aim position, in container pixels: the
+ * centre of the visible area above the sheet. The reticle DOM, the dashed
+ * preview endpoint, and the Drop unprojection all derive from this — there is
+ * no other centre math in aim mode.
+ */
+function aimScreenPoint(
+  map: mapboxgl.Map,
+  bottomPad: number
+): { x: number; y: number } {
+  const el = map.getContainer();
+  return { x: el.clientWidth / 2, y: (el.clientHeight - bottomPad) / 2 };
+}
+
+function aimCoord(map: mapboxgl.Map, bottomPad: number): [number, number] {
+  const { x, y } = aimScreenPoint(map, bottomPad);
+  const pt = map.unproject([x, y]);
+  return [pt.lng, pt.lat];
+}
+
 export default function FenceMap({
   centerLat,
   centerLng,
@@ -274,6 +294,30 @@ export default function FenceMap({
   // setFeatureCoords can rewrite the right one without guessing.
   const loadedFeatureIdRef = useRef<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Reticle DOM position (container px). Recomputed only when the viewport or
+  // sheet padding changes (NOT on pan — the reticle is fixed on screen). Bumped
+  // via aimTick from the ResizeObserver / style.load / setBottomPadding.
+  const [aimReticle, setAimReticle] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  const [aimTick, setAimTick] = useState(0);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!aimMode || !map) {
+      setAimReticle(null);
+      return;
+    }
+    const pt = aimScreenPoint(map, bottomPaddingRef.current);
+    setAimReticle(pt);
+    if (process.env.NODE_ENV !== "production") {
+      // The reticle DOM sits at pt; verify project(unproject(pt)) round-trips
+      // within 1px, i.e. what the user sees === where the post lands.
+      const back = map.project(map.unproject([pt.x, pt.y]));
+      if (Math.abs(back.x - pt.x) > 1 || Math.abs(back.y - pt.y) > 1) {
+        console.error("[aim] reticle/aim drift > 1px", { pt, back });
+      }
+    }
+  }, [aimMode, aimTick]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -364,6 +408,7 @@ export default function FenceMap({
       loadedOnce = true;
       console.info("[FenceMap] style loaded");
       setTimeout(() => map.resize(), 50);
+      setAimTick((t) => t + 1); // map ready → place the reticle
     });
     map.on("style.load", () => {
       console.info("[FenceMap] style.load fired");
@@ -469,8 +514,8 @@ export default function FenceMap({
     map.on("move", () => {
       const cb = onMapMoveRef.current;
       if (!cb) return;
-      const c = map.getCenter();
-      cb([c.lng, c.lat]);
+      // Same single source as the reticle + Drop — never raw getCenter.
+      cb(aimCoord(map, bottomPaddingRef.current));
     });
 
     // ResizeObserver — keep the map sized to its container even if the parent
@@ -479,6 +524,7 @@ export default function FenceMap({
       const r = containerRef.current?.getBoundingClientRect();
       if (r && r.width > 0 && r.height > 0) {
         map.resize();
+        setAimTick((t) => t + 1); // container size / rotation → reposition reticle
       }
     });
     if (containerRef.current) ro.observe(containerRef.current);
@@ -1691,16 +1737,11 @@ export default function FenceMap({
     setBottomPadding(px) {
       bottomPaddingRef.current = Math.max(0, px);
       mapRef.current?.setPadding({ top: 0, right: 0, left: 0, bottom: px });
+      setAimTick((t) => t + 1); // reposition the reticle to the new centre
     },
     getReticleCoord() {
       const map = mapRef.current;
-      if (!map) return null;
-      const el = map.getContainer();
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      // Centre of the visible area above the sheet.
-      const pt = map.unproject([w / 2, (h - bottomPaddingRef.current) / 2]);
-      return [pt.lng, pt.lat];
+      return map ? aimCoord(map, bottomPaddingRef.current) : null;
     },
     fitToCoords(coords) {
       const map = mapRef.current;
@@ -1737,6 +1778,34 @@ export default function FenceMap({
         role="application"
         aria-label="Fence drawing map"
       />
+      {/* Aim reticle — rendered here (not in the overlay) so its DOM position
+          IS aimScreenPoint, the same source the preview + Drop unproject from.
+          No independent centre math anywhere else. */}
+      {aimMode && aimReticle && (
+        <div
+          className="pointer-events-none absolute z-[5]"
+          style={{
+            left: aimReticle.x,
+            top: aimReticle.y,
+            transform: "translate(-50%, -50%)",
+          }}
+        >
+          <div
+            className="flex items-center justify-center rounded-full"
+            style={{
+              width: 44,
+              height: 44,
+              border: "1.5px solid #FCF9F1",
+              boxShadow: "0 0 0 3px rgba(22,18,13,0.30)",
+            }}
+          >
+            <span
+              className="rounded-full"
+              style={{ width: 8, height: 8, background: "#C99A3F" }}
+            />
+          </div>
+        </div>
+      )}
       {/* Zoom loupe — circular magnifier that follows the cursor (desktop)
           or finger (mobile, after a small drag). Hidden by default;
           opacity is toggled in the pointer/touch handlers above. Position

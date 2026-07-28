@@ -210,6 +210,34 @@ function DrawPageInner() {
     mapRef.current?.setBottomPadding(px);
   }
 
+  // Dev assert: the helper chip (bottom) and trace pill (top) occupy distinct
+  // layout slots and must never overlap in any state — verified by geometry,
+  // not z-order.
+  useEffect(() => {
+    if (!aimMode || process.env.NODE_ENV === "production") return;
+    const id = setTimeout(() => {
+      const h = document
+        .querySelector('[data-aim-slot="helper"]')
+        ?.getBoundingClientRect();
+      const tr = document
+        .querySelector('[data-aim-slot="trace"]')
+        ?.getBoundingClientRect();
+      if (!h || !tr) return;
+      const clear =
+        h.right < tr.left ||
+        h.left > tr.right ||
+        h.bottom < tr.top ||
+        h.top > tr.bottom;
+      if (!clear) {
+        console.error(
+          "[aim] helper chip and trace pill overlap — fix layout slots",
+          { helper: h, trace: tr }
+        );
+      }
+    }, 300);
+    return () => clearTimeout(id);
+  }, [aimMode, aimAiming, aimZoomOk, drawState]);
+
   function aimDrop() {
     // Unproject the reticle point (never raw getCenter) so what's under the
     // crosshair is exactly what lands.
@@ -841,6 +869,7 @@ function DrawPageInner() {
               {aimMode && parcelBoundary && !gateMode && (
                 <button
                   type="button"
+                  data-aim-slot="trace"
                   onClick={handleAimTraceClick}
                   className="absolute right-3 top-3 z-20 flex items-center gap-1.5 rounded-pill bg-navy/95 px-3.5 py-2 font-display text-[11px] font-semibold uppercase tracking-eyebrow text-cream shadow-card-lg backdrop-blur transition-colors hover:bg-navy"
                 >
