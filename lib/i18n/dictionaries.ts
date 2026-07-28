@@ -260,28 +260,29 @@ const en: Dictionary = {
     title_post: ".",
     title_sub: "No sales call.",
     subtitle:
-      "Draw your fence on the map, pick your style, see your price. Lock it in for $99 (refundable).",
+      "Draw your fence on the map, pick your style, see your price. Hold it free for 14 days — or reserve your install week for $99.",
     cta: "Start My Quote",
     step1Title: "Type your address",
     step1Body: "We pull up your home on a satellite map.",
     step2Title: "Draw your fence",
     step2Body: "Tap each corner. We do the math.",
     step3Title: "See your price",
-    step3Body: "Pick your level, add upgrades, lock it for $99.",
+    step3Body:
+      "Confirm your price, then hold it free for 14 days — or reserve your install week for $99, applied straight to your project.",
     whyTitle: "Why Ivory Fence Co.?",
     reasons: [
       "Tulsa-based crews — installed 200+ fences locally",
       "Cedar privacy, horizontal cedar, KDAT pine, chain link, ranch rail",
       "Wisetack financing — soft pull, no credit hit",
-      "$99 deposit fully refundable for 7 days",
+      "Free 14-day price hold, or reserve your week for $99 — applied to your project",
       "Most jobs installed in 10–17 days",
       "2-year workmanship warranty (transferable)",
     ],
     faqTitle: "Common questions",
     faqs: [
       {
-        q: "Is the $99 really refundable?",
-        a: "Yes — within 7 days, no questions asked. We hold it to confirm you're serious.",
+        q: "Do I have to pay to hold my price?",
+        a: "No. You can hold your price free for 14 days, no card required. To lock your install week, reserve it for $99 — refundable, and applied straight to your project.",
       },
       {
         q: "Will my final price match this quote?",
@@ -293,7 +294,7 @@ const en: Dictionary = {
       },
       {
         q: "How fast can you install?",
-        a: "Most jobs go in 10–17 days from when your deposit clears.",
+        a: "Most jobs go in 10–17 days from when you approve your final plan on site.",
       },
     ],
     step: "Step",
@@ -304,7 +305,7 @@ const en: Dictionary = {
     h1Pre: "Your Fence Price",
     h1Highlight: "90 Seconds.",
     lead:
-      "Drop your address. Draw your line on the satellite. Pick your material. Lock the price with a refundable deposit — no sales call, no waiting on a callback.",
+      "Drop your address. Draw your line on the satellite. Pick your material. Hold your price free, or reserve your install week for $99 — no sales call, no waiting on a callback.",
     inputPlaceholder: "Enter your home address",
     inputCta: "Get My Price",
     sub:
@@ -355,7 +356,7 @@ const en: Dictionary = {
     ownershipLead:
       "We can only quote, schedule, and build with the homeowner — or someone with their written consent. This protects you, your neighbors, and our crews.",
     ownershipOwner: "I own this property",
-    ownershipOwnerSub: "You'll sign during the deposit step.",
+    ownershipOwnerSub: "You'll confirm this when you reserve or hold your price.",
     ownershipConsent: "I have written consent from the owner",
     ownershipConsentSub:
       "We'll request a signed authorization before scheduling.",
@@ -486,7 +487,7 @@ const en: Dictionary = {
     rangeLabel: "Your Range",
     rangeHelper:
       "Final price falls inside this range after a quick site verification — and it won't exceed the maximum. If we measure shorter, you pay less.",
-    lockCta: "Lock It In · $99 Refundable Deposit",
+    lockCta: "Reserve My Install Week · $99",
     lockingCta: "Starting checkout…",
     refundNote:
       "Refundable within 24 hours. Applied to your final total. Cards processed by Stripe — we never see the number.",
@@ -610,28 +611,29 @@ const es: Dictionary = {
     title_post: ".",
     title_sub: "Sin llamadas de ventas.",
     subtitle:
-      "Dibuja tu cerca en el mapa, elige tu estilo, ve tu precio. Resérvala por $99 (reembolsable).",
+      "Dibuja tu cerca en el mapa, elige tu estilo, ve tu precio. Mantén tu precio gratis por 14 días — o reserva tu semana de instalación por $99.",
     cta: "Empezar mi cotización",
     step1Title: "Escribe tu dirección",
     step1Body: "Mostramos tu casa en un mapa satelital.",
     step2Title: "Dibuja tu cerca",
     step2Body: "Toca cada esquina. Nosotros calculamos.",
     step3Title: "Ve tu precio",
-    step3Body: "Elige tu nivel, suma extras, resérvala por $99.",
+    step3Body:
+      "Confirma tu precio, luego mantenlo gratis por 14 días — o reserva tu semana de instalación por $99, aplicado directo a tu proyecto.",
     whyTitle: "¿Por qué Ivory Fence Co.?",
     reasons: [
       "Equipos de Tulsa — más de 200 cercas instaladas localmente",
       "Cedro privacidad, cedro horizontal, pino KDAT, malla ciclónica, riel ranchero",
       "Financiamiento Wisetack — sin afectar tu crédito",
-      "Depósito de $99 totalmente reembolsable por 7 días",
+      "Mantén tu precio gratis 14 días, o reserva tu semana por $99 — aplicado a tu proyecto",
       "La mayoría de trabajos se instalan en 10–17 días",
       "Garantía de mano de obra de 2 años (transferible)",
     ],
     faqTitle: "Preguntas frecuentes",
     faqs: [
       {
-        q: "¿Los $99 son realmente reembolsables?",
-        a: "Sí — dentro de 7 días, sin preguntas. Lo retenemos para confirmar que estás listo.",
+        q: "¿Tengo que pagar para mantener mi precio?",
+        a: "No. Puedes mantener tu precio gratis por 14 días, sin tarjeta. Para asegurar tu semana de instalación, resérvala por $99 — reembolsable y aplicada directo a tu proyecto.",
       },
       {
         q: "¿El precio final coincidirá con esta cotización?",
@@ -643,7 +645,7 @@ const es: Dictionary = {
       },
       {
         q: "¿Qué tan rápido pueden instalar?",
-        a: "La mayoría de trabajos se instalan en 10–17 días desde que se procesa tu depósito.",
+        a: "La mayoría de trabajos se instalan en 10–17 días desde que apruebas tu plan final en sitio.",
       },
     ],
     step: "Paso",
@@ -654,7 +656,7 @@ const es: Dictionary = {
     h1Pre: "El precio de tu cerca",
     h1Highlight: "en 90 segundos.",
     lead:
-      "Ingresa tu dirección. Dibuja la línea sobre el mapa satelital. Elige tu material. Asegura el precio con un depósito reembolsable — sin llamadas de venta, sin esperar a que te llamen.",
+      "Ingresa tu dirección. Dibuja la línea sobre el mapa satelital. Elige tu material. Mantén tu precio gratis, o reserva tu semana de instalación por $99 — sin llamadas de venta, sin esperar a que te llamen.",
     inputPlaceholder: "Tu dirección",
     inputCta: "Ver mi precio",
     sub: "Cotizado en 90 segundos. Programado en 24 horas. Instalado en dos semanas.",
@@ -704,7 +706,7 @@ const es: Dictionary = {
     ownershipLead:
       "Solo podemos cotizar, programar y construir con el propietario — o alguien con su consentimiento por escrito. Esto te protege a ti, a tus vecinos y a nuestros equipos.",
     ownershipOwner: "Soy el propietario de esta propiedad",
-    ownershipOwnerSub: "Firmarás durante el paso del depósito.",
+    ownershipOwnerSub: "Lo confirmarás cuando reserves o mantengas tu precio.",
     ownershipConsent: "Tengo consentimiento por escrito del propietario",
     ownershipConsentSub:
       "Solicitaremos una autorización firmada antes de programar.",
@@ -836,7 +838,7 @@ const es: Dictionary = {
     rangeLabel: "Tu rango",
     rangeHelper:
       "El precio final cae dentro de este rango después de una verificación rápida en sitio — y no excederá el máximo. Si medimos menos, pagas menos.",
-    lockCta: "Asegurar · Depósito reembolsable de $99",
+    lockCta: "Reservar mi semana de instalación · $99",
     lockingCta: "Iniciando el pago…",
     refundNote:
       "Reembolsable en 24 horas. Se aplica al total final. Stripe procesa los pagos — nunca vemos tu tarjeta.",

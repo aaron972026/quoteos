@@ -211,7 +211,7 @@ export async function resendQuoteEmail(
         `Thanks for the time you spent on the quote tool.`,
         ``,
         `Attached is an updated PDF of your ${familyName} quote.`,
-        `Price is held for 7 days. Lock it in with a $99 refundable deposit anytime.`,
+        `Reserve your install week for $99 — applied straight to your project — or hold your price free for 14 days.`,
         ``,
         `— Ivory Fence Co.`,
       ].join("\n"),
