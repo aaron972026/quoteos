@@ -23,6 +23,7 @@ import { AddonRow } from "@/components/configure/AddonRow";
 import { FenceSketch } from "@/components/configure/FenceSketch";
 import { cn, formatCents } from "@/lib/utils";
 import { useT } from "@/lib/i18n/use-locale";
+import type { PostType } from "@/lib/pricing/types";
 
 interface SkuApiRow {
   code: string;
@@ -52,6 +53,7 @@ interface QuoteShape {
   city: string | null;
   skuCode: string | null;
   stainSeal: boolean | null;
+  postType: string | null;
   steelPostUpgrade: boolean | null;
   capRailTrim: boolean | null;
   matchVinylPosts: boolean | null;
@@ -111,7 +113,8 @@ function ConfigurePageInner() {
   const [familyCode, setFamilyCode] = useState<string | null>(null);
   const [skuCode, setSkuCode] = useState<string | null>(null);
   const [stainSeal, setStainSeal] = useState(false);
-  const [steelPostUpgrade, setSteelPostUpgrade] = useState(false);
+  // Post material: pt (included) | cedar (+$3/LF) | steel (+$6/LF).
+  const [postType, setPostType] = useState<PostType>("pt");
   const [capRailTrim, setCapRailTrim] = useState(false);
   const [matchVinylPosts, setMatchVinylPosts] = useState(false);
   // Ironclad Install bundle — steel posts + stain & seal + 36"/240lb set
@@ -156,7 +159,12 @@ function ConfigurePageInner() {
         // Restore add-on selections so a reload keeps the customer's
         // upgrades (and their price) instead of silently dropping them.
         if (q.stainSeal) setStainSeal(true);
-        if (q.steelPostUpgrade) setSteelPostUpgrade(true);
+        // post_type supersedes steel_post_upgrade; fall back for legacy rows.
+        if (q.postType === "cedar" || q.postType === "steel") {
+          setPostType(q.postType);
+        } else if (q.steelPostUpgrade) {
+          setPostType("steel");
+        }
         if (q.capRailTrim) setCapRailTrim(true);
         if (q.matchVinylPosts) setMatchVinylPosts(true);
         if (q.ironclad) setIronclad(true);
@@ -242,8 +250,8 @@ function ConfigurePageInner() {
   // Reset upgrades that don't apply to the picked family/SKU
   useEffect(() => {
     if (!selectedSku) return;
-    if (!STEEL_UPGRADE_FAMILIES.has(selectedSku.family) && steelPostUpgrade) {
-      setSteelPostUpgrade(false);
+    if (!STEEL_UPGRADE_FAMILIES.has(selectedSku.family) && postType !== "pt") {
+      setPostType("pt");
     }
     if (!CAP_RAIL_FAMILIES.has(selectedSku.family) && capRailTrim) {
       setCapRailTrim(false);
@@ -257,7 +265,7 @@ function ConfigurePageInner() {
     if (selectedSku.code !== "CL-VIN" && matchVinylPosts) {
       setMatchVinylPosts(false);
     }
-  }, [selectedSku, steelPostUpgrade, capRailTrim, matchVinylPosts, boardOnBoard, ironclad]);
+  }, [selectedSku, postType, capRailTrim, matchVinylPosts, boardOnBoard, ironclad]);
 
   // Live pricing
   useEffect(() => {
@@ -281,7 +289,7 @@ function ConfigurePageInner() {
             stain_seal: stainSeal,
             ironclad,
             board_on_board: boardOnBoard,
-            steel_post_upgrade: steelPostUpgrade,
+            post_type: postType,
             cap_rail_trim: capRailTrim,
             match_vinyl_posts: matchVinylPosts,
             city: quote.city ?? "Tulsa",
@@ -302,7 +310,7 @@ function ConfigurePageInner() {
       clearTimeout(timer);
       ctl.abort();
     };
-  }, [skuCode, stainSeal, steelPostUpgrade, capRailTrim, matchVinylPosts, ironclad, boardOnBoard, quote]);
+  }, [skuCode, stainSeal, postType, capRailTrim, matchVinylPosts, ironclad, boardOnBoard, quote]);
 
   function handleContinue() {
     if (!quoteId || !skuCode) return;
@@ -320,7 +328,7 @@ function ConfigurePageInner() {
             stain_seal: stainSeal || ironclad,
             ironclad,
             board_on_board: boardOnBoard,
-            steel_post_upgrade: steelPostUpgrade,
+            post_type: postType,
             cap_rail_trim: capRailTrim,
             match_vinyl_posts: matchVinylPosts,
           }),
@@ -768,19 +776,14 @@ function ConfigurePageInner() {
                   disabledReason="Included with Ivory Standard."
                   onChange={setStainSeal}
                 />
-                <AddonRow
-                  label="Steel Post Upgrade (PostMaster+)"
-                  description="Galvanized, powder-coated PostMaster+ steel posts — lifetime rot & bend warranty, rated to 130 mph wind."
-                  priceLabel={ironclad ? "Included" : "+$5/LF"}
-                  checked={steelPostUpgrade || ironclad}
-                  disabled={!steelUpgradeAvailable || ironclad}
-                  disabledReason={
-                    ironclad
-                      ? "Included with Ivory Standard."
-                      : "Available on cedar + pine wood-post families."
-                  }
-                  onChange={setSteelPostUpgrade}
-                />
+                {steelUpgradeAvailable && (
+                  <PostTypeSelect
+                    value={ironclad ? "steel" : postType}
+                    onChange={setPostType}
+                    locked={ironclad}
+                    t={t}
+                  />
+                )}
                 <AddonRow
                   label="Board-on-Board Privacy"
                   description="Overlapped pickets — zero gaps as the wood dries. Full privacy from every angle."
@@ -877,8 +880,11 @@ function ConfigurePageInner() {
                     {stainSeal && !ironclad && (
                       <EstimateRow label={t.configure.addonStain} value="✓" />
                     )}
-                    {steelPostUpgrade && !ironclad && (
-                      <EstimateRow label="Steel posts" value="✓" />
+                    {postType === "cedar" && !ironclad && (
+                      <EstimateRow label={t.configure.postCedarLabel} value="✓" />
+                    )}
+                    {postType === "steel" && !ironclad && (
+                      <EstimateRow label={t.configure.postSteelLabel} value="✓" />
                     )}
                     {boardOnBoard && (
                       <EstimateRow label="Board-on-board" value="✓" />
@@ -1009,6 +1015,115 @@ function EstimateRow({ label, value }: { label: string; value: string }) {
       <span className="flex-shrink-0 font-mono text-[12px] tabular-nums text-cream">
         {value}
       </span>
+    </div>
+  );
+}
+
+// 3-way post-material selector (wood-picket families only). PT is the free
+// default; cedar/steel are adders. When Ivory Standard is active the control
+// locks to steel and reads as an included benefit (champagne check) rather
+// than a disabled-gray control. The one gold element is the steel pill.
+function PostTypeSelect({
+  value,
+  onChange,
+  locked,
+  t,
+}: {
+  value: PostType;
+  onChange: (p: PostType) => void;
+  locked: boolean;
+  t: ReturnType<typeof useT>;
+}) {
+  const c = t.configure;
+  const options: Array<{
+    key: PostType;
+    label: string;
+    desc: string;
+    price: string;
+    pill?: string;
+  }> = [
+    { key: "pt", label: c.postPtLabel, desc: c.postPtDesc, price: c.postPtPrice },
+    {
+      key: "cedar",
+      label: c.postCedarLabel,
+      desc: c.postCedarDesc,
+      price: c.postCedarPrice,
+    },
+    {
+      key: "steel",
+      label: c.postSteelLabel,
+      desc: c.postSteelDesc,
+      price: c.postSteelPrice,
+      pill: c.postSteelPill,
+    },
+  ];
+
+  return (
+    <div className="rounded-sm border border-cream-deep bg-paper p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="font-display text-[13px] font-semibold uppercase tracking-eyebrow text-navy">
+          {c.postTypeTitle}
+        </div>
+        {locked && (
+          <span className="inline-flex items-center gap-1 rounded-pill bg-brass/15 px-2.5 py-0.5 font-display text-[10px] font-semibold uppercase tracking-eyebrow text-brass">
+            <Check size={12} strokeWidth={2.5} />
+            {c.postIncludedIvory}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {options.map((o) => {
+          const selected = value === o.key;
+          return (
+            <button
+              key={o.key}
+              type="button"
+              disabled={locked}
+              onClick={() => onChange(o.key)}
+              className={cn(
+                "flex w-full items-start gap-3 rounded-sm border px-4 py-3 text-left transition-colors",
+                selected
+                  ? "border-brick bg-brick/5"
+                  : "border-cream-deep bg-cream hover:border-navy/30",
+                locked && !selected && "opacity-45",
+                locked && "cursor-default"
+              )}
+            >
+              <span
+                className={cn(
+                  "mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-pill border-2",
+                  selected ? "border-brick bg-brick" : "border-steel/40"
+                )}
+              >
+                {selected && (
+                  <span className="h-1.5 w-1.5 rounded-pill bg-cream" />
+                )}
+              </span>
+
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="font-display text-[13.5px] font-semibold uppercase tracking-eyebrow text-navy">
+                    {o.label}
+                  </span>
+                  {o.pill && (
+                    <span className="rounded-pill bg-brass px-2 py-0.5 font-display text-[9px] font-bold uppercase tracking-eyebrow text-navy">
+                      {o.pill}
+                    </span>
+                  )}
+                </span>
+                <span className="mt-1 block font-body text-[12.5px] leading-[1.45] text-steel">
+                  {o.desc}
+                </span>
+              </span>
+
+              <span className="flex-shrink-0 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-brick">
+                {locked && o.key === "steel" ? c.postPtPrice : o.price}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

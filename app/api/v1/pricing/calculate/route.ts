@@ -23,6 +23,7 @@ const Body = z.object({
   stain_seal: z.boolean().optional(),
   ironclad: z.boolean().optional(),
   board_on_board: z.boolean().optional(),
+  post_type: z.enum(["pt", "cedar", "steel"]).optional(),
   steel_post_upgrade: z.boolean().optional(),
   cap_rail_trim: z.boolean().optional(),
   match_vinyl_posts: z.boolean().optional(),

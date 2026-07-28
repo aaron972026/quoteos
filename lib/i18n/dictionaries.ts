@@ -149,6 +149,18 @@ export interface Dictionary {
     addonStain: string;
     addonStainDesc: string;
     addonStainPrice: string;
+    postTypeTitle: string;
+    postPtLabel: string;
+    postPtDesc: string;
+    postPtPrice: string;
+    postCedarLabel: string;
+    postCedarDesc: string;
+    postCedarPrice: string;
+    postSteelLabel: string;
+    postSteelDesc: string;
+    postSteelPrice: string;
+    postSteelPill: string;
+    postIncludedIvory: string;
     addonHeight: string;
     addonHeightDesc: string;
     addonHeightPrice: string;
@@ -468,6 +480,20 @@ const en: Dictionary = {
     addonStain: "Stain & Seal",
     addonStainDesc: "UV / weather protection. Doubles the life of cedar.",
     addonStainPrice: "+$6/LF",
+    postTypeTitle: "Post material",
+    postPtLabel: "Pressure-treated pine",
+    postPtDesc: "Ground-contact rated.",
+    postPtPrice: "Included",
+    postCedarLabel: "Cedar posts",
+    postCedarDesc:
+      "Matches your fence top to bottom. 5-year structural warranty — no rot.",
+    postCedarPrice: "+$3/LF",
+    postSteelLabel: "Steel Postmaster",
+    postSteelDesc:
+      "Warranted for life against rust-through, bending, or breaking.",
+    postSteelPrice: "+$6/LF",
+    postSteelPill: "Most Durable",
+    postIncludedIvory: "Included with Ivory Standard",
     addonHeight: "Height Upgrade — 8 ft",
     addonHeightDesc: "Bumps the standard 6 ft fence up to 8 ft tall.",
     addonHeightPrice: "+18%",
@@ -835,6 +861,20 @@ const es: Dictionary = {
     addonStain: "Sellado y barniz",
     addonStainDesc: "Protección UV y contra clima. Duplica la vida del cedro.",
     addonStainPrice: "+$6/pie",
+    postTypeTitle: "Material de postes",
+    postPtLabel: "Pino tratado a presión",
+    postPtDesc: "Clasificado para contacto con el suelo.",
+    postPtPrice: "Incluido",
+    postCedarLabel: "Postes de cedro",
+    postCedarDesc:
+      "Combina con tu cerca de arriba a abajo. Garantía estructural de 5 años — sin pudrición.",
+    postCedarPrice: "+$3/pie",
+    postSteelLabel: "Postmaster de acero",
+    postSteelDesc:
+      "Garantizado de por vida contra oxidación, flexión o rotura.",
+    postSteelPrice: "+$6/pie",
+    postSteelPill: "Más duradero",
+    postIncludedIvory: "Incluido con Ivory Standard",
     addonHeight: "Altura 8 pies",
     addonHeightDesc: "Sube la cerca estándar de 6 pies a 8 pies.",
     addonHeightPrice: "+18%",
