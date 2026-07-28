@@ -52,14 +52,18 @@ import {
 } from "@/components/draw/NeighborPanel";
 import type { Direction } from "@/lib/integrations/regrid";
 import type { GateType } from "@/lib/pricing/types";
-import { isSelfIntersecting } from "@/lib/map/linear-feet";
+import {
+  cornerCount,
+  isSelfIntersecting,
+  uniquePostCount,
+} from "@/lib/map/linear-feet";
 import {
   chainLengthM,
   locateOnChain,
   sliceChainByLocation,
   traceFenceFromParcel,
 } from "@/lib/map/trace-parcel";
-import type { Feature, LineString, Polygon, Position } from "geojson";
+import type { Position } from "geojson";
 import { useT } from "@/lib/i18n/use-locale";
 import { cn } from "@/lib/utils";
 import { AimDrawOverlay } from "@/components/map/AimDrawOverlay";
@@ -322,29 +326,20 @@ function DrawPageInner() {
     mapRef.current?.setAimGeometry(aimActiveCoords, aimPreviewTo);
   }, [aimMode, aimActiveCoords, aimPreviewTo]);
 
-  // Bridge the committed drawing into the existing stats/save pipeline. Single
-  // run only (decision B): if a second run somehow exists, block loudly rather
-  // than persist a MultiLineString the current pipeline would price at 0 LF.
+  // Bridge the committed drawing into the existing stats/save pipeline. Now
+  // multi-run (a2): toFeature emits a LineString (one run) or MultiLineString
+  // (branches / disconnected sections); geometryLF, save, engine, admin + PDF
+  // all handle both. Metrics dedupe shared junction coords.
   useEffect(() => {
     if (!aimMode) return;
-    const runCount =
-      drawState.runs.length + (drawState.current.length >= 2 ? 1 : 0);
-    if (runCount > 1) {
-      console.error(
-        "[aim] unexpected multi-run state — refusing to save. a2 owns MultiLineString.",
-        drawState
-      );
-      return;
-    }
     const feature = toFeature(drawState);
-    if (feature && feature.geometry.type === "LineString") {
-      const coords = feature.geometry.coordinates;
+    if (feature) {
       setStats({
-        feature: feature as Feature<LineString | Polygon>,
+        feature,
         linear_feet: aimTotalLf,
-        corner_count: Math.max(0, coords.length - 2),
+        corner_count: cornerCount(feature),
         closed: false,
-        vertex_count: coords.length,
+        vertex_count: uniquePostCount(feature),
       });
     } else {
       setStats({

@@ -12,7 +12,7 @@ import mapboxgl from "mapbox-gl";
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
-import type { Feature, LineString, Polygon } from "geojson";
+import type { Feature, LineString, MultiLineString, Polygon } from "geojson";
 import nearestPointOnLine from "@turf/nearest-point-on-line";
 import { lineString as turfLineString, point as turfPoint } from "@turf/helpers";
 import {
@@ -32,7 +32,7 @@ export interface PlacedGate {
 }
 
 export interface FenceGeometryStats {
-  feature: Feature<LineString | Polygon> | null;
+  feature: Feature<LineString | MultiLineString | Polygon> | null;
   linear_feet: number;
   corner_count: number;
   closed: boolean;

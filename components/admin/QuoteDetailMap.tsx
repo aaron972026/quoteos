@@ -1,7 +1,15 @@
-import type { Feature, Geometry, LineString, Polygon } from "geojson";
+import type {
+  Feature,
+  Geometry,
+  LineString,
+  MultiLineString,
+  Polygon,
+} from "geojson";
+
+type DrawGeom = LineString | MultiLineString | Polygon;
 
 interface Props {
-  geometry: Feature<LineString | Polygon> | LineString | Polygon | null;
+  geometry: Feature<DrawGeom> | DrawGeom | null;
   centerLat: number | null;
   centerLng: number | null;
   width?: number;
@@ -46,7 +54,9 @@ export function QuoteDetailMap({
   if (geometry) {
     // Wrap raw geometry in a Feature with stroke styling Mapbox respects
     const inner = isFeature(geometry) ? geometry.geometry : geometry;
-    const styled: Feature<LineString | Polygon> = {
+    // MultiLineString renders every run — the Mapbox Static geojson overlay
+    // draws all members, so branches/disconnected sections all appear.
+    const styled: Feature<DrawGeom> = {
       type: "Feature",
       properties: {
         stroke: `#${ACCENT}`,
@@ -55,7 +65,7 @@ export function QuoteDetailMap({
         fill: `#${ACCENT}`,
         "fill-opacity": 0.15,
       },
-      geometry: inner as LineString | Polygon,
+      geometry: inner as DrawGeom,
     };
     overlay = `/geojson(${encodeURIComponent(JSON.stringify(styled))})`;
   }
