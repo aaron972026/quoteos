@@ -19,7 +19,7 @@ const SECTIONS: MaterialSection[] = [
     eyebrow: "01 · Wood",
     title: "Western Red Cedar",
     lede:
-      "The cedar we build with is sourced from select Pacific mills, kiln-dried, and weather-graded for the Oklahoma swing — 100°F summers and ice-storm winters in the same year.",
+      "We build with Alta Forest Products Western Red Cedar — milled in the Pacific Northwest, kiln-dried, and weather-graded for the Oklahoma swing (100°F summers and ice-storm winters in the same year) — supplied through our distributor, MasterHalco.",
     specs: [
       { label: "Grade", value: "#1 cedar (Premium) · #1/BTR clear (Estate)" },
       { label: "Profile", value: "Square-top, dog-ear, or board-on-board" },
@@ -27,7 +27,7 @@ const SECTIONS: MaterialSection[] = [
       { label: "Treatment", value: "Kiln-dried, no chemical treatment — cedar's natural oils repel rot and insects" },
     ],
     body:
-      "Cedar grays gracefully — that's the wood doing its job, not failing. A Ivory Fence Co.-applied stain (optional add-on) slows the graying and pulls a 2-year stain warranty along with it.",
+      "Cedar grays gracefully — that's the wood doing its job, not failing. An Ivory Fence Co.-applied stain (optional add-on) slows the graying and pulls a 2-year stain warranty along with it.",
   },
   {
     eyebrow: "02 · Wood",
@@ -62,7 +62,7 @@ const SECTIONS: MaterialSection[] = [
       "Posts are the foundation. In Tulsa clay, that's where most fence failures start. We give you two options — both concrete-set, both warranted, both built to last.",
     specs: [
       { label: "Standard", value: "4×4 cedar (or KDAT pine), 8' length, concrete-set" },
-      { label: "Footing depth", value: "30 inches · 8\" diameter · 3,000-psi concrete" },
+      { label: "Footing depth", value: "32–36 inches · 8\" diameter · 3,000-psi concrete" },
       { label: "Spacing", value: "8 ft on center (wood families) · 10 ft (chain link)" },
       { label: "Upgrade", value: "PostMaster+ galvanized + powder-coated steel · lifetime rot & bend warranty · rated to 130 mph wind" },
     ],
@@ -73,21 +73,21 @@ const SECTIONS: MaterialSection[] = [
     eyebrow: "05 · Footings",
     title: "3,000-PSI Concrete",
     lede:
-      "Every post bedded in concrete to 30 inches. Plumb and square, checked twice with a 4-foot level. The line doesn't move because the posts don't move.",
+      "Every post bedded in concrete 32–36 inches deep. Plumb and square, checked twice with a 4-foot level. The line doesn't move because the posts don't move.",
     specs: [
       { label: "Mix", value: "Quikrete or equivalent 3,000-psi fast-set" },
-      { label: "Volume per post", value: "1.5 × 60 lb bags average · adjusted for soil" },
+      { label: "Volume per post", value: "160–200 lbs standard (≈3 × 60 lb bags) · 240+ lbs on the Ivory Standard set · adjusted for soil" },
       { label: "Cure window", value: "24-48 hr before panels go on the rails" },
       { label: "Drainage", value: "Crowned tops, gravel base in heavy-clay yards" },
     ],
   },
   {
     eyebrow: "06 · Fasteners",
-    title: "Ring-Shank Picket Nails · Deck Screws",
+    title: "Ballistic Nails · Deck Screws",
     lede:
-      "We don't build fences with framing nails. Ring-shanks hold pickets through wood movement. Deck screws hold rails through wind load. Both are exterior-grade.",
+      "We don't build fences with framing nails. Ballistic nails hold pickets through every wood-movement cycle — and back out clean when a board needs swapping. Deck screws hold rails through wind load. Everything is exterior-grade.",
     specs: [
-      { label: "Picket nails", value: "2½\" hot-dipped galvanized ring-shank, stainless on premium" },
+      { label: "Picket fasteners", value: "Ballistic nails — threaded shank, Phillips head: screw-strong hold, drives fast, and removable for board swaps" },
       { label: "Rail screws", value: "3\" exterior-grade deck screws" },
       { label: "Hidden fastener clips", value: "Available on Horizontal Premium for clean face" },
       { label: "Hardware", value: "Stainless gate hinges, drop rods, latches — 1-year defect warranty" },
@@ -102,7 +102,7 @@ const SECTIONS: MaterialSection[] = [
       { label: "Type", value: "Penetrating oil-based, semi-transparent" },
       { label: "Coverage", value: "Both faces, all visible surfaces" },
       { label: "Warranty", value: "2-year against premature peeling (Ivory Fence Co.-applied only)" },
-      { label: "Add-on price", value: "+$8/LF · selectable on the configure step" },
+      { label: "Add-on price", value: "+$6/LF · selectable on the configure step" },
     ],
   },
 ];
@@ -131,7 +131,7 @@ export default function MaterialsPage() {
             <p className="mt-6 max-w-[58ch] font-body text-[18px] leading-[1.5] text-char md:text-[21px]">
               We don&apos;t hide behind &ldquo;contractor grade.&rdquo; Here is every material we
               put in your ground, on your posts, and across your face frame —
-              what it is, where it&apos;s from, and why we trust it.
+              what it is, where it&apos;s from, and why we trust it. Everything here is single-sourced through MasterHalco — Alta Forest Products cedar, PostMaster+ steel, ballistic nails, and concrete — so every job is built from the same graded stock.
             </p>
           </div>
         </div>
