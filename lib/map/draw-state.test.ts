@@ -109,6 +109,72 @@ describe("drawReducer — finish line + multiple runs", () => {
   });
 });
 
+describe("drawReducer — move post (Adjust mode)", () => {
+  const E: Post = [-95.9922, 36.154];
+
+  it("moves a post in the active run (runIndex === runs.length)", () => {
+    const s = drop(EMPTY_DRAW_STATE, A, B, C); // current, runs empty
+    const m = drawReducer(s, {
+      type: "MOVE_POST",
+      runIndex: 0,
+      postIndex: 1,
+      coord: E,
+    });
+    expect(m.current).toEqual([A, E, C]);
+    expect(m.current.length).toBe(3); // order + count preserved
+  });
+
+  it("moves a post in a finished run", () => {
+    let s = drop(EMPTY_DRAW_STATE, A, B, C);
+    s = drawReducer(s, { type: "FINISH_LINE" });
+    const m = drawReducer(s, {
+      type: "MOVE_POST",
+      runIndex: 0,
+      postIndex: 2,
+      coord: E,
+    });
+    expect(m.runs[0].posts).toEqual([A, B, E]);
+  });
+
+  it("recalculates LF after a move", () => {
+    const s = drop(EMPTY_DRAW_STATE, A, B);
+    const before = totalLF(s);
+    const m = drawReducer(s, {
+      type: "MOVE_POST",
+      runIndex: 0,
+      postIndex: 1,
+      coord: E,
+    });
+    expect(totalLF(m)).toBeCloseTo(runLF([A, E]), 2);
+    expect(totalLF(m)).not.toBeCloseTo(before, 2);
+  });
+
+  it("is a no-op for an out-of-range post or run", () => {
+    const s = drop(EMPTY_DRAW_STATE, A, B);
+    expect(
+      drawReducer(s, { type: "MOVE_POST", runIndex: 0, postIndex: 9, coord: E })
+    ).toEqual(s);
+    expect(
+      drawReducer(s, { type: "MOVE_POST", runIndex: 5, postIndex: 0, coord: E })
+    ).toEqual(s);
+  });
+
+  it("does not change post count or run count", () => {
+    let s = drop(EMPTY_DRAW_STATE, A, B);
+    s = drawReducer(s, { type: "FINISH_LINE" });
+    s = drop(s, C, D);
+    const m = drawReducer(s, {
+      type: "MOVE_POST",
+      runIndex: 1,
+      postIndex: 0,
+      coord: E,
+    });
+    expect(totalPosts(m)).toBe(totalPosts(s));
+    expect(m.runs.length).toBe(s.runs.length);
+    expect(m.current).toEqual([E, D]);
+  });
+});
+
 describe("start over", () => {
   it("clears every run and the active run", () => {
     let s = drop(EMPTY_DRAW_STATE, A, B);

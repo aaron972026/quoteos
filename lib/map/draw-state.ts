@@ -32,6 +32,12 @@ export type DrawAction =
   | { type: "UNDO" }
   | { type: "FINISH_LINE"; closed?: boolean }
   | { type: "START_OVER" }
+  /**
+   * Move an existing post (Adjust mode drag). `runIndex` indexes the virtual
+   * list [...runs, current] — i.e. runIndex === runs.length targets the active
+   * run — matching allRunCoords() ordering.
+   */
+  | { type: "MOVE_POST"; runIndex: number; postIndex: number; coord: Post }
   /** Replace the whole state (e.g. hydrate a desktop edit into the model). */
   | { type: "SET"; state: DrawState };
 
@@ -65,6 +71,25 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
         runs: [...state.runs, { posts: state.current, closed: !!action.closed }],
         current: [],
       };
+    }
+
+    case "MOVE_POST": {
+      const { runIndex, postIndex, coord } = action;
+      // Active run lives at index runs.length in the [...runs, current] view.
+      if (runIndex === state.runs.length) {
+        if (postIndex < 0 || postIndex >= state.current.length) return state;
+        const current = state.current.slice();
+        current[postIndex] = coord;
+        return { ...state, current };
+      }
+      if (runIndex < 0 || runIndex >= state.runs.length) return state;
+      const posts = state.runs[runIndex].posts;
+      if (postIndex < 0 || postIndex >= posts.length) return state;
+      const nextPosts = posts.slice();
+      nextPosts[postIndex] = coord;
+      const runs = state.runs.slice();
+      runs[runIndex] = { ...runs[runIndex], posts: nextPosts };
+      return { ...state, runs };
     }
 
     case "START_OVER":
