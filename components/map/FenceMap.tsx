@@ -97,6 +97,21 @@ export interface FenceMapHandle {
     runCoords: number[][],
     previewTo: [number, number] | null
   ): void;
+  /**
+   * Reserve `px` at the bottom of the viewport for the control sheet, so the
+   * camera's centre (and fitBounds) is the centre of the VISIBLE area above
+   * the sheet — not the raw container centre hidden behind it.
+   */
+  setBottomPadding(px: number): void;
+  /**
+   * The geo coord directly under the reticle — the centre of the visible area
+   * (container centre shifted up by half the bottom padding), unprojected. Use
+   * this for Drop, never raw getMapCenter, so what's under the crosshair is
+   * exactly what lands.
+   */
+  getReticleCoord(): [number, number] | null;
+  /** Fit the camera to these coords, respecting the bottom padding. */
+  fitToCoords(coords: number[][]): void;
 }
 
 export type ParcelBoundary = {
@@ -239,6 +254,9 @@ export default function FenceMap({
   gatePlacementModeRef.current = !!gatePlacementMode;
   const aimModeRef = useRef(!!aimMode);
   aimModeRef.current = !!aimMode;
+  // Bottom padding (px) reserved for the aim control sheet — drives the
+  // reticle position + camera centring so both track the visible area.
+  const bottomPaddingRef = useRef(0);
   // In aim mode, park gl-draw in the inert place_gate mode so no stray tap can
   // add a vertex — the page owns geometry via the shared reducer. Runs when
   // aim mode flips (typically post-mount, once draw is initialised).
@@ -1669,6 +1687,41 @@ export default function FenceMap({
         });
       }
       src.setData({ type: "FeatureCollection", features });
+    },
+    setBottomPadding(px) {
+      bottomPaddingRef.current = Math.max(0, px);
+      mapRef.current?.setPadding({ top: 0, right: 0, left: 0, bottom: px });
+    },
+    getReticleCoord() {
+      const map = mapRef.current;
+      if (!map) return null;
+      const el = map.getContainer();
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      // Centre of the visible area above the sheet.
+      const pt = map.unproject([w / 2, (h - bottomPaddingRef.current) / 2]);
+      return [pt.lng, pt.lat];
+    },
+    fitToCoords(coords) {
+      const map = mapRef.current;
+      if (!map || coords.length === 0) return;
+      let minLng = Infinity,
+        minLat = Infinity,
+        maxLng = -Infinity,
+        maxLat = -Infinity;
+      for (const [lng, lat] of coords) {
+        minLng = Math.min(minLng, lng);
+        maxLng = Math.max(maxLng, lng);
+        minLat = Math.min(minLat, lat);
+        maxLat = Math.max(maxLat, lat);
+      }
+      map.fitBounds(
+        [
+          [minLng, minLat],
+          [maxLng, maxLat],
+        ],
+        { padding: { top: 60, right: 40, left: 40, bottom: bottomPaddingRef.current + 40 }, duration: 500, maxZoom: 20 }
+      );
     },
   }));
 

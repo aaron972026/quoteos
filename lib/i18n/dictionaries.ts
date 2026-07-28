@@ -117,6 +117,10 @@ export interface Dictionary {
     aimClearTitle: string;
     aimClearConfirm: string;
     aimClearCancel: string;
+    aimTracePill: string;
+    aimTraceReplaceTitle: string;
+    aimTraceReplaceConfirm: string;
+    aimTraceReplaceCancel: string;
     // Brand v1.0 — Screen 3 redesign
     eyebrow: string; // "Step Three · Trace The Run"
     panelTitle: string; // "Trace The Fence Run"
@@ -446,6 +450,10 @@ const en: Dictionary = {
     aimClearTitle: "Clear the whole drawing?",
     aimClearConfirm: "Clear",
     aimClearCancel: "Keep drawing",
+    aimTracePill: "Trace my property line",
+    aimTraceReplaceTitle: "Replace your current drawing with the property line?",
+    aimTraceReplaceConfirm: "Replace",
+    aimTraceReplaceCancel: "Keep mine",
     eyebrow: "Step Three · Trace The Run",
     panelTitle: "Trace The Fence Run",
     panelHelp:
@@ -850,6 +858,10 @@ const es: Dictionary = {
     aimClearTitle: "¿Borrar todo el dibujo?",
     aimClearConfirm: "Borrar",
     aimClearCancel: "Seguir dibujando",
+    aimTracePill: "Trazar mi línea de propiedad",
+    aimTraceReplaceTitle: "¿Reemplazar tu dibujo actual con la línea de propiedad?",
+    aimTraceReplaceConfirm: "Reemplazar",
+    aimTraceReplaceCancel: "Conservar el mío",
     eyebrow: "Paso Tres · Traza la línea",
     panelTitle: "Traza el recorrido",
     panelHelp:

@@ -21,6 +21,7 @@ import {
   Plus,
   RotateCcw,
   Spline,
+  Sparkles,
   TriangleAlert,
   Undo2,
   Wand2,
@@ -67,7 +68,6 @@ import {
   toFeature,
   totalLF,
   totalPosts,
-  previewSegmentLF,
   canFinish,
   canUndo,
 } from "@/lib/map/draw-state";
@@ -196,10 +196,7 @@ function DrawPageInner() {
     [aimStage, aimActiveCoords, aimZoomOk, aimCenter]
   );
   const aimTotalLf = totalLF(drawState);
-  const aimSegmentDeltaLf = previewSegmentLF(
-    drawState,
-    aimZoomOk ? aimCenter : null
-  );
+  const [traceConfirm, setTraceConfirm] = useState(false);
 
   function handleMapMove(center: [number, number]) {
     setAimCenter(center);
@@ -207,13 +204,59 @@ function DrawPageInner() {
     if (z != null) setAimZoom(z);
   }
 
+  // Report the sheet height to the map so its centre = the visible-area centre
+  // above the sheet (fixes reticle alignment + address/fitBounds centring).
+  function handleSheetHeight(px: number) {
+    mapRef.current?.setBottomPadding(px);
+  }
+
   function aimDrop() {
-    const c = mapRef.current?.getMapCenter();
+    // Unproject the reticle point (never raw getCenter) so what's under the
+    // crosshair is exactly what lands.
+    const c = mapRef.current?.getReticleCoord();
     if (!c || !aimZoomOk) return;
+    if (process.env.NODE_ENV !== "production") {
+      const gc = mapRef.current?.getMapCenter();
+      if (gc && (Math.abs(gc[0] - c[0]) > 1e-6 || Math.abs(gc[1] - c[1]) > 1e-6)) {
+        console.warn("[aim] reticle/center drift — check bottom padding", {
+          reticle: c,
+          paddedCenter: gc,
+        });
+      }
+    }
     dispatch({ type: "DROP_POST", pos: c });
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       navigator.vibrate(10);
     }
+  }
+
+  // Trace: seed the reducer with the parcel boundary as one drawing run, then
+  // fit the camera. Lands in the normal draw stage so Undo/Drop/Finish work.
+  function doAimTrace() {
+    if (!parcelBoundary) return;
+    const traced = traceFenceFromParcel(parcelBoundary, adjacentBoundaries);
+    const geom = traced?.feature?.geometry;
+    const coords =
+      geom?.type === "LineString"
+        ? geom.coordinates
+        : geom?.type === "Polygon"
+          ? geom.coordinates[0]
+          : null;
+    if (!coords || coords.length < 2) return;
+    dispatch({
+      type: "SET",
+      state: { runs: [], current: coords as Position[] },
+    });
+    setAimStage("draw");
+    mapRef.current?.fitToCoords(coords as number[][]);
+  }
+  function handleAimTraceClick() {
+    if (!parcelBoundary) return;
+    if (totalPosts(drawState) > 0) {
+      setTraceConfirm(true);
+      return;
+    }
+    doAimTrace();
   }
   function aimUndo() {
     dispatch({ type: "UNDO" });
@@ -780,8 +823,6 @@ function DrawPageInner() {
               <AimDrawOverlay
                 active={aimMode}
                 stage={aimStage}
-                totalLf={aimTotalLf}
-                segmentDeltaLf={aimSegmentDeltaLf}
                 aiming={aimAiming}
                 canUndo={canUndo(drawState)}
                 canFinish={canFinish(drawState)}
@@ -792,7 +833,61 @@ function DrawPageInner() {
                 onFinish={aimFinish}
                 onStartOver={aimStartOver}
                 onEdit={aimEdit}
+                onSheetHeight={handleSheetHeight}
               />
+
+              {/* Aim mode: trace pill (top-right, under the address bar) +
+                  a small Help chip (bottom-left, by the map controls). */}
+              {aimMode && parcelBoundary && !gateMode && (
+                <button
+                  type="button"
+                  onClick={handleAimTraceClick}
+                  className="absolute right-3 top-3 z-20 flex items-center gap-1.5 rounded-pill bg-navy/95 px-3.5 py-2 font-display text-[11px] font-semibold uppercase tracking-eyebrow text-cream shadow-card-lg backdrop-blur transition-colors hover:bg-navy"
+                >
+                  <Sparkles size={13} strokeWidth={2.5} className="text-brass" />
+                  {t.draw.aimTracePill}
+                </button>
+              )}
+              {aimMode && (
+                <button
+                  type="button"
+                  aria-label={t.draw.toolHelp}
+                  onClick={() => setHelpOpen(true)}
+                  className="absolute bottom-3 left-3 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-navy/95 text-cream shadow-card-lg backdrop-blur transition-colors hover:bg-navy"
+                >
+                  <HelpCircle size={16} strokeWidth={2.5} />
+                </button>
+              )}
+
+              {/* Replace-drawing confirm before tracing over existing work. */}
+              {aimMode && traceConfirm && (
+                <div className="absolute inset-0 z-40 flex items-end bg-navy/40">
+                  <div className="w-full rounded-t-[18px] border-t border-cream-deep bg-paper px-5 pb-[calc(env(safe-area-inset-bottom)+18px)] pt-5 shadow-card-lg">
+                    <p className="text-center font-display text-[16px] font-semibold uppercase tracking-eyebrow text-navy">
+                      {t.draw.aimTraceReplaceTitle}
+                    </p>
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTraceConfirm(false)}
+                        className="h-12 flex-1 rounded-sm border border-navy/25 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:bg-navy/5"
+                      >
+                        {t.draw.aimTraceReplaceCancel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTraceConfirm(false);
+                          doAimTrace();
+                        }}
+                        className="h-12 flex-1 rounded-sm bg-brick font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream transition-colors hover:bg-brick-deep"
+                      >
+                        {t.draw.aimTraceReplaceConfirm}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* One-time coachmark — slim pill, dismisses on first vertex. */}
               {!aimMode && coachmarkVisible && stats.linear_feet === 0 && !gateMode && (
@@ -868,9 +963,9 @@ function DrawPageInner() {
             </div>
 
             {/* Zone 4 — Action bar (below map). Undo · Clear All · Help.
-                Three items, ≥44px tap targets, evenly spaced. Clear flips
-                to brick-fill once there's something to clear. */}
-            <div className="mt-3 grid grid-cols-3 gap-2">
+                Desktop only — aim mode consolidates these into the sheet
+                (Undo/Finish/Start over) + the on-map Help chip. */}
+            <div className={cn("mt-3 grid grid-cols-3 gap-2", aimMode && "hidden")}>
               <button
                 type="button"
                 onClick={handleUndo}
