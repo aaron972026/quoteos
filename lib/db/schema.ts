@@ -137,6 +137,10 @@ export const quotes = pgTable(
     stainSeal: boolean("stain_seal").default(false),
     // Pricing-v2 add-on selections, persisted so /configure restores them
     // on reload (otherwise a reload silently drops the upgrade + its price).
+    // Post material: 'pt' (included) | 'cedar' (+$3/LF) | 'steel' (+$6/LF).
+    // Supersedes steelPostUpgrade, which is retained and kept mapped in sync
+    // (never dropped) for legacy rows + any code still reading it.
+    postType: text("post_type").default("pt"),
     steelPostUpgrade: boolean("steel_post_upgrade").default(false),
     capRailTrim: boolean("cap_rail_trim").default(false),
     matchVinylPosts: boolean("match_vinyl_posts").default(false),

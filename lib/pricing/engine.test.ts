@@ -210,13 +210,46 @@ describe("$50 rounding + display swing", () => {
 // Add-ons
 // ════════════════════════════════════════════════════════════════════
 describe("add-ons", () => {
-  it("steel upgrade adds $5/LF on cedar families", () => {
+  it("steel upgrade adds $6/LF on cedar families", () => {
     const noUp = calculatePrice(input({ sku_code: "CPF-PRM" }));
+    const withUp = calculatePrice(
+      input({ sku_code: "CPF-PRM", post_type: "steel" })
+    );
+    expect(withUp.breakdown.steel_upgrade_cents).toBe(150 * 600);
+    expect(withUp.raw_subtotal_cents).toBeGreaterThan(noUp.raw_subtotal_cents);
+  });
+
+  it("legacy steel_post_upgrade flag still maps to steel ($6/LF)", () => {
     const withUp = calculatePrice(
       input({ sku_code: "CPF-PRM", steel_post_upgrade: true })
     );
-    expect(withUp.breakdown.steel_upgrade_cents).toBe(150 * 500);
-    expect(withUp.raw_subtotal_cents).toBeGreaterThan(noUp.raw_subtotal_cents);
+    expect(withUp.breakdown.steel_upgrade_cents).toBe(150 * 600);
+  });
+
+  it("cedar posts add $3/LF on wood-picket families", () => {
+    const noUp = calculatePrice(input({ sku_code: "CPF-PRM" }));
+    const withCedar = calculatePrice(
+      input({ sku_code: "CPF-PRM", post_type: "cedar" })
+    );
+    expect(withCedar.breakdown.cedar_post_cents).toBe(150 * 300);
+    expect(withCedar.breakdown.steel_upgrade_cents).toBe(0);
+    expect(withCedar.raw_subtotal_cents).toBeGreaterThan(
+      noUp.raw_subtotal_cents
+    );
+  });
+
+  it("cedar posts are ignored (with warning) on chain link", () => {
+    const r = calculatePrice(
+      input({ sku_code: "CL-RES", post_type: "cedar" })
+    );
+    expect(r.breakdown.cedar_post_cents).toBe(0);
+    expect(r.warnings).toContain("cedar_post_ignored");
+  });
+
+  it("post_type 'pt' is the free default — no post adder", () => {
+    const pt = calculatePrice(input({ sku_code: "CPF-PRM", post_type: "pt" }));
+    expect(pt.breakdown.steel_upgrade_cents).toBe(0);
+    expect(pt.breakdown.cedar_post_cents).toBe(0);
   });
 
   it("steel upgrade is ignored (with warning) on chain link", () => {
@@ -438,6 +471,32 @@ describe("ironclad install bundle", () => {
     expect(bundled.breakdown.stain_cents).toBe(0);
     expect(bundled.warnings).toContain("steel_absorbed_by_ironclad");
     expect(bundled.warnings).toContain("stain_absorbed_by_ironclad");
+  });
+
+  it("charges steel exactly once — post_type 'steel' rides the bundle, no adder stacking", () => {
+    const ironcladOnly = calculatePrice(input({ ironclad: true }));
+    const ironcladSteel = calculatePrice(
+      input({ ironclad: true, post_type: "steel" })
+    );
+    // The forced-steel selection must not add a second steel line on top.
+    expect(ironcladSteel.breakdown.steel_upgrade_cents).toBe(0);
+    expect(ironcladSteel.breakdown.ironclad_cents).toBe(150 * 1300);
+    expect(ironcladSteel.raw_subtotal_cents).toBe(
+      ironcladOnly.raw_subtotal_cents
+    );
+    expect(ironcladSteel.warnings).toContain("steel_absorbed_by_ironclad");
+  });
+
+  it("absorbs a cedar post selection too (no stacking under the bundle)", () => {
+    const ironcladOnly = calculatePrice(input({ ironclad: true }));
+    const ironcladCedar = calculatePrice(
+      input({ ironclad: true, post_type: "cedar" })
+    );
+    expect(ironcladCedar.breakdown.cedar_post_cents).toBe(0);
+    expect(ironcladCedar.raw_subtotal_cents).toBe(
+      ironcladOnly.raw_subtotal_cents
+    );
+    expect(ironcladCedar.warnings).toContain("cedar_absorbed_by_ironclad");
   });
 
   it("is ignored (with warning) on non-wood families", () => {

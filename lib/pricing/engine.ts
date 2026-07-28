@@ -2,6 +2,7 @@ import { DEFAULT_PRICING_CONFIG, type PricingConfig } from "./data";
 import {
   type InternalMargin,
   type MarginFlag,
+  type PostType,
   PricingError,
   type PricingInput,
   type PricingResult,
@@ -15,7 +16,7 @@ import {
  * Math (matches _pricing/FencePros_Pricing_Model.csv-job-estimator):
  *   1. fence/LF = SKU.base_price (pre-derived at 45% target margin)
  *   2. fence/LF × slope_mul × access_mul × LF = fence_subtotal
- *   3. + steel_upgrade ($5/LF if toggled, cedar families only)
+ *   3. + post upgrade (cedar +$3/LF or steel +$6/LF, wood-picket families)
  *   4. + gates (sum of count × price by type)
  *   5. + demo ($3/LF when demo_type != NONE)
  *   6. + stain ($8/LF if toggled)
@@ -79,13 +80,27 @@ export function calculatePrice(
   const slopeSurchargeCents = Math.round(fenceWithSlope - baseFenceFlat);
   const accessSurchargeCents = Math.round(fenceWithBoth - fenceWithSlope);
 
-  // ─── Steel post upgrade ($5/LF, wood-post families only) ───────────
+  // ─── Post material upgrade (wood-post families only) ───────────────
+  // post_type supersedes the legacy steel_post_upgrade flag: 'pt' is the
+  // included default, 'cedar' is +$3/LF, 'steel' (PostMaster) is +$6/LF.
+  // Back-compat: callers still sending steel_post_upgrade map true → 'steel'.
+  const postType: PostType =
+    input.post_type ?? (input.steel_post_upgrade ? "steel" : "pt");
+  const postFamilyOk = config.steelUpgradeFamilies.has(sku.family);
+
   let steelUpgradeCents = 0;
-  if (input.steel_post_upgrade) {
-    if (config.steelUpgradeFamilies.has(sku.family)) {
+  let cedarPostCents = 0;
+  if (postType === "steel") {
+    if (postFamilyOk) {
       steelUpgradeCents = input.linear_feet * addons.STEEL_UPGRADE_PER_LF_CENTS;
     } else {
       warnings.push("steel_upgrade_ignored");
+    }
+  } else if (postType === "cedar") {
+    if (postFamilyOk) {
+      cedarPostCents = input.linear_feet * addons.CEDAR_POST_PER_LF_CENTS;
+    } else {
+      warnings.push("cedar_post_ignored");
     }
   }
 
@@ -96,6 +111,9 @@ export function calculatePrice(
   // flags also arrive (e.g. stain_seal is persisted true so the BOM
   // orders stain materials), their line items zero out with a warning
   // rather than double-charging.
+  // Ivory Standard forces steel posts as part of the bundle, so any post
+  // adder (steel OR cedar) is absorbed here — steel is charged exactly once,
+  // via the bundle, never stacked on top.
   let ironcladCents = 0;
   if (input.ironclad) {
     if (config.steelUpgradeFamilies.has(sku.family)) {
@@ -103,6 +121,10 @@ export function calculatePrice(
       if (steelUpgradeCents > 0) {
         steelUpgradeCents = 0;
         warnings.push("steel_absorbed_by_ironclad");
+      }
+      if (cedarPostCents > 0) {
+        cedarPostCents = 0;
+        warnings.push("cedar_absorbed_by_ironclad");
       }
     } else {
       warnings.push("ironclad_ignored");
@@ -211,6 +233,7 @@ export function calculatePrice(
     baseFenceCents +
     ironcladCents +
     steelUpgradeCents +
+    cedarPostCents +
     capRailCents +
     boardOnBoardCents +
     matchVinylPostsCents +
@@ -247,6 +270,7 @@ export function calculatePrice(
   const demoCost = Math.round(demoCents * costRatios.DEMO);
   const stainCost = Math.round(stainCents * costRatios.STAIN);
   const steelCost = Math.round(steelUpgradeCents * costRatios.STEEL_UPGRADE);
+  const cedarPostCost = Math.round(cedarPostCents * costRatios.CEDAR_POST);
   const ironcladCost = Math.round(ironcladCents * costRatios.IRONCLAD);
   const capRailCost = Math.round(capRailCents * costRatios.CAP_RAIL);
   const boardOnBoardCost = Math.round(
@@ -266,6 +290,7 @@ export function calculatePrice(
     demoCost +
     stainCost +
     steelCost +
+    cedarPostCost +
     capRailCost +
     boardOnBoardCost +
     matchVinylCost +
@@ -352,6 +377,7 @@ export function calculatePrice(
       slope_surcharge_cents: slopeSurchargeCents,
       access_surcharge_cents: accessSurchargeCents,
       steel_upgrade_cents: steelUpgradeCents,
+      cedar_post_cents: cedarPostCents,
       ironclad_cents: ironcladCents,
       board_on_board_cents: boardOnBoardCents,
       cap_rail_cents: capRailCents,

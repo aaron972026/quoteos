@@ -16,7 +16,12 @@ import { LIMITS, checkLimit } from "@/lib/api/rate-limit";
 import { getCurrentSessionId } from "@/lib/api/session-helper";
 import { calculatePrice } from "@/lib/pricing/engine";
 import { loadPricingConfig } from "@/lib/pricing/load-config";
-import { PricingError, type GateType, type DemoType } from "@/lib/pricing/types";
+import {
+  PricingError,
+  type GateType,
+  type DemoType,
+  type PostType,
+} from "@/lib/pricing/types";
 import { sendPriceHoldEmail } from "@/lib/email/price-hold";
 import { getDict } from "@/lib/i18n/server";
 
@@ -41,6 +46,7 @@ const PatchBody = z.object({
   stain_seal: z.boolean().optional(),
   ironclad: z.boolean().optional(),
   board_on_board: z.boolean().optional(),
+  post_type: z.enum(["pt", "cedar", "steel"]).optional(),
   steel_post_upgrade: z.boolean().optional(),
   cap_rail_trim: z.boolean().optional(),
   match_vinyl_posts: z.boolean().optional(),
@@ -120,6 +126,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       stain_seal: d.stain_seal ?? !!existing.stainSeal,
       ironclad: d.ironclad ?? false,
       board_on_board: d.board_on_board ?? false,
+      // post_type supersedes steel_post_upgrade; Ivory Standard forces steel.
+      // Precedence: bundle > explicit post_type > legacy flag > stored value.
+      post_type: (d.ironclad
+        ? "steel"
+        : d.post_type ??
+          (d.steel_post_upgrade === undefined
+            ? ((existing.postType as PostType | null) ?? "pt")
+            : d.steel_post_upgrade
+              ? "steel"
+              : "pt")) as PostType,
       steel_post_upgrade: d.steel_post_upgrade ?? false,
       cap_rail_trim: d.cap_rail_trim ?? false,
       match_vinyl_posts: d.match_vinyl_posts ?? false,
@@ -154,6 +170,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             stain_seal: merged.stain_seal,
             ironclad: merged.ironclad,
             board_on_board: merged.board_on_board,
+            post_type: merged.post_type,
             steel_post_upgrade: merged.steel_post_upgrade,
             cap_rail_trim: merged.cap_rail_trim,
             match_vinyl_posts: merged.match_vinyl_posts,
@@ -211,7 +228,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         heightUpgrade: d.height_upgrade,
         frenchGothic: d.french_gothic,
         stainSeal: d.stain_seal,
-        steelPostUpgrade: d.steel_post_upgrade,
+        postType: merged.post_type,
+        // Legacy column kept in sync (never dropped): true only for a
+        // standalone steel choice — Ivory Standard's steel rides the bundle.
+        steelPostUpgrade: merged.post_type === "steel" && !merged.ironclad,
         capRailTrim: d.cap_rail_trim,
         matchVinylPosts: d.match_vinyl_posts,
         ironclad: d.ironclad,

@@ -10,6 +10,10 @@ export type GateType = "W3" | "W4" | "W5" | "D10" | "D12" | "D16";
 export type DemoType = "NONE" | "CEDAR" | "CHAIN" | "METAL" | "CONC";
 export type SkuFamily = "CPF" | "HCF" | "CL" | "RR" | "BP";
 export type MarginFlag = "ok" | "warn" | "low";
+// Post material on the wood-picket families. 'pt' (pressure-treated pine) is
+// the included default; 'cedar' (+$3/LF) and 'steel' (PostMaster, +$6/LF) are
+// adders. Supersedes the legacy steel_post_upgrade boolean.
+export type PostType = "pt" | "cedar" | "steel";
 
 // ─── Inputs ───────────────────────────────────────────────────────────
 
@@ -32,7 +36,10 @@ export interface PricingInput {
   // standalone steel_post_upgrade and stain_seal charges when active.
   ironclad?: boolean;
   board_on_board?: boolean;    // +$7/LF overlapped pickets (wood-picket families)
-  steel_post_upgrade?: boolean; // +$5/LF (wood-post families: CPF/HCF/BP — ignored elsewhere with warning)
+  // Post material (wood-post families: CPF/HCF/BP). 'pt' included, 'cedar'
+  // +$3/LF, 'steel' +$6/LF. When absent, derived from steel_post_upgrade.
+  post_type?: PostType;
+  steel_post_upgrade?: boolean; // DEPRECATED — superseded by post_type. true maps to post_type 'steel' for back-compat.
   cap_rail_trim?: boolean;      // +$4/LF (Cedar Privacy + Horizontal Cedar + Budget Pine — wood-picket families)
   match_vinyl_posts?: boolean;  // +$3/LF (CL-VIN only — black PVC-coated posts to match the mesh)
   rock_drilling_posts?: number; // +$25/post
@@ -48,7 +55,8 @@ export interface PricingBreakdown {
   base_fence_cents: number;          // fence subtotal AFTER slope + access surcharges
   slope_surcharge_cents: number;     // delta from slope mul (already inside base_fence)
   access_surcharge_cents: number;    // delta from access (already inside base_fence)
-  steel_upgrade_cents: number;
+  steel_upgrade_cents: number;       // +$6/LF PostMaster steel posts (post_type 'steel')
+  cedar_post_cents: number;          // +$3/LF cedar posts (post_type 'cedar')
   ironclad_cents: number;            // +$13/LF Ironclad Install bundle (wood-post families)
   board_on_board_cents: number;      // +$7/LF board-on-board privacy (wood-picket families)
   cap_rail_cents: number;            // +$4/LF cap rail + trim (wood-picket families)

@@ -58,8 +58,9 @@ export interface SkuData {
   spec_bullets: string[];
   hero_image_url: string | null;
   sort_order: number;
-  /** Cedar wood OR Galv line — drives "steel post upgrade" availability. */
-  posts_standard: "cedar_wood" | "galv_line";
+  /** Included post material. Wood-picket families ship 'pt' (upgradeable to
+   * cedar/steel); ranch rail keeps cedar_wood; chain link is galv_line. */
+  posts_standard: "pt" | "cedar_wood" | "galv_line";
 }
 
 /**
@@ -89,7 +90,7 @@ interface SkuSeed {
   market_flag: "ok" | "ABOVE_MKT";
   spec_bullets: string[];
   sort_order: number;
-  posts_standard: "cedar_wood" | "galv_line";
+  posts_standard: "pt" | "cedar_wood" | "galv_line";
 }
 
 // Standard warranty bullet shown on every SKU card. Reflects the Ivory Fence Co.
@@ -121,7 +122,7 @@ const SKU_SEEDS: SkuSeed[] = [
       STD_WARRANTY_BULLET,
     ],
     sort_order: 5,
-    posts_standard: "cedar_wood",
+    posts_standard: "pt",
   },
 
   // ── Cedar Privacy Fence (2 variants) ────────────────────────────────
@@ -143,7 +144,7 @@ const SKU_SEEDS: SkuSeed[] = [
       STD_WARRANTY_BULLET,
     ],
     sort_order: 12,
-    posts_standard: "cedar_wood",
+    posts_standard: "pt",
   },
   {
     code: "CPF-EST",
@@ -163,7 +164,7 @@ const SKU_SEEDS: SkuSeed[] = [
       STD_WARRANTY_BULLET,
     ],
     sort_order: 13,
-    posts_standard: "cedar_wood",
+    posts_standard: "pt",
   },
 
   // ── Horizontal Cedar Fence (2 variants) ──────────────────────────────
@@ -184,7 +185,7 @@ const SKU_SEEDS: SkuSeed[] = [
       STD_WARRANTY_BULLET,
     ],
     sort_order: 20,
-    posts_standard: "cedar_wood",
+    posts_standard: "pt",
   },
   {
     code: "HCF-PRM",
@@ -204,7 +205,7 @@ const SKU_SEEDS: SkuSeed[] = [
       STD_WARRANTY_BULLET,
     ],
     sort_order: 21,
-    posts_standard: "cedar_wood",
+    posts_standard: "pt",
   },
 
   // ── Chain Link (2 variants) ──────────────────────────────────────────
@@ -357,7 +358,9 @@ export const GATE_PRICES: Record<GateType, { price_cents: number; label: string 
 // ─── Add-ons ──────────────────────────────────────────────────────────
 
 export const ADDONS = {
-  STEEL_UPGRADE_PER_LF_CENTS: 500,     // $5/LF — wood post → steel post
+  // Post material upgrades on wood-picket families (base ships PT posts).
+  CEDAR_POST_PER_LF_CENTS: 300,        // $3/LF — PT post → cedar post (matches picket, 5-yr no-rot)
+  STEEL_UPGRADE_PER_LF_CENTS: 600,     // $6/LF — PT post → PostMaster steel (lifetime; was $5, +$1 carries the only lifetime warranty)
   STAIN_PER_LF_CENTS: 600,             // $6/LF
   CAP_RAIL_PER_LF_CENTS: 400,          // $4/LF — cap rail + decorative trim (wood-picket families)
   MATCH_VINYL_POSTS_PER_LF_CENTS: 300, // $3/LF — black PVC-coated posts (CL-VIN only)
@@ -398,6 +401,7 @@ export const COST_RATIOS = {
   GATE: 0.50,            // 50% of gate revenue is material+sub-labor cost
   DEMO: 0.60,            // demo is mostly sub-labor
   STAIN: 0.45,           // stain materials + labor
+  CEDAR_POST: 0.60,      // cedar posts cost-up a touch more than PT stock
   STEEL_UPGRADE: 0.55,
   CAP_RAIL: 0.50,        // cap rail trim — equal split material + labor
   MATCH_VINYL_POSTS: 0.60, // black PVC posts cost-up slightly more than galv
