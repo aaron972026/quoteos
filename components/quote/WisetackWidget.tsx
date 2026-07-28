@@ -13,6 +13,40 @@ export function WisetackWidget({ monthly24moCents }: Props) {
   const configured = !!prequalBase && /^https?:\/\//i.test(prequalBase);
   const prequalUrl = configured ? prequalBase! : null;
 
+  // Unconfigured: never render the financing CTA to a customer. In dev, show
+  // the setup hint so the developer knows why it's missing; in production,
+  // degrade to a neutral one-liner (and never leak the env-var name).
+  if (!configured) {
+    if (process.env.NODE_ENV !== "production") {
+      return (
+        <div className="rounded-sm border border-navy/15 bg-cream-deep p-6">
+          <div className="font-mono text-[10px] uppercase tracking-spec text-brick">
+            Financing
+          </div>
+          <button
+            type="button"
+            disabled
+            className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-sm bg-steel-soft px-6 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream"
+          >
+            Pre-Qualify With Wisetack
+          </button>
+          <p className="mt-2 font-body text-[11px] italic leading-[1.4] text-steel">
+            Wisetack not yet configured — set{" "}
+            <code className="rounded-sm bg-navy/5 px-1 font-mono text-[10px] text-navy">
+              NEXT_PUBLIC_WISETACK_PREQUAL_URL
+            </code>{" "}
+            in .env.local.
+          </p>
+        </div>
+      );
+    }
+    return (
+      <p className="font-body text-[12.5px] leading-[1.5] text-steel">
+        Financing available — ask us at your visit.
+      </p>
+    );
+  }
+
   return (
     <div className="rounded-sm border border-navy/15 bg-cream-deep p-6">
       <div className="flex items-start gap-3">
@@ -52,40 +86,21 @@ export function WisetackWidget({ monthly24moCents }: Props) {
         </div>
       )}
 
-      {configured && prequalUrl ? (
-        // Plain <a> — Wisetack URLs are hash-based SPA routes.
-        // eslint-disable-next-line @next/next/no-html-link-for-pages
-        <a
-          href={prequalUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cn(
-            "mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-sm bg-navy px-6",
-            "font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream",
-            "transition-colors hover:bg-navy-soft"
-          )}
-        >
-          Pre-Qualify With Wisetack
-          <ArrowRight size={14} strokeWidth={2.5} />
-        </a>
-      ) : (
-        <div className="mt-5">
-          <button
-            type="button"
-            disabled
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-sm bg-steel-soft px-6 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream"
-          >
-            Pre-Qualify With Wisetack
-          </button>
-          <p className="mt-2 font-body text-[11px] italic leading-[1.4] text-steel">
-            Wisetack not yet configured — set{" "}
-            <code className="rounded-sm bg-navy/5 px-1 font-mono text-[10px] text-navy">
-              NEXT_PUBLIC_WISETACK_PREQUAL_URL
-            </code>{" "}
-            in .env.local.
-          </p>
-        </div>
-      )}
+      {/* Plain <a> — Wisetack URLs are hash-based SPA routes. */}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+      <a
+        href={prequalUrl!}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          "mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-sm bg-navy px-6",
+          "font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream",
+          "transition-colors hover:bg-navy-soft"
+        )}
+      >
+        Pre-Qualify With Wisetack
+        <ArrowRight size={14} strokeWidth={2.5} />
+      </a>
 
       <div className="mt-4 text-center">
         <Link
