@@ -205,6 +205,9 @@ export const quotes = pgTable(
       withTimezone: true,
     }),
     reservedWeekStart: date("reserved_week_start"), // Monday of the reserved install week
+    // When the written price-hold confirmation email was sent (drives the
+    // "check your inbox" line + lets GHL time the day-10 reminder).
+    holdEmailSentAt: timestamp("hold_email_sent_at", { withTimezone: true }),
 
     // Margin (internal — never returned to client)
     estimatedMaterialCostCents: integer("estimated_material_cost_cents"),

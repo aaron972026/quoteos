@@ -17,6 +17,8 @@ import { getCurrentSessionId } from "@/lib/api/session-helper";
 import { calculatePrice } from "@/lib/pricing/engine";
 import { loadPricingConfig } from "@/lib/pricing/load-config";
 import { PricingError, type GateType, type DemoType } from "@/lib/pricing/types";
+import { sendPriceHoldEmail } from "@/lib/email/price-hold";
+import { getDict } from "@/lib/i18n/server";
 
 const GateSchema = z.object({
   type: z.enum(["W3", "W4", "W5", "D10", "D12", "D16"]),
@@ -52,6 +54,9 @@ const PatchBody = z.object({
   // 'reserved' lane is stamped server-side in the lock-in route. The expiry
   // is computed on the server (never trusted from the client) — see below.
   commitment_lane: z.enum(["price_hold"]).optional(),
+  // Captured on the hold modal when we don't already have the customer's
+  // email. Stored + sent the written-hold confirmation.
+  hold_email: z.string().email().max(256).optional(),
 });
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -185,6 +190,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
     }
 
+    // Compute the hold expiry once so the DB write and the email agree.
+    const isPriceHold = d.commitment_lane === "price_hold";
+    const holdExpiry = isPriceHold
+      ? new Date(Date.now() + 14 * 86_400_000)
+      : null;
+
     await db
       .update(quotes)
       .set({
@@ -214,17 +225,58 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           : {}),
         // Free price-hold lane: server sets the 14-day expiry; reserved-week
         // stays null (that anchor only exists for the paid reservation lane).
-        ...(d.commitment_lane === "price_hold"
+        // hold_email, when supplied by the capture modal, becomes the contact.
+        ...(isPriceHold
           ? {
               commitmentLane: "price_hold",
-              priceHoldExpiresAt: new Date(Date.now() + 14 * 86_400_000),
+              priceHoldExpiresAt: holdExpiry!,
               reservedWeekStart: null,
+              ...(d.hold_email ? { customerEmail: d.hold_email } : {}),
             }
           : {}),
         ...pricingPatch,
         updatedAt: new Date(),
       })
       .where(and(eq(quotes.id, params.id), eq(quotes.sessionId, sid)));
+
+    // Written-hold confirmation email — fire-and-forget so the hold write
+    // never waits on Resend. Stamp hold_email_sent_at only on success so a
+    // failed send can be retried (or picked up by GHL).
+    const holdEmail = isPriceHold
+      ? d.hold_email ?? existing.customerEmail
+      : null;
+    if (isPriceHold && holdEmail && holdExpiry) {
+      const priceCents =
+        pricingPatch.selectedTierCents ??
+        existing.selectedTierCents ??
+        existing.subtotalCents ??
+        null;
+      const origin = (
+        process.env.NEXT_PUBLIC_SITE_URL ??
+        `${req.headers.get("x-forwarded-proto") ?? "https"}://${req.headers.get("host")}`
+      ).replace(/\/$/, "");
+      sendPriceHoldEmail({
+        quoteId: params.id,
+        to: holdEmail,
+        priceCents,
+        addressLine: existing.addressLine,
+        city: existing.city,
+        state: existing.state,
+        zip: existing.zip,
+        expiresAt: holdExpiry,
+        locale: getDict().locale,
+        origin,
+      })
+        .then((sent) => {
+          if (sent) {
+            return db
+              .update(quotes)
+              .set({ holdEmailSentAt: new Date() })
+              .where(eq(quotes.id, params.id));
+          }
+        })
+        .catch((e) => console.error("[hold-email] post-send stamp failed", e));
+    }
 
     return ok({ id: params.id, updated: true });
   } catch (err) {

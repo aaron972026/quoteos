@@ -233,6 +233,11 @@ export interface Dictionary {
     creditLineLabel: string;
     heldConfirm: string; // uses {date}
     heldReserveButton: string;
+    holdEmailHeading: string;
+    holdEmailBody: string; // uses {date}
+    holdEmailField: string;
+    holdEmailFinePrint: string;
+    holdSentLine: string;
     errorGeneric: string;
   };
 }
@@ -581,6 +586,14 @@ const en: Dictionary = {
     heldConfirm:
       "Your price is held through {date}. Want your install week too? Reserve it anytime before then.",
     heldReserveButton: "Reserve my week — $99",
+    holdEmailHeading: "Where should we send your price hold?",
+    holdEmailBody:
+      "We'll email your locked price and hold date — good through {date}.",
+    holdEmailField: "Email address",
+    holdEmailFinePrint:
+      "We'll send your hold confirmation and one reminder before it expires. No spam, ever.",
+    holdSentLine:
+      "Check your inbox — your written price hold is on its way.",
     errorGeneric: "Something went wrong. Please try again.",
   },
 } as const;
@@ -932,6 +945,14 @@ const es: Dictionary = {
     heldConfirm:
       "Su precio está retenido hasta el {date}. ¿Quiere también su semana de instalación? Resérvela en cualquier momento antes de esa fecha.",
     heldReserveButton: "Reservar mi semana — $99",
+    holdEmailHeading: "¿A dónde enviamos tu precio retenido?",
+    holdEmailBody:
+      "Te enviaremos por correo tu precio fijado y la fecha de retención — válido hasta el {date}.",
+    holdEmailField: "Correo electrónico",
+    holdEmailFinePrint:
+      "Te enviaremos la confirmación de tu retención y un recordatorio antes de que expire. Sin spam, nunca.",
+    holdSentLine:
+      "Revisa tu correo — tu precio retenido por escrito va en camino.",
     errorGeneric: "Algo salió mal. Inténtelo de nuevo.",
   },
 };

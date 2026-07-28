@@ -29,6 +29,7 @@ import { formatCents } from "@/lib/utils";
 interface QuoteShape {
   id: string;
   status: string;
+  customerEmail: string | null;
   addressLine: string | null;
   zip: string | null;
   linearFeet: string | number | null;
@@ -48,6 +49,7 @@ interface QuoteShape {
   commitmentLane: string | null; // 'reserved' | 'price_hold'
   priceHoldExpiresAt: string | null;
   reservedWeekStart: string | null; // 'YYYY-MM-DD'
+  holdEmailSentAt: string | null;
   gates?: Array<{ type: string; count: number }> | null;
 }
 
@@ -98,6 +100,7 @@ export default function QuotePage({ params }: { params: { id: string } }) {
   const [isLocking, startLockIn] = useTransition();
   const [isHolding, startHold] = useTransition();
   const [emailSheetOpen, setEmailSheetOpen] = useState(false);
+  const [holdModalOpen, setHoldModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,9 +180,21 @@ export default function QuotePage({ params }: { params: { id: string } }) {
     });
   }
 
-  // Free "hold my price" lane — no payment. Persist the choice, then refetch
-  // the quote so the held state (and its server-stored expiry) render.
-  function handleHold() {
+  // "Hold my price" click: skip the modal when we already have a contactable
+  // email (never ask for what we have), otherwise open the capture modal.
+  function handleHoldClick() {
+    if (quote?.customerEmail) {
+      doHold();
+    } else {
+      setError(null);
+      setHoldModalOpen(true);
+    }
+  }
+
+  // Free "hold my price" lane — no payment. Persist the choice (+ captured
+  // email), which also fires the written-hold confirmation server-side, then
+  // refetch so the held state + "check your inbox" line render.
+  function doHold(email?: string) {
     setError(null);
     startHold(async () => {
       try {
@@ -187,13 +202,17 @@ export default function QuotePage({ params }: { params: { id: string } }) {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ commitment_lane: "price_hold" }),
+          body: JSON.stringify({
+            commitment_lane: "price_hold",
+            ...(email ? { hold_email: email } : {}),
+          }),
         });
         if (!r.ok) throw new Error(t.commitment.errorGeneric);
         const fresh = await fetch(`/api/v1/quotes/${params.id}`, {
           credentials: "include",
         });
         if (fresh.ok) setQuote((await fresh.json()) as QuoteShape);
+        setHoldModalOpen(false);
       } catch (e) {
         setError(e instanceof Error ? e.message : t.commitment.errorGeneric);
       }
@@ -345,7 +364,7 @@ export default function QuotePage({ params }: { params: { id: string } }) {
                 reserving={isLocking}
                 holding={isHolding}
                 onReserve={handleLockIn}
-                onHold={handleHold}
+                onHold={handleHoldClick}
               />
 
               {error && (
@@ -511,6 +530,99 @@ export default function QuotePage({ params }: { params: { id: string } }) {
         open={emailSheetOpen}
         onClose={() => setEmailSheetOpen(false)}
       />
+
+      {holdModalOpen && (
+        <HoldEmailModal
+          t={t}
+          locale={locale}
+          submitting={isHolding}
+          onSubmit={(email) => doHold(email)}
+          onClose={() => setHoldModalOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+interface HoldEmailModalProps {
+  t: ReturnType<typeof useT>;
+  locale: string;
+  submitting: boolean;
+  onSubmit: (email: string) => void;
+  onClose: () => void;
+}
+
+/**
+ * Email-capture step for the free hold lane, shown only when the quote has
+ * no email on file. Single validated field, forest submit. On submit the
+ * parent writes the hold (which fires the confirmation email server-side).
+ */
+function HoldEmailModal({
+  t,
+  locale,
+  submitting,
+  onSubmit,
+  onClose,
+}: HoldEmailModalProps) {
+  const c = t.commitment;
+  const [email, setEmail] = useState("");
+  const valid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+  // The hold runs 14 days out — compute the same date the server will store.
+  const through = new Intl.DateTimeFormat(locale === "es" ? "es-US" : "en-US", {
+    month: "long",
+    day: "numeric",
+    timeZone: "America/Chicago",
+  }).format(new Date(Date.now() + 14 * 86_400_000));
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-navy/50 p-0 sm:items-center sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={c.holdEmailHeading}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-t-lg bg-paper p-6 shadow-card-lg sm:rounded-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="font-display text-[20px] font-bold uppercase leading-[1.05] tracking-[0.01em] text-navy">
+          {c.holdEmailHeading}
+        </h2>
+        <p className="mt-2 font-body text-[13.5px] leading-[1.5] text-char">
+          {c.holdEmailBody.replace("{date}", through)}
+        </p>
+        <form
+          className="mt-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (valid && !submitting) onSubmit(email.trim());
+          }}
+        >
+          <input
+            type="email"
+            inputMode="email"
+            autoFocus
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder={c.holdEmailField}
+            aria-label={c.holdEmailField}
+            className="h-12 w-full rounded-sm border border-navy/25 bg-white px-4 font-body text-[16px] text-ink outline-none focus:border-navy focus:ring-2 focus:ring-forest-600/30"
+          />
+          <button
+            type="submit"
+            disabled={!valid || submitting}
+            className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-sm bg-forest-600 px-6 font-display text-[14px] font-semibold uppercase tracking-eyebrow text-paper transition-colors hover:bg-forest-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting && <Loader2 className="animate-spin" size={16} />}
+            {c.holdButton}
+          </button>
+        </form>
+        <p className="mt-3 font-body text-[11.5px] leading-[1.5] text-steel">
+          {c.holdEmailFinePrint}
+        </p>
+      </div>
     </div>
   );
 }
@@ -578,6 +690,12 @@ function CommitmentStep({
         <p className="font-body text-[14px] leading-[1.55] text-char">
           {c.heldConfirm.replace("{date}", through)}
         </p>
+        {quote.holdEmailSentAt && (
+          <p className="mt-2 flex items-start gap-2 font-body text-[13px] leading-[1.5] text-forest-600">
+            <Mail size={14} strokeWidth={2} className="mt-0.5 flex-shrink-0" />
+            {c.holdSentLine}
+          </p>
+        )}
         <button
           type="button"
           onClick={onReserve}
