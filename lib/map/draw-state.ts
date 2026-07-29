@@ -25,6 +25,12 @@ export interface DrawState {
   runs: DrawRun[];
   /** The active, still-being-drawn run. */
   current: Post[];
+  /**
+   * Undo history — snapshots of {runs, current} pushed by each structural
+   * action (drop / delete / split / branch / new-line) and by CHECKPOINT
+   * (drag start). Selectors ignore it. UNDO pops it, so it spans runs.
+   */
+  past?: DrawState[];
 }
 
 export type DrawAction =
@@ -38,6 +44,20 @@ export type DrawAction =
    * run — matching allRunCoords() ordering.
    */
   | { type: "MOVE_POST"; runIndex: number; postIndex: number; coord: Post }
+  /** Branch: commit the active run, then start a new one anchored at `anchor`
+   * (shares the coordinate = a T-junction). */
+  | { type: "START_RUN_FROM"; anchor: Post }
+  /** Delete a single post from its own run only (never cascades to coincident
+   * posts in other runs); drops the run if it falls below 2 posts. */
+  | { type: "DELETE_POST"; runIndex: number; postIndex: number }
+  /** Delete the segment after `segIndex`, splitting the run in two; sub-runs
+   * with <2 posts are dropped. */
+  | { type: "DELETE_SEGMENT"; runIndex: number; segIndex: number }
+  /** Commit the active run (if ≥2 posts; a <2 fragment is discarded) and start
+   * a fresh empty run. */
+  | { type: "NEW_LINE" }
+  /** Snapshot the present into history without changing it (drag start). */
+  | { type: "CHECKPOINT" }
   /** Replace the whole state (e.g. hydrate a desktop edit into the model). */
   | { type: "SET"; state: DrawState };
 
@@ -46,23 +66,38 @@ export const EMPTY_DRAW_STATE: DrawState = { runs: [], current: [] };
 /** Minimum posts before a run can be Finished (a segment needs two ends). */
 export const MIN_POSTS_TO_FINISH = 2;
 
+const HISTORY_LIMIT = 60;
+
+function snapshot(s: DrawState): DrawState {
+  return { runs: s.runs, current: s.current }; // strip past — no nesting
+}
+
+/** Present pushed onto history, capped. */
+function pushHistory(s: DrawState): DrawState[] {
+  const next = [...(s.past ?? []), snapshot(s)];
+  return next.length > HISTORY_LIMIT
+    ? next.slice(next.length - HISTORY_LIMIT)
+    : next;
+}
+
+const sameCoord = (a: Post, b: Post) => a[0] === b[0] && a[1] === b[1];
+
 export function drawReducer(state: DrawState, action: DrawAction): DrawState {
   switch (action.type) {
     case "DROP_POST":
-      return { ...state, current: [...state.current, action.pos] };
+      return {
+        ...state,
+        current: [...state.current, action.pos],
+        past: pushHistory(state),
+      };
 
     case "UNDO": {
-      // Pop the most recent post from the active run. If the active run is
-      // empty, the last thing that happened was a Finish — reopen the most
-      // recent run so undo crosses the finish boundary intuitively.
-      if (state.current.length > 0) {
-        return { ...state, current: state.current.slice(0, -1) };
-      }
-      if (state.runs.length > 0) {
-        const last = state.runs[state.runs.length - 1];
-        return { runs: state.runs.slice(0, -1), current: [...last.posts] };
-      }
-      return state;
+      // History-based: restore the snapshot before the last structural action
+      // (drop / delete / split / branch / new-line / drag). Spans runs.
+      const past = state.past ?? [];
+      if (past.length === 0) return state;
+      const prev = past[past.length - 1];
+      return { runs: prev.runs, current: prev.current, past: past.slice(0, -1) };
     }
 
     case "FINISH_LINE": {
@@ -70,30 +105,96 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
       return {
         runs: [...state.runs, { posts: state.current, closed: !!action.closed }],
         current: [],
+        past: pushHistory(state),
       };
+    }
+
+    case "NEW_LINE": {
+      // Commit the active run if it's a real segment; a <2-post fragment is
+      // discarded (the tap-New-Line-twice case). Empty current → no-op.
+      if (state.current.length === 0) return state;
+      const runs =
+        state.current.length >= MIN_POSTS_TO_FINISH
+          ? [...state.runs, { posts: state.current, closed: false }]
+          : state.runs;
+      return { runs, current: [], past: pushHistory(state) };
+    }
+
+    case "START_RUN_FROM": {
+      // Commit the active run (real segments only), then anchor a new run at
+      // the shared coordinate (T-junction — a separate run).
+      const runs =
+        state.current.length >= MIN_POSTS_TO_FINISH
+          ? [...state.runs, { posts: state.current, closed: false }]
+          : state.runs;
+      return { runs, current: [action.anchor], past: pushHistory(state) };
     }
 
     case "MOVE_POST": {
       const { runIndex, postIndex, coord } = action;
-      // Active run lives at index runs.length in the [...runs, current] view.
-      if (runIndex === state.runs.length) {
-        if (postIndex < 0 || postIndex >= state.current.length) return state;
-        const current = state.current.slice();
-        current[postIndex] = coord;
-        return { ...state, current };
-      }
+      const all = [...state.runs.map((r) => r.posts), state.current];
+      if (runIndex < 0 || runIndex >= all.length) return state;
+      const target = all[runIndex];
+      if (postIndex < 0 || postIndex >= target.length) return state;
+      const old = target[postIndex];
+      if (sameCoord(old, coord)) return state;
+      // Junction integrity: every post sharing the old exact coordinate moves
+      // together, so branches stay attached to the fence they tee into. Drag
+      // is live — no history push here (CHECKPOINT at drag start owns undo).
+      const move = (posts: Post[]) =>
+        posts.some((p) => sameCoord(p, old))
+          ? posts.map((p) => (sameCoord(p, old) ? coord : p))
+          : posts;
+      return {
+        ...state,
+        runs: state.runs.map((r) => {
+          const m = move(r.posts);
+          return m === r.posts ? r : { ...r, posts: m };
+        }),
+        current: move(state.current),
+      };
+    }
+
+    case "DELETE_POST": {
+      // Delete from this run only — never cascade to coincident posts in other
+      // runs (a junction anchor's branch survives free-standing).
+      const { runIndex, postIndex } = action;
       if (runIndex < 0 || runIndex >= state.runs.length) return state;
       const posts = state.runs[runIndex].posts;
       if (postIndex < 0 || postIndex >= posts.length) return state;
-      const nextPosts = posts.slice();
-      nextPosts[postIndex] = coord;
+      const next = [...posts.slice(0, postIndex), ...posts.slice(postIndex + 1)];
       const runs = state.runs.slice();
-      runs[runIndex] = { ...runs[runIndex], posts: nextPosts };
-      return { ...state, runs };
+      if (next.length >= MIN_POSTS_TO_FINISH) {
+        runs[runIndex] = { ...runs[runIndex], posts: next };
+      } else {
+        runs.splice(runIndex, 1); // drop a degenerate <2-post run
+      }
+      return { ...state, runs, past: pushHistory(state) };
     }
 
+    case "DELETE_SEGMENT": {
+      // Split the run at the deleted segment; sub-runs with <2 posts drop out.
+      // This is how a traced loop loses its front side.
+      const { runIndex, segIndex } = action;
+      if (runIndex < 0 || runIndex >= state.runs.length) return state;
+      const posts = state.runs[runIndex].posts;
+      if (segIndex < 0 || segIndex >= posts.length - 1) return state;
+      const subs = [posts.slice(0, segIndex + 1), posts.slice(segIndex + 1)]
+        .filter((p) => p.length >= MIN_POSTS_TO_FINISH)
+        .map((p) => ({ posts: p, closed: false }));
+      const runs = [
+        ...state.runs.slice(0, runIndex),
+        ...subs,
+        ...state.runs.slice(runIndex + 1),
+      ];
+      return { ...state, runs, past: pushHistory(state) };
+    }
+
+    case "CHECKPOINT":
+      return { ...state, past: pushHistory(state) };
+
     case "START_OVER":
-      return EMPTY_DRAW_STATE;
+      return EMPTY_DRAW_STATE; // also clears history
 
     case "SET":
       return action.state;
