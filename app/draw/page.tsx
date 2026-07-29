@@ -40,6 +40,7 @@ import {
   type QuotePhoto,
 } from "@/components/draw/PhotoUpload";
 import type {
+  AimSelection,
   FenceGeometryStats,
   FenceMapHandle,
   ParcelBoundary,
@@ -75,6 +76,7 @@ import {
   totalPosts,
   canFinish,
   canUndo,
+  allRunCoords,
 } from "@/lib/map/draw-state";
 
 const FenceMap = dynamic(() => import("@/components/map/FenceMap"), {
@@ -175,6 +177,16 @@ function DrawPageInner() {
   const [aimMode, setAimMode] = useState(false);
   const [drawState, dispatch] = useReducer(drawReducer, EMPTY_DRAW_STATE);
   const [aimUiMode, setAimUiMode] = useState<"draw" | "adjust">("draw");
+  // Adjust-mode selection (a post XOR a segment, or nothing). Only ever set
+  // from taps in adjust mode; cleared by any action or a switch back to draw.
+  const [selection, setSelection] = useState<AimSelection | null>(null);
+  // Junction-delete confirm: holds the post selection pending confirmation and
+  // the count of fence lines that share its corner.
+  const [junctionConfirm, setJunctionConfirm] = useState<{
+    runIndex: number;
+    postIndex: number;
+    count: number;
+  } | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [tracedHelper, setTracedHelper] = useState(false);
   const [aimCenter, setAimCenter] = useState<[number, number] | null>(null);
@@ -188,15 +200,18 @@ function DrawPageInner() {
 
   const aimAiming = totalPosts(drawState) === 0;
   const aimZoomOk = aimZoom == null || aimZoom >= AIM_MIN_ZOOM;
-  // Single run lives in `current` (no FINISH_LINE in aim mode); Finish is a UI
-  // mode switch, not a reducer commit.
-  const aimActiveCoords = drawState.current;
+  // All runs (committed + the active `current`) in allRunCoords order, so the
+  // map renders branches/sections and the runIndex on every post matches the
+  // reducer's [...runs, current] convention.
+  const aimRunCoords = useMemo(() => allRunCoords(drawState), [drawState]);
+  // Preview extends from the active run's last post to the reticle — only while
+  // drawing and only when there IS an active post to draw from.
   const aimPreviewTo = useMemo(
     () =>
-      aimUiMode === "draw" && aimActiveCoords.length >= 1 && aimZoomOk
+      aimUiMode === "draw" && drawState.current.length >= 1 && aimZoomOk
         ? aimCenter
         : null,
-    [aimUiMode, aimActiveCoords, aimZoomOk, aimCenter]
+    [aimUiMode, drawState, aimZoomOk, aimCenter]
   );
   const aimTotalLf = totalLF(drawState);
   const [traceConfirm, setTraceConfirm] = useState(false);
@@ -294,10 +309,11 @@ function DrawPageInner() {
   function aimUndo() {
     dispatch({ type: "UNDO" });
   }
-  // Finish is a mode switch — the run stays in `current` so Add Posts can keep
-  // appending. No FINISH_LINE (that's for multi-run, a2).
+  // Finish commits the active run into runs[] (NEW_LINE) so Adjust operates on
+  // committed runs and branches can tee off them, then switches to Adjust.
   function aimFinish() {
     if (!canFinish(drawState)) return;
+    dispatch({ type: "NEW_LINE" });
     setAimUiMode("adjust");
     setTracedHelper(false);
   }
@@ -305,26 +321,105 @@ function DrawPageInner() {
     dispatch({ type: "START_OVER" });
     setAimUiMode("draw");
     setTracedHelper(false);
+    setSelection(null);
   }
   function aimAddPosts() {
     setAimUiMode("draw");
     setTracedHelper(false);
+    setSelection(null);
   }
-  function handlePostDrag(postIndex: number, coord: [number, number]) {
+  function handlePostDrag(
+    runIndex: number,
+    postIndex: number,
+    coord: [number, number]
+  ) {
+    dispatch({ type: "MOVE_POST", runIndex, postIndex, coord });
+  }
+  function aimCheckpoint() {
+    dispatch({ type: "CHECKPOINT" });
+  }
+
+  // ─── Adjust-mode selection chips ────────────────────────────────────
+  // Coord of the currently selected post, from the same allRunCoords ordering
+  // FenceMap reports selection indices in.
+  function selectedPostCoord(): Position | null {
+    if (!selection || selection.kind !== "post") return null;
+    return aimRunCoords[selection.runIndex]?.[selection.postIndex] ?? null;
+  }
+  // Number of committed runs whose posts include an exact coord (a junction).
+  function junctionCount(coord: Position): number {
+    return drawState.runs.reduce(
+      (n, run) =>
+        run.posts.some((p) => p[0] === coord[0] && p[1] === coord[1])
+          ? n + 1
+          : n,
+      0
+    );
+  }
+  function aimAddFromHere() {
+    const anchor = selectedPostCoord();
+    if (!anchor) return;
+    dispatch({ type: "START_RUN_FROM", anchor });
+    setAimUiMode("draw");
+    setTracedHelper(false);
+    setSelection(null);
+  }
+  function aimDeletePost() {
+    if (!selection || selection.kind !== "post") return;
+    const coord = selectedPostCoord();
+    const n = coord ? junctionCount(coord) : 0;
+    if (n >= 2) {
+      setJunctionConfirm({
+        runIndex: selection.runIndex,
+        postIndex: selection.postIndex,
+        count: n,
+      });
+      return;
+    }
     dispatch({
-      type: "MOVE_POST",
-      runIndex: drawState.runs.length, // active run (single run lives in current)
-      postIndex,
-      coord,
+      type: "DELETE_POST",
+      runIndex: selection.runIndex,
+      postIndex: selection.postIndex,
     });
+    setSelection(null);
+  }
+  function confirmDeletePost() {
+    if (!junctionConfirm) return;
+    dispatch({
+      type: "DELETE_POST",
+      runIndex: junctionConfirm.runIndex,
+      postIndex: junctionConfirm.postIndex,
+    });
+    setJunctionConfirm(null);
+    setSelection(null);
+  }
+  function aimDeleteSection() {
+    if (!selection || selection.kind !== "segment") return;
+    dispatch({
+      type: "DELETE_SEGMENT",
+      runIndex: selection.runIndex,
+      segIndex: selection.segIndex,
+    });
+    setSelection(null);
+  }
+  function aimNewLine() {
+    dispatch({ type: "NEW_LINE" });
+    setSelection(null);
   }
 
   // Render the reducer geometry to the map layer as it changes / as the map
-  // pans under the reticle.
+  // pans under the reticle. Multi-run: every run + its posts, plus the preview
+  // from the active run's last post.
   useEffect(() => {
     if (!aimMode) return;
-    mapRef.current?.setAimGeometry(aimActiveCoords, aimPreviewTo);
-  }, [aimMode, aimActiveCoords, aimPreviewTo]);
+    mapRef.current?.setAimGeometry(aimRunCoords, aimPreviewTo);
+  }, [aimMode, aimRunCoords, aimPreviewTo]);
+
+  // Selection only lives in Adjust — clear it whenever we're not adjusting so
+  // no gold ring lingers into the draw sheet.
+  useEffect(() => {
+    if (aimUiMode !== "adjust") setSelection(null);
+  }, [aimUiMode]);
 
   // Bridge the committed drawing into the existing stats/save pipeline. Now
   // multi-run (a2): toFeature emits a LineString (one run) or MultiLineString
@@ -895,6 +990,9 @@ function DrawPageInner() {
                   aimMode={aimMode}
                   adjustMode={aimMode && aimUiMode === "adjust"}
                   onPostDrag={handlePostDrag}
+                  onCheckpoint={aimCheckpoint}
+                  onSelect={setSelection}
+                  selection={aimUiMode === "adjust" ? selection : null}
                   onMapMove={aimMode ? handleMapMove : undefined}
                   gates={gates}
                   gatePlacementMode={gateMode}
@@ -927,6 +1025,12 @@ function DrawPageInner() {
                 onStartOver={aimStartOver}
                 onAddPosts={aimAddPosts}
                 onSheetHeight={handleSheetHeight}
+                selection={aimUiMode === "adjust" ? selection : null}
+                onAddFromHere={aimAddFromHere}
+                onDeletePost={aimDeletePost}
+                onDeleteSection={aimDeleteSection}
+                onClearSelection={() => setSelection(null)}
+                onNewLine={aimNewLine}
               />
 
               {/* Aim mode: trace pill (top-right, under the address bar) +
@@ -977,6 +1081,38 @@ function DrawPageInner() {
                         className="h-12 flex-1 rounded-sm bg-brick font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream transition-colors hover:bg-brick-deep"
                       >
                         {t.draw.aimTraceReplaceConfirm}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Junction-delete confirm — a shared corner belongs to several
+                  fence lines; deleting it only detaches THIS line. */}
+              {aimMode && junctionConfirm && (
+                <div className="absolute inset-0 z-40 flex items-end bg-navy/40">
+                  <div className="w-full rounded-t-[18px] border-t border-cream-deep bg-paper px-5 pb-[calc(env(safe-area-inset-bottom)+18px)] pt-5 shadow-card-lg">
+                    <p className="text-center font-display text-[16px] font-semibold uppercase tracking-eyebrow text-navy">
+                      {t.draw.aimJunctionConfirm.replace(
+                        "{n}",
+                        String(junctionConfirm.count)
+                      )}
+                    </p>
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setJunctionConfirm(null)}
+                        className="h-12 flex-1 rounded-sm border border-navy/25 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:bg-navy/5"
+                      >
+                        {t.draw.aimJunctionCancel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmDeletePost}
+                        className="h-12 flex-1 rounded-sm font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream transition-colors"
+                        style={{ background: "#9E3B2E" }}
+                      >
+                        {t.draw.aimJunctionDelete}
                       </button>
                     </div>
                   </div>

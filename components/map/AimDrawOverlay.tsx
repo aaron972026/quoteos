@@ -1,8 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { RotateCcw, Undo2, Check, Pencil, DoorOpen, MapPin } from "lucide-react";
+import {
+  RotateCcw,
+  Undo2,
+  Check,
+  Pencil,
+  DoorOpen,
+  MapPin,
+  Trash2,
+  X,
+  CornerUpRight,
+  Split,
+} from "lucide-react";
 import type { useT } from "@/lib/i18n/use-locale";
+import type { AimSelection } from "@/components/map/FenceMap";
 
 /**
  * Mobile "aim & drop" overlay. Presentational only — every mutation is a
@@ -34,6 +46,19 @@ export interface AimDrawOverlayProps {
   onAddGates?: () => void;
   /** Reports the rendered sheet height (px) so the page can pad the camera. */
   onSheetHeight?: (px: number) => void;
+  // ─── Adjust-mode selection (B2) ───────────────────────────────────
+  /** Current selection — drives the action chips above the sheet. */
+  selection?: AimSelection | null;
+  /** Post chip: branch a new run from the selected post. */
+  onAddFromHere?: () => void;
+  /** Post chip: delete the selected post. */
+  onDeletePost?: () => void;
+  /** Segment chip: delete the selected section. */
+  onDeleteSection?: () => void;
+  /** ✕ chip: clear the selection. */
+  onClearSelection?: () => void;
+  /** Draw sheet: commit the active run and start a fresh unanchored one. */
+  onNewLine?: () => void;
 }
 
 export function AimDrawOverlay(props: AimDrawOverlayProps) {
@@ -53,6 +78,12 @@ export function AimDrawOverlay(props: AimDrawOverlayProps) {
     onAddPosts,
     onAddGates,
     onSheetHeight,
+    selection,
+    onAddFromHere,
+    onDeletePost,
+    onDeleteSection,
+    onClearSelection,
+    onNewLine,
   } = props;
   const c = t.draw;
   const [confirmClear, setConfirmClear] = useState(false);
@@ -89,7 +120,7 @@ export function AimDrawOverlay(props: AimDrawOverlayProps) {
           clear of the top-anchored trace pill). Auto-hides once the first post
           drops; the same slot shows the zoom guard when it triggers. */}
       {((stage === "draw" && (aiming || !zoomOk)) ||
-        (stage === "adjust" && !!adjustHelper)) && (
+        (stage === "adjust" && !!adjustHelper && !selection)) && (
         <div
           data-aim-slot="helper"
           className="pointer-events-none absolute left-1/2 z-30 -translate-x-1/2"
@@ -102,6 +133,57 @@ export function AimDrawOverlay(props: AimDrawOverlayProps) {
                 ? c.aimZoomGuard
                 : c.aimHelperStart}
           </div>
+        </div>
+      )}
+
+      {/* Selection action chips — their own slot just above the sheet (clear of
+          the top trace pill). Replace the helper chip while a selection is
+          active. Post → branch / delete / dismiss; segment → delete / dismiss. */}
+      {stage === "adjust" && selection && (
+        <div
+          data-aim-slot="chips"
+          className="absolute left-1/2 z-30 flex max-w-[92vw] -translate-x-1/2 items-center gap-2"
+          style={{ bottom: sheetH + 12 }}
+        >
+          {selection.kind === "post" ? (
+            <>
+              <button
+                type="button"
+                onClick={onAddFromHere}
+                className="flex h-10 items-center gap-1.5 rounded-pill bg-brick px-3.5 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-cream shadow-card-lg transition-colors hover:bg-brick-deep"
+              >
+                <CornerUpRight size={14} strokeWidth={2.5} />
+                {c.aimAddFromHere}
+              </button>
+              <button
+                type="button"
+                onClick={onDeletePost}
+                className="flex h-10 items-center gap-1.5 rounded-pill border bg-paper px-3.5 font-display text-[12px] font-semibold uppercase tracking-eyebrow shadow-card-lg transition-colors"
+                style={{ borderColor: "#9E3B2E", color: "#9E3B2E" }}
+              >
+                <Trash2 size={14} strokeWidth={2.5} />
+                {c.aimDeletePost}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onDeleteSection}
+              className="flex h-10 items-center gap-1.5 rounded-pill border bg-paper px-3.5 font-display text-[12px] font-semibold uppercase tracking-eyebrow shadow-card-lg transition-colors"
+              style={{ borderColor: "#9E3B2E", color: "#9E3B2E" }}
+            >
+              <Split size={14} strokeWidth={2.5} />
+              {c.aimDeleteSection}
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label={c.aimJunctionCancel}
+            onClick={onClearSelection}
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-pill bg-navy/95 text-cream shadow-card-lg transition-colors hover:bg-navy"
+          >
+            <X size={16} strokeWidth={2.5} />
+          </button>
         </div>
       )}
 
@@ -141,14 +223,25 @@ export function AimDrawOverlay(props: AimDrawOverlayProps) {
                 <Check size={18} strokeWidth={2.5} />
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setConfirmClear(true)}
-              className="mx-auto mt-2 block font-display text-[11px] font-semibold uppercase tracking-eyebrow"
-              style={{ color: "#9E3B2E" }}
-            >
-              {c.aimStartOver}
-            </button>
+            <div className="mt-2 flex items-center justify-center gap-4">
+              {canFinish && (
+                <button
+                  type="button"
+                  onClick={onNewLine}
+                  className="font-display text-[11px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:text-navy/70"
+                >
+                  {c.aimNewLine}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setConfirmClear(true)}
+                className="font-display text-[11px] font-semibold uppercase tracking-eyebrow"
+                style={{ color: "#9E3B2E" }}
+              >
+                {c.aimStartOver}
+              </button>
+            </div>
           </>
         ) : (
           <>

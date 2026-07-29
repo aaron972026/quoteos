@@ -94,7 +94,7 @@ export interface FenceMapHandle {
    * Independent of gl-draw, so it never disturbs the desktop draw path.
    */
   setAimGeometry(
-    runCoords: number[][],
+    runs: number[][][],
     previewTo: [number, number] | null
   ): void;
   /**
@@ -118,6 +118,15 @@ export type ParcelBoundary = {
   type: "Polygon" | "MultiPolygon";
   coordinates: number[][][] | number[][][][];
 };
+
+/**
+ * Adjust-mode selection. `runIndex` indexes the virtual [...runs, current]
+ * list (allRunCoords ordering) so it maps straight onto the reducer's
+ * MOVE_POST / DELETE_POST / DELETE_SEGMENT actions.
+ */
+export type AimSelection =
+  | { kind: "post"; runIndex: number; postIndex: number }
+  | { kind: "segment"; runIndex: number; segIndex: number };
 
 interface Props {
   centerLat: number;
@@ -165,10 +174,18 @@ interface Props {
    */
   adjustMode?: boolean;
   onPostDrag?: (
+    runIndex: number,
     postIndex: number,
     coord: [number, number],
     phase: "move" | "end"
   ) => void;
+  /** Fires on drag start (once movement crosses the tap/drag threshold) so the
+   * page can CHECKPOINT — a whole drag collapses to one undo step. */
+  onCheckpoint?: () => void;
+  /** Adjust-mode tap result: a post, a segment, or null (deselect). */
+  onSelect?: (selection: AimSelection | null) => void;
+  /** The current selection to highlight (gold ring / thick gold segment). */
+  selection?: AimSelection | null;
 }
 
 const GATE_WIDTH_LABEL: Record<GateType, string> = {
@@ -234,8 +251,11 @@ function aimCoord(map: mapboxgl.Map, bottomPad: number): [number, number] {
   return [pt.lng, pt.lat];
 }
 
-/** Post index under `point` within a ≥44px hit box, or null. */
-function hitPost(map: mapboxgl.Map, point: mapboxgl.Point): number | null {
+/** Post {run, index} under `point` within a ≥44px hit box, or null. */
+function hitPost(
+  map: mapboxgl.Map,
+  point: mapboxgl.Point
+): { r: number; i: number } | null {
   const r = 22;
   try {
     const feats = map.queryRenderedFeatures(
@@ -246,13 +266,62 @@ function hitPost(map: mapboxgl.Map, point: mapboxgl.Point): number | null {
       { layers: ["qos-aim-posts"] }
     );
     for (const f of feats) {
+      const ri = f.properties?.r;
       const i = f.properties?.i;
-      if (typeof i === "number") return i;
+      if (typeof ri === "number" && typeof i === "number") return { r: ri, i };
     }
   } catch {
     /* layer may not exist yet */
   }
   return null;
+}
+
+/** Squared distance (px) from point p to segment ab, in screen space. */
+function segDistSq(
+  p: { x: number; y: number },
+  a: { x: number; y: number },
+  b: { x: number; y: number }
+): number {
+  const vx = b.x - a.x;
+  const vy = b.y - a.y;
+  const wx = p.x - a.x;
+  const wy = p.y - a.y;
+  const len2 = vx * vx + vy * vy;
+  let t = len2 === 0 ? 0 : (wx * vx + wy * vy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const dx = a.x + t * vx - p.x;
+  const dy = a.y + t * vy - p.y;
+  return dx * dx + dy * dy;
+}
+
+/**
+ * Nearest committed segment to `point` within a ~14px threshold, projecting
+ * every run's vertices to screen space. Returns {r: runIndex, segIndex} where
+ * segIndex is the index of the segment's first vertex, or null.
+ */
+function hitSegment(
+  map: mapboxgl.Map,
+  point: mapboxgl.Point,
+  runs: number[][][]
+): { r: number; segIndex: number } | null {
+  const THRESHOLD = 14;
+  let best: { r: number; segIndex: number } | null = null;
+  let bestD = THRESHOLD * THRESHOLD;
+  for (let r = 0; r < runs.length; r++) {
+    const coords = runs[r];
+    if (!coords || coords.length < 2) continue;
+    let prev = map.project(coords[0] as [number, number]);
+    for (let s = 0; s < coords.length - 1; s++) {
+      const cur = map.project(coords[s + 1] as [number, number]);
+      const d = segDistSq(point, prev, cur);
+      if (d < bestD) {
+        bestD = d;
+        best = { r, segIndex: s };
+      }
+      prev = cur;
+    }
+  }
+  return best;
 }
 
 export default function FenceMap({
@@ -273,6 +342,9 @@ export default function FenceMap({
   aimMode,
   adjustMode,
   onPostDrag,
+  onCheckpoint,
+  onSelect,
+  selection,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -312,10 +384,24 @@ export default function FenceMap({
   adjustModeRef.current = !!adjustMode;
   const onPostDragRef = useRef(onPostDrag);
   onPostDragRef.current = onPostDrag;
-  // Active post-drag: index + last coord (for the release phase).
-  const postDragRef = useRef<{ index: number; last: [number, number] } | null>(
-    null
-  );
+  const onCheckpointRef = useRef(onCheckpoint);
+  onCheckpointRef.current = onCheckpoint;
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
+  const selectionRef = useRef<AimSelection | null>(selection ?? null);
+  selectionRef.current = selection ?? null;
+  // Latest multi-run geometry fed to setAimGeometry — read by hitSegment (exact
+  // vertex projection) and the selection renderer.
+  const aimRunsRef = useRef<number[][][]>([]);
+  // Active adjust-mode gesture. Disambiguates tap vs drag with an 8px
+  // threshold: <8px = tap (select), ≥8px on a post = drag, ≥8px on empty = pan.
+  const aimGestureRef = useRef<{
+    start: mapboxgl.Point;
+    post: { r: number; i: number } | null;
+    moved: boolean;
+    dragging: boolean;
+    last: [number, number] | null;
+  } | null>(null);
   // Bottom padding (px) reserved for the aim control sheet — drives the
   // reticle position + camera centring so both track the visible area.
   const bottomPaddingRef = useRef(0);
@@ -349,6 +435,49 @@ export default function FenceMap({
     if (!map || !map.getLayer("qos-aim-posts")) return;
     map.setPaintProperty("qos-aim-posts", "circle-radius", adjustMode ? 14 : 6);
   }, [adjustMode, aimTick]);
+
+  // Paint the current selection (gold ring on a post / thick gold on a segment)
+  // from selectionRef + the latest geometry in aimRunsRef. Called both when the
+  // selection prop changes and after each setAimGeometry (so a dragged post's
+  // ring tracks it). Clears when there's no selection.
+  function renderAimSelection() {
+    const map = mapRef.current;
+    const src = map?.getSource("qos-aim-selection") as
+      | mapboxgl.GeoJSONSource
+      | undefined;
+    if (!src) return;
+    const sel = selectionRef.current;
+    const runs = aimRunsRef.current;
+    const features: Feature[] = [];
+    const run = sel ? runs[sel.runIndex] : undefined;
+    if (sel && run) {
+      if (sel.kind === "post" && run[sel.postIndex]) {
+        features.push({
+          type: "Feature",
+          properties: { kind: "selpost" },
+          geometry: { type: "Point", coordinates: run[sel.postIndex] },
+        });
+      } else if (
+        sel.kind === "segment" &&
+        run[sel.segIndex] &&
+        run[sel.segIndex + 1]
+      ) {
+        features.push({
+          type: "Feature",
+          properties: { kind: "selseg" },
+          geometry: {
+            type: "LineString",
+            coordinates: [run[sel.segIndex], run[sel.segIndex + 1]],
+          },
+        });
+      }
+    }
+    src.setData({ type: "FeatureCollection", features });
+  }
+  useEffect(() => {
+    renderAimSelection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection, aimTick]);
   useEffect(() => {
     const map = mapRef.current;
     if (!aimMode || !map) {
@@ -552,6 +681,39 @@ export default function FenceMap({
             },
           });
         }
+        // Adjust-mode selection highlight — a gold ring on the selected post,
+        // or a thicker gold overlay on the selected segment. Its own source so
+        // clearing selection never disturbs the geometry. The segment layer is
+        // inserted under the post dots; the ring sits on top.
+        if (!map.getSource("qos-aim-selection")) {
+          map.addSource("qos-aim-selection", {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          });
+          map.addLayer(
+            {
+              id: "qos-aim-sel-seg",
+              type: "line",
+              source: "qos-aim-selection",
+              filter: ["==", ["get", "kind"], "selseg"],
+              layout: { "line-cap": "round", "line-join": "round" },
+              paint: { "line-color": "#C99A3F", "line-width": 7 },
+            },
+            "qos-aim-posts"
+          );
+          map.addLayer({
+            id: "qos-aim-sel-post",
+            type: "circle",
+            source: "qos-aim-selection",
+            filter: ["==", ["get", "kind"], "selpost"],
+            paint: {
+              "circle-radius": 18,
+              "circle-color": "rgba(0,0,0,0)",
+              "circle-stroke-color": "#C99A3F",
+              "circle-stroke-width": 3,
+            },
+          });
+        }
       } catch (err) {
         console.warn("[FenceMap] aim layer init failed:", err);
       }
@@ -566,39 +728,82 @@ export default function FenceMap({
       cb(aimCoord(map, bottomPaddingRef.current));
     });
 
-    // Adjust mode: drag an existing post. Capture the gesture (disable pan +
-    // preventDefault) only when a post is under the finger — otherwise the map
-    // pans normally. Reports each move + the release so the page can dispatch
-    // MOVE_POST and buzz on drop.
+    // Adjust mode: one gesture handler disambiguates tap vs drag. A touch that
+    // moves <8px is a TAP (selects a post / segment, or deselects on empty).
+    // ≥8px starting on a post is a DRAG (map held still, MOVE_POST live). ≥8px
+    // on empty map is a PAN (never touches selection). A post under the finger
+    // captures pan up front so a drag never scrolls the map; if the finger
+    // never crosses the threshold it resolves as a tap and pan is restored.
     map.on("touchstart", (e) => {
       if (!adjustModeRef.current) return;
-      const idx = hitPost(map, e.point);
-      if (idx == null) return;
-      const ll = map.unproject(e.point);
-      postDragRef.current = { index: idx, last: [ll.lng, ll.lat] };
-      map.dragPan.disable();
-      e.preventDefault();
+      const post = hitPost(map, e.point);
+      aimGestureRef.current = {
+        start: e.point,
+        post,
+        moved: false,
+        dragging: false,
+        last: null,
+      };
+      if (post) {
+        map.dragPan.disable();
+        e.preventDefault();
+      }
     });
     map.on("touchmove", (e) => {
-      const d = postDragRef.current;
-      if (!adjustModeRef.current || !d) return;
-      const ll = map.unproject(e.point);
-      d.last = [ll.lng, ll.lat];
-      onPostDragRef.current?.(d.index, d.last, "move");
-      e.preventDefault();
-    });
-    const endPostDrag = () => {
-      const d = postDragRef.current;
-      if (!d) return;
-      onPostDragRef.current?.(d.index, d.last, "end");
-      postDragRef.current = null;
-      map.dragPan.enable();
-      if (typeof navigator !== "undefined" && navigator.vibrate) {
-        navigator.vibrate(10);
+      const g = aimGestureRef.current;
+      if (!adjustModeRef.current || !g) return;
+      const dx = e.point.x - g.start.x;
+      const dy = e.point.y - g.start.y;
+      if (!g.moved && dx * dx + dy * dy >= 64) g.moved = true; // 8px threshold
+      if (g.post && g.moved && !g.dragging) {
+        g.dragging = true;
+        onCheckpointRef.current?.(); // one undo step per drag
       }
+      if (g.dragging && g.post) {
+        const ll = map.unproject(e.point);
+        g.last = [ll.lng, ll.lat];
+        onPostDragRef.current?.(g.post.r, g.post.i, g.last, "move");
+        e.preventDefault();
+      }
+    });
+    const endAimGesture = (e: mapboxgl.MapTouchEvent) => {
+      const g = aimGestureRef.current;
+      aimGestureRef.current = null;
+      if (!g) return;
+      if (g.post) map.dragPan.enable();
+      if (g.dragging && g.post) {
+        onPostDragRef.current?.(g.post.r, g.post.i, g.last ?? [0, 0], "end");
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          navigator.vibrate(10);
+        }
+        return;
+      }
+      if (g.moved) return; // a pan — leave selection untouched
+      // A tap: select the post under it, else the nearest segment, else clear.
+      if (g.post) {
+        onSelectRef.current?.({
+          kind: "post",
+          runIndex: g.post.r,
+          postIndex: g.post.i,
+        });
+        return;
+      }
+      const pt = e.point ?? g.start;
+      const seg = hitSegment(map, pt, aimRunsRef.current);
+      onSelectRef.current?.(
+        seg ? { kind: "segment", runIndex: seg.r, segIndex: seg.segIndex } : null
+      );
     };
-    map.on("touchend", endPostDrag);
-    map.on("touchcancel", endPostDrag);
+    map.on("touchend", endAimGesture);
+    map.on("touchcancel", () => {
+      const g = aimGestureRef.current;
+      aimGestureRef.current = null;
+      if (!g) return;
+      if (g.post) map.dragPan.enable();
+      if (g.dragging && g.post) {
+        onPostDragRef.current?.(g.post.r, g.post.i, g.last ?? [0, 0], "end");
+      }
+    });
 
     // ResizeObserver — keep the map sized to its container even if the parent
     // flex layout settles after init. Cheap; drives map.resize() on any change.
@@ -1783,38 +1988,45 @@ export default function FenceMap({
     getZoom() {
       return mapRef.current?.getZoom() ?? null;
     },
-    setAimGeometry(runCoords, previewTo) {
+    setAimGeometry(runs, previewTo) {
       const map = mapRef.current;
+      aimRunsRef.current = runs;
       const src = map?.getSource("qos-aim") as
         | mapboxgl.GeoJSONSource
         | undefined;
       if (!src) return;
       const features: Feature[] = [];
-      if (runCoords.length >= 2) {
-        features.push({
-          type: "Feature",
-          properties: { kind: "committed" },
-          geometry: { type: "LineString", coordinates: runCoords },
+      // A committed gold line + post dots per run; the dashed preview extends
+      // only from the LAST run's last post to the reticle (draw mode).
+      runs.forEach((runCoords, r) => {
+        if (runCoords.length >= 2) {
+          features.push({
+            type: "Feature",
+            properties: { kind: "committed", r },
+            geometry: { type: "LineString", coordinates: runCoords },
+          });
+        }
+        runCoords.forEach((c, i) => {
+          features.push({
+            type: "Feature",
+            properties: { kind: "post", r, i },
+            geometry: { type: "Point", coordinates: c },
+          });
         });
-      }
-      if (runCoords.length >= 1 && previewTo) {
+      });
+      const lastRun = runs[runs.length - 1];
+      if (previewTo && lastRun && lastRun.length >= 1) {
         features.push({
           type: "Feature",
           properties: { kind: "preview" },
           geometry: {
             type: "LineString",
-            coordinates: [runCoords[runCoords.length - 1], previewTo],
+            coordinates: [lastRun[lastRun.length - 1], previewTo],
           },
         });
       }
-      runCoords.forEach((c, i) => {
-        features.push({
-          type: "Feature",
-          properties: { kind: "post", i },
-          geometry: { type: "Point", coordinates: c },
-        });
-      });
       src.setData({ type: "FeatureCollection", features });
+      renderAimSelection(); // keep the highlight aligned to shifted geometry
     },
     setBottomPadding(px) {
       bottomPaddingRef.current = Math.max(0, px);

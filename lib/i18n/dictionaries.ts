@@ -125,6 +125,13 @@ export interface Dictionary {
     aimAdjustHelper: string;
     aimTraceAdjustHelper: string;
     aimAddPosts: string;
+    aimAddFromHere: string;
+    aimDeletePost: string;
+    aimDeleteSection: string;
+    aimNewLine: string;
+    aimJunctionConfirm: string;
+    aimJunctionDelete: string;
+    aimJunctionCancel: string;
     aimDetails: string;
     aimDetailsTitle: string;
     aimDetailsDemo: string;
@@ -467,6 +474,14 @@ const en: Dictionary = {
     aimTraceAdjustHelper:
       "Property line traced — drag any corner to match your yard.",
     aimAddPosts: "Add Posts",
+    aimAddFromHere: "Add posts from here",
+    aimDeletePost: "Delete post",
+    aimDeleteSection: "Delete section",
+    aimNewLine: "New line",
+    aimJunctionConfirm:
+      "This corner connects {n} fence lines. Delete it from this line?",
+    aimJunctionDelete: "Delete",
+    aimJunctionCancel: "Cancel",
     aimDetails: "Details",
     aimDetailsTitle: "Project details",
     aimDetailsDemo: "Demo",
@@ -884,6 +899,14 @@ const es: Dictionary = {
     aimTraceAdjustHelper:
       "Línea de propiedad trazada — arrastra las esquinas para ajustarla a tu patio.",
     aimAddPosts: "Agregar postes",
+    aimAddFromHere: "Agregar postes desde aquí",
+    aimDeletePost: "Eliminar poste",
+    aimDeleteSection: "Eliminar sección",
+    aimNewLine: "Nueva línea",
+    aimJunctionConfirm:
+      "Esta esquina conecta {n} líneas de cerca. ¿Eliminarla de esta línea?",
+    aimJunctionDelete: "Eliminar",
+    aimJunctionCancel: "Cancelar",
     aimDetails: "Detalles",
     aimDetailsTitle: "Detalles del proyecto",
     aimDetailsDemo: "Demolición",
