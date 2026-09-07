@@ -417,6 +417,12 @@ function hitGate(map: mapboxgl.Map, point: mapboxgl.Point): string | null {
   return null;
 }
 
+// [map-diag] survives re-mounts on purpose — if this count does NOT increment
+// when the map is dead on return to /draw, the init effect isn't re-running
+// (suspect a: stale guard / no re-mount). If it DOES increment but the map is
+// blank, it's a container-size (b) or WebGL-context (d) problem.
+let __mapInitCount = 0;
+
 export default function FenceMap({
   centerLat,
   centerLng,
@@ -747,6 +753,34 @@ export default function FenceMap({
       return;
     }
     mapRef.current = map;
+
+    // ─── [map-diag] reload-bug instrumentation (remove once root-caused) ────
+    // Names which suspect fires when the map is dead on return to /draw.
+    __mapInitCount += 1;
+    const runId = __mapInitCount;
+    console.debug(
+      `[map-diag] init run #${runId} · center=(${centerLat},${centerLng}) finite=${
+        Number.isFinite(centerLat) && Number.isFinite(centerLng)
+      } · container=${rect.width.toFixed(0)}×${rect.height.toFixed(0)}`
+    );
+    try {
+      // (d) WebGL context loss → the instance is dead and must be re-created,
+      // not resized. If this logs on return, suspect (d).
+      map.getCanvas().addEventListener("webglcontextlost", () =>
+        console.debug(`[map-diag d] WEBGL CONTEXT LOST (run #${runId})`)
+      );
+    } catch {
+      /* canvas not ready */
+    }
+    map.on("load", () => {
+      const cv = map.getCanvas();
+      console.debug(
+        `[map-diag] load fired run #${runId} · canvas=${cv.width}×${cv.height}` +
+          (cv.width === 0 || cv.height === 0
+            ? " ← (b) ZERO-SIZE CANVAS: container had no size at init"
+            : "")
+      );
+    });
 
     // Mapbox emits "error" for both fatal init failures AND transient
     // mid-session failures. The terminal overlay is only justified when
@@ -1175,7 +1209,8 @@ export default function FenceMap({
     // bfcache / tab-restore: a page brought back from bfcache (back button) or
     // re-shown can have a blank or zero-size GL canvas. Force a resize (and a
     // reticle recompute) so the map paints instead of coming back dead.
-    const onPageShow = () => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      console.debug(`[map-diag] pageshow persisted=${e.persisted}`);
       window.setTimeout(() => {
         try {
           map.resize();
