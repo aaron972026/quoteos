@@ -6,11 +6,11 @@ import { db } from "@/lib/db/client";
 import { quoteAudit, quotes, skus } from "@/lib/db/schema";
 import { calculatePrice } from "@/lib/pricing/engine";
 import { loadPricingConfig } from "@/lib/pricing/load-config";
-import { PricingError, type GateType } from "@/lib/pricing/types";
+import { PricingError } from "@/lib/pricing/types";
 import { renderQuotePdf } from "@/lib/pdf/render-quote-pdf";
 import { fromAddress, getResend } from "@/lib/integrations/resend";
 import { getStripe } from "@/lib/integrations/stripe";
-import { countDeferredGates } from "@/lib/pricing/gates";
+import { countDeferredGates, toPricingGates } from "@/lib/pricing/gates";
 import { getDict } from "@/lib/i18n/server";
 
 // These actions run behind the /admin Basic Auth middleware. They write
@@ -131,10 +131,13 @@ export async function resendQuoteEmail(
         corner_count: row.cornerCount ?? 0,
         slope_code: row.slopeCode ?? 0,
         demo_type: row.demoType ?? "NONE",
-        gates:
-          (row.gates as Array<{ type: string; count: number }> | null)?.map(
-            (g) => ({ type: g.type as GateType, count: g.count })
-          ) ?? [],
+        gates: toPricingGates(
+          row.gates as Array<{
+            type?: string;
+            count?: number;
+            width_ft?: number;
+          }> | null
+        ),
         stain_seal: !!row.stainSeal,
         city: row.city ?? "Tulsa",
       },

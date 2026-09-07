@@ -183,6 +183,9 @@ export interface Dictionary {
     eyebrow: string; // "Step Four · Pick Materials"
     title: string; // "Build Your Fence"
     helper: string; // dynamic, uses {lf} and {gates}
+    gatesNone: string;
+    gatesOne: string;
+    gatesMany: string; // "{n} gates"
     sectionFamily: string;
     sectionTier: string;
     sectionAddons: string;
@@ -576,6 +579,9 @@ const en: Dictionary = {
     title: "Build Your Fence",
     helper:
       "{lf} linear feet · {gates}. Pick a style, a tier, and your add-ons — we price it as you go.",
+    gatesNone: "no gates",
+    gatesOne: "1 gate",
+    gatesMany: "{n} gates",
     sectionFamily: "Fence Family",
     sectionTier: "Tier",
     sectionAddons: "Add-Ons",
@@ -1021,6 +1027,9 @@ const es: Dictionary = {
     title: "Arma tu cerca",
     helper:
       "{lf} pies lineales · {gates}. Elige un estilo, un nivel y los extras — calculamos el precio al instante.",
+    gatesNone: "sin puertas",
+    gatesOne: "1 puerta",
+    gatesMany: "{n} puertas",
     sectionFamily: "Familia de cerca",
     sectionTier: "Nivel",
     sectionAddons: "Extras",

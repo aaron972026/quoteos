@@ -60,7 +60,7 @@ interface QuoteShape {
   matchVinylPosts: boolean | null;
   ironclad: boolean | null;
   boardOnBoard: boolean | null;
-  gates?: Array<{ type: string; count: number }> | null;
+  gates?: Array<{ type: string; count?: number; width_ft?: number }> | null;
 }
 
 interface PricingResponse {
@@ -393,15 +393,20 @@ function ConfigurePageInner() {
       ? [baseVariant]
       : selectedFamily?.variants ?? [];
   const tierCardCount = displayVariants.length + (ironcladEligible ? 1 : 0);
+  // Count legacy gates by their quantity, new-shape gates as 1 each (incl.
+  // deferred). New gates have width_ft, not count.
   const gateCount = Array.isArray(quote.gates)
-    ? quote.gates.reduce((sum, g) => sum + (g.count ?? 0), 0)
+    ? quote.gates.reduce(
+        (sum, g) => sum + (typeof g.count === "number" ? g.count : 1),
+        0
+      )
     : 0;
   const gateText =
     gateCount === 0
-      ? "no gates"
+      ? t.configure.gatesNone
       : gateCount === 1
-        ? "1 gate"
-        : `${gateCount} gates`;
+        ? t.configure.gatesOne
+        : t.configure.gatesMany.replace("{n}", String(gateCount));
   const helperLine = t.configure.helper
     .replace("{lf}", lf.toFixed(0))
     .replace("{gates}", gateText);

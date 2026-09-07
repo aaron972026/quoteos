@@ -70,7 +70,7 @@ import { useT } from "@/lib/i18n/use-locale";
 import { cn } from "@/lib/utils";
 import { AimDrawOverlay } from "@/components/map/AimDrawOverlay";
 import { AimGatesOverlay } from "@/components/map/AimGatesOverlay";
-import { offsetToCoord } from "@/lib/map/gate-geo";
+import { offsetToCoord, pointToOffset } from "@/lib/map/gate-geo";
 import {
   drawReducer,
   EMPTY_DRAW_STATE,
@@ -108,10 +108,38 @@ const GATE_SIZES: Array<{ type: GateType; label: string; sublabel: string }> = [
 // The gates jsonb column is dual-shape: legacy {type: W3…D16, count} and
 // new-model {type: single|double|sliding, width_ft, position, runIndex,
 // segIndex}. Read as-is; aim-mode edits only ever touch new-model gates.
+/** Extract drawable runs (coordinate lists) from a saved geometry — a Feature
+ * or raw LineString / MultiLineString / Polygon. Powers /draw rehydration so a
+ * reload restores the drawing instead of a blank map. */
+function extractRuns(geometry: unknown): Position[][] {
+  if (!geometry || typeof geometry !== "object") return [];
+  const g = geometry as { type?: string; geometry?: unknown; coordinates?: unknown };
+  const geom = (g.type === "Feature" ? g.geometry : g) as {
+    type?: string;
+    coordinates?: unknown;
+  } | null;
+  if (!geom?.type) return [];
+  if (geom.type === "LineString") {
+    const c = geom.coordinates as Position[];
+    return Array.isArray(c) && c.length >= 2 ? [c] : [];
+  }
+  if (geom.type === "MultiLineString") {
+    return (geom.coordinates as Position[][]).filter(
+      (r) => Array.isArray(r) && r.length >= 2
+    );
+  }
+  if (geom.type === "Polygon") {
+    const ring = (geom.coordinates as Position[][])?.[0];
+    return Array.isArray(ring) && ring.length >= 2 ? [ring] : [];
+  }
+  return [];
+}
+
 interface StoredGate {
   type: string;
   count?: number;
   width_ft?: number;
+  offset_ft?: number;
   position?: { lat: number; lng: number };
   runIndex?: number;
   segIndex?: number;
@@ -125,6 +153,7 @@ interface QuoteShape {
   zip: string | null;
   photoUrls?: QuotePhoto[] | null;
   photoAudit?: PhotoAudit | null;
+  geometry?: unknown | null;
   gates?: StoredGate[] | null;
   parcelBoundary?: ParcelBoundary | null;
   adjacentParcels?: Array<{
@@ -234,6 +263,9 @@ function DrawPageInner() {
   }
 
   const drawGates = useMemo(() => drawState.gates ?? [], [drawState.gates]);
+  // Gate count for the footer/stats: aim gates live in the reducer, desktop
+  // gates in the legacy `gates` state.
+  const footerGateCount = aimMode ? drawGates.length : gates.length;
   const selectedGate = useMemo(
     () => drawGates.find((g) => g.id === selectedGateId) ?? null,
     [drawGates, selectedGateId]
@@ -367,6 +399,7 @@ function DrawPageInner() {
       return {
         type: g.type,
         width_ft: g.width_ft,
+        offset_ft: g.offset_ft, // persisted so a reload restores the exact gate
         position,
         runIndex: g.runIndex,
         segIndex: g.segIndex,
@@ -757,6 +790,53 @@ function DrawPageInner() {
       cancelled = true;
     };
   }, [quoteId, t.draw.missingQuote, t.draw.couldNotLoadQuote, t.draw.missingCoords]);
+
+  // Rehydrate a saved drawing + gates into the reducer on load (aim mode), so a
+  // back-nav / refresh / deep-link brings the customer's work back in ADJUST
+  // instead of a blank map. Runs once, only when there's something to restore.
+  const rehydratedRef = useRef(false);
+  useEffect(() => {
+    if (!aimMode || !quote || rehydratedRef.current) return;
+    const runs = extractRuns(quote.geometry);
+    if (runs.length === 0) return; // nothing drawn yet — leave a fresh canvas
+    rehydratedRef.current = true;
+    const restoredGates = loadedGates
+      .filter(
+        (g) =>
+          typeof g.width_ft === "number" &&
+          g.runIndex != null &&
+          g.segIndex != null &&
+          runs[g.runIndex] != null &&
+          runs[g.runIndex].length > g.segIndex + 1
+      )
+      .map((g, i) => {
+        const run = runs[g.runIndex!];
+        let offset = g.offset_ft;
+        if (offset == null && g.position) {
+          offset = pointToOffset(run[g.segIndex!], run[g.segIndex! + 1], [
+            g.position.lng,
+            g.position.lat,
+          ]);
+        }
+        return {
+          id: `restored-${i}`,
+          runIndex: g.runIndex!,
+          segIndex: g.segIndex!,
+          type: g.type as "single" | "double" | "sliding",
+          width_ft: g.width_ft!,
+          offset_ft: offset ?? 0,
+        };
+      });
+    dispatch({
+      type: "SET",
+      state: {
+        runs: runs.map((posts) => ({ posts, closed: false })),
+        current: [],
+        gates: restoredGates,
+      },
+    });
+    setAimUiMode("adjust");
+  }, [aimMode, quote, loadedGates]);
 
   useEffect(() => {
     if (!stats.feature) return;
@@ -1559,7 +1639,7 @@ function DrawPageInner() {
               </span>
             </div>
             <div className="mt-0.5 truncate font-mono text-[10px] uppercase tracking-spec text-steel">
-              {gates.length} {t.draw.labelGates} · {stats.corner_count}{" "}
+              {footerGateCount} {t.draw.labelGates} · {stats.corner_count}{" "}
               {t.draw.labelCorners}
               {/* Tear-out changes the price — surface it even when its input is
                   hidden in the Details drawer. */}

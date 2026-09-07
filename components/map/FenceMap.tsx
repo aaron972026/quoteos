@@ -1172,6 +1172,31 @@ export default function FenceMap({
     });
     if (containerRef.current) ro.observe(containerRef.current);
 
+    // bfcache / tab-restore: a page brought back from bfcache (back button) or
+    // re-shown can have a blank or zero-size GL canvas. Force a resize (and a
+    // reticle recompute) so the map paints instead of coming back dead.
+    const onPageShow = () => {
+      window.setTimeout(() => {
+        try {
+          map.resize();
+          setAimTick((t) => t + 1);
+        } catch {
+          /* map gone */
+        }
+      }, 0);
+    };
+    const onVisible = () => {
+      if (!document.hidden) {
+        try {
+          map.resize();
+        } catch {
+          /* map gone */
+        }
+      }
+    };
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisible);
+
     // Zoom in bottom-right (per /draw mobile layout spec — keeps the map
     // clean and away from where labels + draw controls would crowd).
     map.addControl(
@@ -1696,6 +1721,8 @@ export default function FenceMap({
       try {
         ro.disconnect();
         loupeRo?.disconnect();
+        window.removeEventListener("pageshow", onPageShow);
+        document.removeEventListener("visibilitychange", onVisible);
         if (longPressTimer) clearTimeout(longPressTimer);
         // Make sure dragPan isn't left disabled if we unmount mid-loupe.
         try {

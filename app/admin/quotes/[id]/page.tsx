@@ -62,7 +62,11 @@ export default async function AdminQuoteDetailPage({
   const geometry =
     q.geometry as Feature<LineString | Polygon> | LineString | Polygon | null;
   const gates =
-    (q.gates as Array<{ type: string; count: number }> | null) ?? [];
+    (q.gates as Array<{
+      type: string;
+      count?: number;
+      width_ft?: number;
+    }> | null) ?? [];
 
   const propertyPairs: Array<[string, React.ReactNode]> = [
     ["Address", q.addressLine],
@@ -117,7 +121,13 @@ export default async function AdminQuoteDetailPage({
     [
       "Gates",
       gates.length > 0
-        ? gates.map((g) => `${g.count}× ${g.type}`).join(", ")
+        ? gates
+            .map((g) =>
+              typeof g.width_ft === "number"
+                ? `${g.type} ${g.width_ft}'` // new model
+                : `${g.count}× ${g.type}` // legacy
+            )
+            .join(", ")
         : null,
     ],
   ];

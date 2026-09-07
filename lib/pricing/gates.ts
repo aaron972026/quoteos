@@ -1,4 +1,24 @@
 import { GATE_MODEL } from "./data";
+import type { GateType, NewGateType, PricingGate } from "./types";
+
+/**
+ * Map stored dual-shape gates to engine PricingGate[]: new gates keep
+ * {type, width_ft}, legacy gates keep {type, count}. Every calculatePrice call
+ * site must use this — mapping a new gate to {type, count} drops width_ft and
+ * the engine throws INVALID_GATE_WIDTH.
+ */
+export function toPricingGates(
+  gates:
+    | Array<{ type?: string; count?: number; width_ft?: number }>
+    | null
+    | undefined
+): PricingGate[] {
+  return (gates ?? []).map((g) =>
+    g.type === "single" || g.type === "double" || g.type === "sliding"
+      ? { type: g.type as NewGateType, width_ft: Number(g.width_ft) }
+      : { type: g.type as GateType, count: Number(g.count ?? 0) }
+  );
+}
 
 /**
  * Gates the locked price promise won't guess at — sliding gates, or new-model
