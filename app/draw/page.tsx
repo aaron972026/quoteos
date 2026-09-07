@@ -1219,17 +1219,21 @@ function DrawPageInner() {
                 onClick={() => {
                   setGateMode(false);
                   setPendingGatePoint(null);
+                  // Aim has ONE gate flow (the new sheet); Fence Line exits it,
+                  // restoring whatever stage (draw/adjust) was active — exit
+                  // never touches aimUiMode, so it comes back as it was.
+                  if (aimMode) exitGatesMode();
                   // Tapping Fence Line while trim handles are up commits
                   // the trim and returns to drawing (next tap extends).
                   if (trimChain) exitTrimMode(true);
                 }}
                 className={cn(
                   "flex h-12 items-center justify-center gap-2 font-display text-[13px] font-semibold uppercase tracking-eyebrow transition-colors",
-                  !gateMode
+                  (aimMode ? !gatesMode : !gateMode)
                     ? "bg-navy text-cream"
                     : "text-navy hover:bg-navy/5"
                 )}
-                aria-pressed={!gateMode}
+                aria-pressed={aimMode ? !gatesMode : !gateMode}
               >
                 <Spline size={14} strokeWidth={2.5} />
                 {t.draw.toolFenceLine}
@@ -1242,23 +1246,32 @@ function DrawPageInner() {
                   // gate effect owns mode switching from here, and its
                   // exit path resumes line drawing as usual.
                   if (trimChain) exitTrimMode(false);
-                  setGateMode((m) => !m);
-                  setPendingGatePoint(null);
+                  if (aimMode) {
+                    // ONE gate flow on aim: the new sheet only. No legacy
+                    // gateMode/pendingGatePoint path is armed here.
+                    if (gatesMode) exitGatesMode();
+                    else enterGatesMode();
+                  } else {
+                    setGateMode((m) => !m);
+                    setPendingGatePoint(null);
+                  }
                 }}
                 disabled={stats.linear_feet === 0}
                 className={cn(
                   "flex h-12 items-center justify-center gap-2 border-l border-navy/25 font-display text-[13px] font-semibold uppercase tracking-eyebrow transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-                  gateMode
+                  (aimMode ? gatesMode : gateMode)
                     ? "bg-brick text-cream"
                     : "text-navy hover:bg-navy/5"
                 )}
-                aria-pressed={gateMode}
+                aria-pressed={aimMode ? gatesMode : gateMode}
               >
                 <DoorOpen size={14} strokeWidth={2.5} />
                 {t.draw.toolAddGate}
-                {gates.length > 0 && (
+                {/* Count reads from ONE source: reducer gates in aim, legacy
+                    gates on desktop. No more badge/footer disagreement. */}
+                {(aimMode ? drawGates.length : gates.length) > 0 && (
                   <span className="ml-1 rounded-pill bg-brass px-1.5 text-[10px] font-bold text-navy">
-                    {gates.length}
+                    {aimMode ? drawGates.length : gates.length}
                   </span>
                 )}
               </button>
@@ -1534,7 +1547,7 @@ function DrawPageInner() {
               )}
 
               {/* Gate-mode pulse — only while picking, slim pill at top. */}
-              {gateMode && !pendingGatePoint && (
+              {!aimMode && gateMode && !pendingGatePoint && (
                 <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 animate-pulse rounded-pill bg-brass px-5 py-2 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-navy shadow-card-lg">
                   Tap the fence line to drop a gate
                 </div>
@@ -1800,8 +1813,9 @@ function DrawPageInner() {
         </div>
       )}
 
-      {/* Gate-size bottom sheet (rendered outside map so it can overlay everything) */}
-      {pendingGatePoint && (
+      {/* Gate-size bottom sheet — LEGACY (desktop-only). Aim uses the new sheet;
+          this must never render in aim even if pendingGatePoint somehow drifts. */}
+      {!aimMode && pendingGatePoint && (
         <div
           className="fixed inset-x-0 bottom-0 z-40 border-t border-navy/20 bg-paper shadow-card-lg"
           role="dialog"

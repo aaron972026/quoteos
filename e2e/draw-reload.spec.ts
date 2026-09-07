@@ -213,3 +213,40 @@ test("opening gates on a remounted map arms place_gate (no line-drawing trap)", 
   expect(["place_gate", "simple_select"]).toContain(landed);
   expect(diag.errors, "no [FenceMap] console.error").toEqual([]);
 });
+
+// Slice 3 — ONE gate flow on aim: the Zone 2 "Add Gate" tab must open the NEW
+// sheet and arm place_gate, never the legacy "Pick a gate size" sheet.
+test("aim Add Gate tab opens the new sheet, not the legacy size picker", async ({
+  page,
+}) => {
+  const diag = watchMapDiag(page);
+  // Returning user — suppress the first-visit onboarding modal so it can't
+  // intercept taps on the mode tabs.
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("qos-draw-onboarded-v1", "1");
+    } catch {
+      /* private mode */
+    }
+  });
+  const id = await seedQuote(page); // geometry only → aim rehydrates into ADJUST
+
+  await page.goto(`/draw?q=${id}`);
+  await expectMapUp(page, diag, 1);
+
+  // The Zone 2 tab is exactly "Add Gate" (badge absent at 0 gates); the ADJUST
+  // sheet's button is "Add Gates" (plural) — exact:true disambiguates. It's
+  // disabled until rehydration lands linear_feet > 0, so wait for enabled.
+  const tab = page.getByRole("button", { name: "Add Gate", exact: true });
+  await expect(tab).toBeEnabled();
+  await tab.click();
+
+  // New sheet is up (aria-label "Add gates") and gate mode armed to place_gate.
+  await expect(page.getByRole("dialog", { name: /add gates/i })).toBeVisible();
+  await expect
+    .poll(() => diag.gateModes[diag.gateModes.length - 1])
+    .not.toBe("draw_line_string");
+  // Legacy size picker must never appear in aim.
+  await expect(page.getByText("Pick a gate size")).toHaveCount(0);
+  expect(diag.errors, "no [FenceMap] console.error").toEqual([]);
+});

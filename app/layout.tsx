@@ -3,6 +3,7 @@ import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { getLocale } from "@/lib/i18n/server";
 import { LocaleProvider } from "@/lib/i18n/use-locale";
+import { BuildGuard } from "@/components/BuildGuard";
 
 // Brand fonts per Ivory Fence Co. rebrand spec v1.0:
 //   Fraunces — all display, headlines (600, tracking -0.01em)
@@ -92,6 +93,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <LocaleProvider locale={locale}>{children}</LocaleProvider>
+        <BuildGuard />
       </body>
     </html>
   );
