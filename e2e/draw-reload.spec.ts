@@ -20,10 +20,18 @@ type MapDiag = {
   errors: string[];
   drawBuilds: number; // per-instance place_gate registrations (one per mount)
   gateModes: string[]; // the mode the map lands in each time gates arm
+  ghostPurges: number; // reconcile-and-purge fires
 };
 
 function watchMapDiag(page: Page): MapDiag {
-  const diag: MapDiag = { inits: [], loads: [], errors: [], drawBuilds: 0, gateModes: [] };
+  const diag: MapDiag = {
+    inits: [],
+    loads: [],
+    errors: [],
+    drawBuilds: 0,
+    gateModes: [],
+    ghostPurges: 0,
+  };
   page.on("console", (msg) => {
     const t = msg.text();
     const init = t.match(/\[map-diag\] init run #(\d+)/);
@@ -39,6 +47,8 @@ function watchMapDiag(page: Page): MapDiag {
     // "tap draws a line instead of placing a gate" trap.
     const gm = t.match(/\[map-diag\] gate mode active=true → mode is now: (\S+)/);
     if (gm) diag.gateModes.push(gm[1]);
+    // Reconcile-and-purge fired: an orphan gl-draw feature was removed in aim.
+    if (t.includes("[map-diag] ghost purge")) diag.ghostPurges++;
     // A setup exception during init aborts the rest → dead map. This is the
     // signature the remount-collision bug left behind ("[FenceMap] map error").
     if (msg.type() === "error" && /\[FenceMap\]/.test(t)) diag.errors.push(t);
@@ -249,4 +259,56 @@ test("aim Add Gate tab opens the new sheet, not the legacy size picker", async (
   // Legacy size picker must never appear in aim.
   await expect(page.getByText("Pick a gate size")).toHaveCount(0);
   expect(diag.errors, "no [FenceMap] console.error").toEqual([]);
+});
+
+// Slice 4 — gl-draw is a RENDER TARGET in aim: no feature may exist in the
+// gl-draw store that the reducer didn't put there. Inject a raw ghost → it is
+// reconciled away; Start Over leaves the store empty.
+test("aim reconciles away a ghost gl-draw feature; Start Over empties the store", async ({
+  page,
+}) => {
+  const diag = watchMapDiag(page);
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("qos-draw-onboarded-v1", "1");
+    } catch {
+      /* private mode */
+    }
+  });
+  const id = await seedQuote(page);
+
+  await page.goto(`/draw?q=${id}`);
+  await expectMapUp(page, diag, 1);
+
+  // The dev-only test seam exposes the live draw instance.
+  await expect.poll(() => page.evaluate(() => !!(window as any).__qosDraw)).toBe(true);
+
+  // Inject a raw gl-draw line the reducer knows nothing about — a ghost.
+  await page.evaluate(() => {
+    (window as any).__qosDraw.add({
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-95.9797, 36.1266],
+          [-95.979, 36.127],
+        ],
+      },
+    });
+  });
+
+  // Reconciliation removes it and logs the purge; the store returns to empty.
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__qosDraw.getAll().features.length), {
+      message: "ghost reconciled away",
+    })
+    .toBe(0);
+  expect(diag.ghostPurges, "purge was logged").toBeGreaterThanOrEqual(1);
+
+  // Start Over leaves a genuinely empty gl-draw store.
+  await page.getByRole("button", { name: /start over/i }).first().click();
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__qosDraw.getAll().features.length))
+    .toBe(0);
 });

@@ -115,6 +115,12 @@ export interface FenceMapHandle {
     previewTo: [number, number] | null
   ): void;
   /**
+   * Empty the gl-draw feature store outright. In aim it should already be empty
+   * (reconcile-purge keeps it so); Start Over calls this as belt-and-suspenders
+   * so a genuinely clean slate never depends on a ghost having been caught.
+   */
+  purgeDrawStore(): void;
+  /**
    * Reserve `px` at the bottom of the viewport for the control sheet, so the
    * camera's centre (and fitBounds) is the centre of the VISIBLE area above
    * the sheet — not the raw container centre hidden behind it.
@@ -825,6 +831,17 @@ export default function FenceMap({
       console.info("[FenceMap] style loaded");
       setTimeout(() => map.resize(), 50);
       setAimTick((t) => t + 1); // map ready → place the reticle
+      // Aim parks gl-draw in the inert simple_select immediately — the
+      // constructor default is draw_line_string, which would let the first tap
+      // create a ghost line before any modechange fires.
+      if (aimModeRef.current) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (drawRef.current as any)?.changeMode("simple_select");
+        } catch {
+          /* draw not ready — the modechange listener + purge still cover it */
+        }
+      }
     });
     map.on("style.load", () => {
       console.info("[FenceMap] style.load fired");
@@ -1424,6 +1441,36 @@ export default function FenceMap({
     // Live update during drawing — covers mid-line tap before "create" fires
     map.on("draw.render", emitStats);
 
+    // RECONCILE-AND-PURGE (aim only). In aim the fence is rendered from the
+    // reducer via the qos-aim source; gl-draw must hold ZERO features. Any
+    // feature that appears is an orphan (a stray tap, a plugin quirk, an
+    // injected test ghost) the reducer knows nothing about — delete it and log
+    // it. This makes the untracked-feature class of bug structurally impossible
+    // instead of individually patched. Cheap: getAll() on an empty store is
+    // trivial, and after a purge the store is empty so it never re-fires.
+    const reconcileGhosts = () => {
+      if (!aimModeRef.current) return;
+      const d = drawRef.current;
+      if (!d) return;
+      const n = d.getAll().features.length;
+      if (n > 0) {
+        console.warn(
+          `[map-diag] ghost purge — ${n} orphan gl-draw feature(s) removed in aim`
+        );
+        d.deleteAll();
+      }
+    };
+    map.on("draw.create", reconcileGhosts);
+    map.on("draw.update", reconcileGhosts);
+    map.on("draw.render", reconcileGhosts);
+
+    // Test seam (non-production only): lets the e2e ghost-injection assert reach
+    // the live draw instance. Never present in the prod bundle.
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__qosDraw = draw;
+    }
+
     // CRIT-1 auto-recovery: mapbox-gl-draw silently exits draw_line_string
     // into simple_select on certain user gestures (double-tap, tap near
     // an existing vertex). The user sees "tapping stopped working"
@@ -1454,6 +1501,11 @@ export default function FenceMap({
         }
         if (e.mode !== "simple_select") return;
         if (gatePlacementModeRef.current) return; // ← protects gate flow
+        // AIM: gl-draw is a RENDER TARGET, never a state store. The fence lives
+        // in the qos-aim source + the reducer; gl-draw must hold zero features
+        // and stay in the inert simple_select. Never flip to draw_line_string
+        // here — that is exactly how a stray tap created a ghost line.
+        if (aimModeRef.current) return;
         const fc = draw.getAll();
         const feature = fc.features[fc.features.length - 1];
         if (!feature) {
@@ -2528,6 +2580,15 @@ export default function FenceMap({
       src.setData({ type: "FeatureCollection", features });
       renderAimSelection(); // keep the highlight aligned to shifted geometry
       renderAimGates(); // reshape gate markers onto the updated geometry
+    },
+    purgeDrawStore() {
+      const d = drawRef.current;
+      if (!d) return;
+      const n = d.getAll().features.length;
+      if (n > 0) {
+        console.warn(`[map-diag] ghost purge (Start Over) — ${n} feature(s)`);
+        d.deleteAll();
+      }
     },
     setBottomPadding(px) {
       bottomPaddingRef.current = Math.max(0, px);

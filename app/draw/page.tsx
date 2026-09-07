@@ -566,6 +566,9 @@ function DrawPageInner() {
     setSelection(null);
     setGatesMode(false);
     setSelectedGateId(null);
+    // Reducer clear empties the qos-aim render; also purge gl-draw so no orphan
+    // feature can survive a Start Over (belt-and-suspenders on reconcile).
+    mapRef.current?.purgeDrawStore();
   }
   function aimAddPosts() {
     setAimUiMode("draw");
@@ -1531,11 +1534,10 @@ function DrawPageInner() {
                 </div>
               )}
 
-              {/* One-tap lot-line trace — only before anything is drawn,
-                  only when Regrid gave us a boundary. Bottom-center so it
-                  doesn't fight the coachmark pill at top or the zoom
-                  control bottom-right. Disappears on first vertex. */}
-              {parcelBoundary && stats.linear_feet === 0 && !gateMode && (
+              {/* One-tap lot-line trace — DESKTOP only. It writes to gl-draw
+                  (loadFeatureStatic), which in aim would be an orphan the
+                  reducer never sees. Aim has its own reducer-based trace pill. */}
+              {!aimMode && parcelBoundary && stats.linear_feet === 0 && !gateMode && (
                 <button
                   type="button"
                   onClick={handleTraceLot}
