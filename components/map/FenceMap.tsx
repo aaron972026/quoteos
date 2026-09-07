@@ -162,7 +162,15 @@ interface Props {
     | MutableRefObject<FenceMapHandle | null>;
   // Gate placement (Phase 1)
   gates?: PlacedGate[];
+  // SINGLE source of truth for "the map must be in place_gate mode". The page
+  // derives this from BOTH gate entry points (aim gates sheet + desktop toggle);
+  // FenceMap keys the mode effect AND the modechange-enforcement listener on it
+  // alone, so a tap can never fall through to line-drawing while gates are open.
   gatePlacementMode?: boolean;
+  // Fired when place_gate could not be entered (mode registration failure). The
+  // page surfaces an error chip; the effect falls back to simple_select so a tap
+  // still cannot draw a line. `false` clears the error once the mode is good.
+  onGateModeError?: (failed: boolean) => void;
   onGatePointPicked?: (point: { lat: number; lng: number }) => void;
   // Phase 1.5 — gate edit affordances
   onGateMove?: (index: number, position: { lat: number; lng: number }) => void;
@@ -430,6 +438,7 @@ export default function FenceMap({
   handleRef,
   gates,
   gatePlacementMode,
+  onGateModeError,
   onGatePointPicked,
   onGateMove,
   onGateDelete,
@@ -483,6 +492,8 @@ export default function FenceMap({
   // intentionally in simple_select for gate placement.
   const gatePlacementModeRef = useRef(!!gatePlacementMode);
   gatePlacementModeRef.current = !!gatePlacementMode;
+  const onGateModeErrorRef = useRef(onGateModeError);
+  onGateModeErrorRef.current = onGateModeError;
   const aimModeRef = useRef(!!aimMode);
   aimModeRef.current = !!aimMode;
   const adjustModeRef = useRef(!!adjustMode);
@@ -2074,18 +2085,41 @@ export default function FenceMap({
     // or vertex-drag. (Mode name deliberately NOT "static" — the existing
     // fenceDrawStyles filter the static mode out as invisible.)
     console.info("[FenceMap] entering gate mode → changeMode(place_gate)");
+    // INVARIANT: gate placement active ⟹ the map is NOT in draw_line_string, so
+    // a tap can never create a line. place_gate is the intended inert mode; if
+    // it isn't registered (should never happen after per-instance registration),
+    // fall back to simple_select — also non-drawing — and raise the error chip.
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (draw as any).changeMode("place_gate");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const after = (draw as any).getMode?.();
-      console.info(`[FenceMap] mode is now: ${after}`);
+      console.info(`[map-diag] gate mode active=true → mode is now: ${after}`);
+      if (after !== "place_gate") {
+        // Registration failure — never leave a drawable mode active.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (draw as any).changeMode("simple_select");
+        console.error(
+          `[FenceMap] place_gate unavailable (mode=${after}) → fell back to simple_select`
+        );
+        onGateModeErrorRef.current?.(true);
+      } else {
+        onGateModeErrorRef.current?.(false);
+      }
       const fc = draw.getAll();
       console.info(
         `[FenceMap] features in collection: ${fc.features.length} (post-mode-change)`
       );
     } catch (err) {
       console.error("[FenceMap] gate-mode changeMode failed:", err);
+      // Last resort: force a non-drawing mode so taps can't draw lines.
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (draw as any).changeMode("simple_select");
+      } catch {
+        /* draw not ready — nothing drawable is bound yet */
+      }
+      onGateModeErrorRef.current?.(true);
     }
 
     // Visual cue: the map cursor turns to crosshair while in placement mode
@@ -2095,6 +2129,11 @@ export default function FenceMap({
     canvas.style.cursor = "crosshair";
 
     const handleClick = (e: mapboxgl.MapMouseEvent) => {
+      // Desktop-only placement path (nearest-point-on-whole-feature →
+      // onGatePointPicked → legacy gate). In aim mode the touch-gesture machine
+      // (touchend → onGatePlace, per-segment) owns placement; this handler must
+      // stay inert there or a tap would double-place / add a legacy gate.
+      if (aimModeRef.current) return;
       console.info(
         `[FenceMap] gate-mode map.click fired at lng=${e.lngLat.lng.toFixed(6)}, lat=${e.lngLat.lat.toFixed(6)}`
       );

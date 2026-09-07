@@ -190,6 +190,7 @@ function DrawPageInner() {
   // gates via drawState.gates.
   const [loadedGates, setLoadedGates] = useState<StoredGate[]>([]);
   const [gateMode, setGateMode] = useState(false);
+  const [gateModeError, setGateModeError] = useState(false);
   const [pendingGatePoint, setPendingGatePoint] = useState<{ lat: number; lng: number } | null>(null);
   // Unified action history so Undo pops the most recent action regardless of
   // kind (fence vertex, placed gate, or a whole lot-line trace). Vertex
@@ -292,14 +293,23 @@ function DrawPageInner() {
   const activeWidth = selectedGate ? selectedGate.width_ft : effectivePendingWidth;
   const gateDeferred = activeType === "sliding" || activeWidth > 6;
 
+  // SINGLE source of truth for "gate placement is active" → the map must be in
+  // place_gate. BOTH entry points feed it: the aim gates sheet (gatesMode) and
+  // the desktop gate toggle (gateMode). FenceMap keys its mode effect on this
+  // alone; a future third entry point flips this same derived flag rather than
+  // adding another prop that could drift back into "tap draws a line".
+  const gatePlacementActive = gatesMode || gateMode;
+
   function enterGatesMode() {
     setSelection(null);
     setSelectedGateId(null);
+    setGateModeError(false);
     setGatesMode(true);
   }
   function exitGatesMode() {
     setGatesMode(false);
     setSelectedGateId(null);
+    setGateModeError(false);
   }
   function handleGatePlace(runIndex: number, segIndex: number, offset_ft: number) {
     const width = effectivePendingWidth;
@@ -1264,7 +1274,8 @@ function DrawPageInner() {
                   onAimGateMove={handleAimGateMove}
                   onMapMove={aimMode ? handleMapMove : undefined}
                   gates={gates}
-                  gatePlacementMode={gateMode}
+                  gatePlacementMode={gatePlacementActive}
+                  onGateModeError={setGateModeError}
                   onGatePointPicked={setPendingGatePoint}
                   onGateMove={handleGateMove}
                   onGateDelete={handleGateDelete}
@@ -1324,6 +1335,20 @@ function DrawPageInner() {
                 onDone={exitGatesMode}
                 onSheetHeight={handleSheetHeight}
               />
+
+              {/* Fail-safe: gate mode couldn't arm (place_gate unavailable). The
+                  map is held in a non-drawing mode, so nothing was damaged — tell
+                  the customer rather than silently letting taps do nothing. */}
+              {aimMode && gatesMode && gateModeError && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-[45%] z-40 flex justify-center px-4">
+                  <div
+                    className="max-w-[88vw] rounded-pill px-4 py-2 text-center font-body text-[13px] leading-[1.3] text-cream shadow-card-lg"
+                    style={{ background: "#9E3B2E" }}
+                  >
+                    {t.draw.aimGatesModeError}
+                  </div>
+                </div>
+              )}
 
               {/* Aim mode: trace pill (top-right, under the address bar) +
                   a small Help chip (bottom-left, by the map controls). */}

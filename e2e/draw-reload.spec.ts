@@ -19,10 +19,11 @@ type MapDiag = {
   loads: { run: number; w: number; h: number }[];
   errors: string[];
   drawBuilds: number; // per-instance place_gate registrations (one per mount)
+  gateModes: string[]; // the mode the map lands in each time gates arm
 };
 
 function watchMapDiag(page: Page): MapDiag {
-  const diag: MapDiag = { inits: [], loads: [], errors: [], drawBuilds: 0 };
+  const diag: MapDiag = { inits: [], loads: [], errors: [], drawBuilds: 0, gateModes: [] };
   page.on("console", (msg) => {
     const t = msg.text();
     const init = t.match(/\[map-diag\] init run #(\d+)/);
@@ -33,6 +34,11 @@ function watchMapDiag(page: Page): MapDiag {
     // Per-instance mode registration — proves mount #2 got its own place_gate
     // (the old module-mutation-behind-a-guard skipped this on remount).
     if (t.includes("draw created with per-instance place_gate mode")) diag.drawBuilds++;
+    // The mode the map actually lands in when gates arm. Must be "place_gate"
+    // (or the simple_select fallback) — NEVER "draw_line_string", which is the
+    // "tap draws a line instead of placing a gate" trap.
+    const gm = t.match(/\[map-diag\] gate mode active=true → mode is now: (\S+)/);
+    if (gm) diag.gateModes.push(gm[1]);
     // A setup exception during init aborts the rest → dead map. This is the
     // signature the remount-collision bug left behind ("[FenceMap] map error").
     if (msg.type() === "error" && /\[FenceMap\]/.test(t)) diag.errors.push(t);
@@ -172,4 +178,38 @@ test("map survives hard reload with a gate placed", async ({ page }) => {
   await expectMapUp(page, diag, 2);
   await expect.poll(() => diag.drawBuilds).toBeGreaterThanOrEqual(2);
   expect(diag.errors, "no [FenceMap] console.error on reload").toEqual([]);
+});
+
+// Bug #1 guard, on a REMOUNTED map — where the original evidence came from.
+// Opening the gates sheet MUST arm place_gate; if the map were still in
+// draw_line_string, a fence-line tap would draw a line instead of a gate.
+test("opening gates on a remounted map arms place_gate (no line-drawing trap)", async ({
+  page,
+}) => {
+  const diag = watchMapDiag(page);
+  const id = await seedQuote(page); // geometry only → aim rehydrates into ADJUST
+
+  await page.goto(`/draw?q=${id}`);
+  await expectMapUp(page, diag, 1);
+
+  // Remount via back-from-/configure — the exact path the dead-map came from.
+  await page.goto(`/configure?q=${id}`);
+  await expect(page).toHaveURL(/\/configure/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/draw/);
+  await expectMapUp(page, diag, 2);
+
+  // Enter gates from the ADJUST sheet on the remounted map.
+  const addGates = page.getByRole("button", { name: /add gates/i });
+  await addGates.first().click();
+
+  // The invariant: gates armed → mode is place_gate (or the safe fallback),
+  // recorded AFTER the remount. Never draw_line_string.
+  await expect
+    .poll(() => diag.gateModes.length, { message: "gate mode armed after remount" })
+    .toBeGreaterThanOrEqual(1);
+  const landed = diag.gateModes[diag.gateModes.length - 1];
+  expect(landed, "armed mode after remount").not.toBe("draw_line_string");
+  expect(["place_gate", "simple_select"]).toContain(landed);
+  expect(diag.errors, "no [FenceMap] console.error").toEqual([]);
 });

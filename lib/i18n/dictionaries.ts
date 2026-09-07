@@ -152,6 +152,7 @@ export interface Dictionary {
     aimGatesDone: string;
     aimGatesRemove: string;
     aimGatesEditTitle: string;
+    aimGatesModeError: string; // shown if gate mode fails to arm
     // Brand v1.0 — Screen 3 redesign
     eyebrow: string; // "Step Three · Trace The Run"
     panelTitle: string; // "Trace The Fence Run"
@@ -524,6 +525,8 @@ const en: Dictionary = {
     aimGatesDone: "Done with gates",
     aimGatesRemove: "Remove",
     aimGatesEditTitle: "Edit gate",
+    aimGatesModeError:
+      "Gate placement isn't ready — reopen this panel. Your fence line is safe.",
     eyebrow: "Step Three · Trace The Run",
     panelTitle: "Trace The Fence Run",
     panelHelp:
@@ -972,6 +975,8 @@ const es: Dictionary = {
     aimGatesDone: "Listo con las puertas",
     aimGatesRemove: "Quitar",
     aimGatesEditTitle: "Editar puerta",
+    aimGatesModeError:
+      "La colocación de puertas no está lista — vuelve a abrir este panel. Tu línea de cerca está a salvo.",
     eyebrow: "Paso Tres · Traza la línea",
     panelTitle: "Traza el recorrido",
     panelHelp:
