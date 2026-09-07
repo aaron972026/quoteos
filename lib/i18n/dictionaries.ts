@@ -153,6 +153,11 @@ export interface Dictionary {
     aimGatesRemove: string;
     aimGatesEditTitle: string;
     aimGatesModeError: string; // shown if gate mode fails to arm
+    aimGatesClose: string; // "Close" — Done demoted when 0 gates placed
+    aimGatesTapHint: string; // "Tap the fence line to place your {spec}."
+    aimGatesLeaveTitle: string; // confirm exit with 0 placed
+    aimGatesLeaveConfirm: string; // "Leave"
+    aimGatesLeaveCancel: string; // "Keep placing"
     // Brand v1.0 — Screen 3 redesign
     eyebrow: string; // "Step Three · Trace The Run"
     panelTitle: string; // "Trace The Fence Run"
@@ -527,6 +532,11 @@ const en: Dictionary = {
     aimGatesEditTitle: "Edit gate",
     aimGatesModeError:
       "Gate placement isn't ready — reopen this panel. Your fence line is safe.",
+    aimGatesClose: "Close",
+    aimGatesTapHint: "Tap the fence line to place your {spec}.",
+    aimGatesLeaveTitle: "Leave without placing a gate?",
+    aimGatesLeaveConfirm: "Leave",
+    aimGatesLeaveCancel: "Keep placing",
     eyebrow: "Step Three · Trace The Run",
     panelTitle: "Trace The Fence Run",
     panelHelp:
@@ -977,6 +987,11 @@ const es: Dictionary = {
     aimGatesEditTitle: "Editar puerta",
     aimGatesModeError:
       "La colocación de puertas no está lista — vuelve a abrir este panel. Tu línea de cerca está a salvo.",
+    aimGatesClose: "Cerrar",
+    aimGatesTapHint: "Toca la línea de la cerca para colocar tu {spec}.",
+    aimGatesLeaveTitle: "¿Salir sin colocar una puerta?",
+    aimGatesLeaveConfirm: "Salir",
+    aimGatesLeaveCancel: "Seguir colocando",
     eyebrow: "Paso Tres · Traza la línea",
     panelTitle: "Traza el recorrido",
     panelHelp:

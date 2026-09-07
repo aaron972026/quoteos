@@ -191,6 +191,11 @@ function DrawPageInner() {
   const [loadedGates, setLoadedGates] = useState<StoredGate[]>([]);
   const [gateMode, setGateMode] = useState(false);
   const [gateModeError, setGateModeError] = useState(false);
+  // Gates sheet expand/collapse: full sheet to choose type+width, then auto-
+  // collapse to a slim bar so the map is clear for the placement tap.
+  const [gatesExpanded, setGatesExpanded] = useState(true);
+  // Confirm before leaving gates with nothing placed (no false "I added one").
+  const [confirmLeaveGates, setConfirmLeaveGates] = useState(false);
   const [pendingGatePoint, setPendingGatePoint] = useState<{ lat: number; lng: number } | null>(null);
   // Unified action history so Undo pops the most recent action regardless of
   // kind (fence vertex, placed gate, or a whole lot-line trace). Vertex
@@ -304,12 +309,23 @@ function DrawPageInner() {
     setSelection(null);
     setSelectedGateId(null);
     setGateModeError(false);
+    setGatesExpanded(true); // start full so the customer picks a spec
     setGatesMode(true);
   }
   function exitGatesMode() {
     setGatesMode(false);
     setSelectedGateId(null);
     setGateModeError(false);
+    setConfirmLeaveGates(false);
+  }
+  // Done exits — but if nothing was placed, confirm first so nobody leaves
+  // believing they added a gate.
+  function handleGatesDone() {
+    if (drawGates.length === 0) {
+      setConfirmLeaveGates(true);
+      return;
+    }
+    exitGatesMode();
   }
   function handleGatePlace(runIndex: number, segIndex: number, offset_ft: number) {
     const width = effectivePendingWidth;
@@ -381,7 +397,10 @@ function DrawPageInner() {
   function onGatePickWidth(w: number) {
     setPendingGateCustom(false);
     if (selectedGate) editSelectedGate({ width_ft: w });
-    else setPendingGateWidth(w);
+    else {
+      setPendingGateWidth(w);
+      setGatesExpanded(false); // spec chosen → collapse to the placement bar
+    }
   }
   function onGatePickCustom() {
     setPendingGateCustom(true);
@@ -389,7 +408,10 @@ function DrawPageInner() {
   }
   function onGateApplyCustom() {
     if (selectedGate) editSelectedGate({ width_ft: customWidthInput });
-    else setPendingGateWidth(customWidthInput);
+    else {
+      setPendingGateWidth(customWidthInput);
+      setGatesExpanded(false); // custom spec applied → collapse to place
+    }
   }
 
   // Build the gates array to persist: legacy gates pass through untouched;
@@ -1332,8 +1354,11 @@ function DrawPageInner() {
                 onDeselect={() => setSelectedGateId(null)}
                 deferred={gateDeferred}
                 tooWide={gateTooWide}
-                onDone={exitGatesMode}
+                onDone={handleGatesDone}
                 onSheetHeight={handleSheetHeight}
+                minimized={!gatesExpanded}
+                onExpand={() => setGatesExpanded(true)}
+                onMinimize={() => setGatesExpanded(false)}
               />
 
               {/* Fail-safe: gate mode couldn't arm (place_gate unavailable). The
@@ -1346,6 +1371,34 @@ function DrawPageInner() {
                     style={{ background: "#9E3B2E" }}
                   >
                     {t.draw.aimGatesModeError}
+                  </div>
+                </div>
+              )}
+
+              {/* Confirm leaving gates with nothing placed. */}
+              {aimMode && gatesMode && confirmLeaveGates && (
+                <div className="absolute inset-0 z-40 flex items-center justify-center bg-navy/40 px-6 backdrop-blur-sm">
+                  <div className="w-full max-w-[320px] rounded-[14px] border border-cream-deep bg-paper p-5 shadow-card-lg">
+                    <p className="font-display text-[16px] font-semibold text-navy">
+                      {t.draw.aimGatesLeaveTitle}
+                    </p>
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmLeaveGates(false)}
+                        className="flex h-11 flex-1 items-center justify-center rounded-sm border border-navy/25 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:bg-navy/5"
+                      >
+                        {t.draw.aimGatesLeaveCancel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={exitGatesMode}
+                        className="flex h-11 flex-1 items-center justify-center rounded-sm font-display text-[13px] font-semibold uppercase tracking-eyebrow text-cream transition-colors"
+                        style={{ background: "#9E3B2E" }}
+                      >
+                        {t.draw.aimGatesLeaveConfirm}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

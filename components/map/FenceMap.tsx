@@ -382,11 +382,14 @@ function segDistSq(
 function hitSegment(
   map: mapboxgl.Map,
   point: mapboxgl.Point,
-  runs: number[][][]
+  runs: number[][][],
+  // Screen-pixel slop to the nearest segment. Adjust-mode selection uses the
+  // tight default; gate placement passes a generous value so a fat-finger tap
+  // near the line still lands a gate at the nearest point on that segment.
+  thresholdPx = 14
 ): { r: number; segIndex: number } | null {
-  const THRESHOLD = 14;
   let best: { r: number; segIndex: number } | null = null;
-  let bestD = THRESHOLD * THRESHOLD;
+  let bestD = thresholdPx * thresholdPx;
   for (let r = 0; r < runs.length; r++) {
     const coords = runs[r];
     if (!coords || coords.length < 2) continue;
@@ -1196,7 +1199,8 @@ export default function FenceMap({
         return;
       }
       // Tap on the line → place at the projected offset; empty → deselect.
-      const seg = hitSegment(map, pt, aimRunsRef.current);
+      // Generous 28px slop: placing a gate should forgive an imprecise tap.
+      const seg = hitSegment(map, pt, aimRunsRef.current, 28);
       const run = seg ? aimRunsRef.current[seg.r] : undefined;
       const a = run?.[seg?.segIndex ?? -1];
       const b = run?.[(seg?.segIndex ?? -1) + 1];
