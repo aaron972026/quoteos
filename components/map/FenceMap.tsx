@@ -793,7 +793,15 @@ export default function FenceMap({
     map.on("error", (e) => {
       const m = e?.error?.message ?? "Map error";
       const isTileFetch = /tile|HTTP/i.test(m);
-      console.error("[FenceMap] map error:", e);
+      // Unwrapped: log the real message + stack, never the minified object —
+      // a bundled "iu" tells us nothing. This is how a setup exception that
+      // aborts init gets identified in the wild.
+      console.error(
+        "[FenceMap] map error:",
+        m,
+        "\n",
+        e?.error?.stack ?? "(no stack)"
+      );
       if (!isTileFetch && !loadedOnce) {
         setErrorMsg(m);
       }
@@ -1286,15 +1294,14 @@ export default function FenceMap({
       onDoubleClick() {},
       onStop() {},
     };
-    // Extend the global modes table so the draw instance picks it up
-    // alongside all default modes. Guard against double-registration.
-    const MD = MapboxDraw as any;
-    if (!MD.modes) {
-      console.warn("[FenceMap] MapboxDraw.modes is undefined — custom modes may not work");
-    } else if (!MD.modes.place_gate) {
-      MD.modes.place_gate = PlaceGateMode;
-      logInit("registered place_gate mode on MapboxDraw.modes");
-    }
+    // PER-INSTANCE mode registration. The old code mutated the module-level
+    // MapboxDraw.modes behind a run-once guard, so a re-mount (mount #2) skipped
+    // it and collided with stale state from the destroyed first instance — the
+    // dead-map-on-return bug. Passing `modes` at construction gives THIS
+    // instance its own complete table (defaults + place_gate); no global
+    // mutation, no guard.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const baseModes = (MapboxDraw as any).modes ?? {};
     /* eslint-enable @typescript-eslint/no-explicit-any */
 
     let draw: MapboxDraw;
@@ -1307,8 +1314,11 @@ export default function FenceMap({
         controls: {},
         defaultMode: "draw_line_string",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        modes: { ...baseModes, place_gate: PlaceGateMode } as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         styles: fenceDrawStyles as any,
       });
+      logInit("draw created with per-instance place_gate mode");
     } catch (err) {
       console.error("[FenceMap] draw init failed:", err);
       setErrorMsg("Drawing tool failed to load");
@@ -1829,8 +1839,17 @@ export default function FenceMap({
 
     function applyWhenReady(targetMap: mapboxgl.Map | null) {
       if (!targetMap) return;
-      if (targetMap.isStyleLoaded()) applyOverlayTo(targetMap);
-      else targetMap.once("style.load", () => applyOverlayTo(targetMap));
+      // Guarded: an overlay error must never abort map setup (a throw inside a
+      // style.load handler took the whole map down once).
+      const run = () => {
+        try {
+          applyOverlayTo(targetMap);
+        } catch (err) {
+          console.warn("[FenceMap] parcel overlay skipped:", err);
+        }
+      };
+      if (targetMap.isStyleLoaded()) run();
+      else targetMap.once("style.load", run);
     }
 
     applyWhenReady(mapRef.current);
@@ -1865,6 +1884,11 @@ export default function FenceMap({
         existing.setData(data);
         return;
       }
+      // Create the source BEFORE the layer. Omitting this made addLayer throw
+      // "source qos-adjacent-parcels not found" inside the style.load handler,
+      // which aborted the rest of map setup → dead map on reload/return. The
+      // parcel overlay above gets this right; this one had drifted.
+      targetMap.addSource(SOURCE, { type: "geojson", data });
       const layers = targetMap.getStyle().layers ?? [];
       const beforeId =
         layers.find((l) => l.id === "qos-parcel-outline")?.id ??
@@ -1887,8 +1911,16 @@ export default function FenceMap({
 
     function applyWhenReady(targetMap: mapboxgl.Map | null) {
       if (!targetMap) return;
-      if (targetMap.isStyleLoaded()) applyOverlayTo(targetMap);
-      else targetMap.once("style.load", () => applyOverlayTo(targetMap));
+      // Guarded: see the parcel overlay above — no overlay error may abort setup.
+      const run = () => {
+        try {
+          applyOverlayTo(targetMap);
+        } catch (err) {
+          console.warn("[FenceMap] adjacent-parcel overlay skipped:", err);
+        }
+      };
+      if (targetMap.isStyleLoaded()) run();
+      else targetMap.once("style.load", run);
     }
 
     applyWhenReady(mapRef.current);
@@ -2018,13 +2050,20 @@ export default function FenceMap({
     if (!map || !draw) return;
 
     if (!gatePlacementMode) {
-      // Returning to drawing — restore line mode unless polygon is in progress
-      console.info("[FenceMap] exiting gate mode → restore draw_line_string");
-      const fc = draw.getAll();
-      const last = fc.features[fc.features.length - 1];
-      if (!last || last.geometry.type === "LineString") {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (draw as any).changeMode("draw_line_string");
+      // Returning to drawing — restore line mode unless polygon is in progress.
+      // Guarded: this effect runs on mount (gatePlacementMode=false initially),
+      // possibly before the style is loaded — a bare changeMode() would throw
+      // and, on a re-mount, that throw was part of the dead-map signature.
+      try {
+        const fc = draw.getAll();
+        const last = fc.features[fc.features.length - 1];
+        if (!last || last.geometry.type === "LineString") {
+          console.info("[FenceMap] exiting gate mode → restore draw_line_string");
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (draw as any).changeMode("draw_line_string");
+        }
+      } catch (err) {
+        console.warn("[FenceMap] exit-gate changeMode skipped (draw not ready):", err);
       }
       return;
     }
