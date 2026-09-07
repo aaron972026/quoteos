@@ -612,3 +612,81 @@ describe("board-on-board add-on", () => {
     expect(costDelta).toBe(Math.round(150 * 700 * 0.55));
   });
 });
+
+// ════════════════════════════════════════════════════════════════════
+// Gate model (dual-path) — legacy zero-delta + new single/double/sliding
+// ════════════════════════════════════════════════════════════════════
+describe("gates — dual-path", () => {
+  // ZERO-DELTA GUARD: legacy W3…D16 gates must price to their exact historical
+  // value — the untouched GATE_PRICES path. If any of these move, a legacy
+  // quote silently repriced.
+  it("legacy gates reprice bit-identically (zero delta)", () => {
+    const g = (type: string, count = 1) =>
+      calculatePrice(input({ gates: [{ type, count } as never] })).breakdown
+        .gates_cents;
+    expect(g("W3")).toBe(30000);
+    expect(g("W4")).toBe(35000);
+    expect(g("W5")).toBe(42500);
+    expect(g("D10")).toBe(85000);
+    expect(g("D12")).toBe(110000);
+    expect(g("D16")).toBe(175000);
+    expect(g("W4", 3)).toBe(105000); // count still multiplies
+  });
+
+  it("legacy gates never defer", () => {
+    expect(
+      calculatePrice(input({ gates: [{ type: "D16", count: 1 } as never] }))
+        .deferred_gate_count
+    ).toBe(0);
+  });
+
+  const newG = (type: string, width_ft: number) =>
+    calculatePrice(input({ gates: [{ type, width_ft } as never] }));
+
+  it("new single gates price by width (4/5/6 table)", () => {
+    expect(newG("single", 4).breakdown.gates_cents).toBe(35000);
+    expect(newG("single", 5).breakdown.gates_cents).toBe(42500);
+    expect(newG("single", 6).breakdown.gates_cents).toBe(52500);
+  });
+
+  it("double = single × 2 — two 5' leaves match the old D10 ($850)", () => {
+    expect(newG("double", 5).breakdown.gates_cents).toBe(85000);
+    expect(newG("double", 5).breakdown.gates_cents).toBe(
+      newG("single", 5).breakdown.gates_cents * 2
+    );
+  });
+
+  it("custom width uses $90/ft with a $300 floor (3' = old W3 $300)", () => {
+    expect(newG("single", 3).breakdown.gates_cents).toBe(30000); // floor
+    expect(newG("single", 3.5).breakdown.gates_cents).toBe(31500); // 3.5 × $90
+    expect(newG("single", 5.5).breakdown.gates_cents).toBe(49500); // 5.5 × $90
+  });
+
+  it("per-leaf width > 6' is deferred — no instant price, not in the total", () => {
+    const wide = newG("single", 8);
+    expect(wide.breakdown.gates_cents).toBe(0);
+    expect(wide.deferred_gate_count).toBe(1);
+  });
+
+  it("sliding gates are deferred and never move the locked total", () => {
+    const base = calculatePrice(input({ gates: [] }));
+    const withSliding = newG("sliding", 12);
+    expect(withSliding.breakdown.gates_cents).toBe(0);
+    expect(withSliding.deferred_gate_count).toBe(1);
+    expect(withSliding.final_price_cents).toBe(base.final_price_cents);
+  });
+
+  it("mixed legacy + new + deferred in one quote", () => {
+    const r = calculatePrice(
+      input({
+        gates: [
+          { type: "D16", count: 1 } as never, // legacy 175000
+          { type: "double", width_ft: 5 } as never, // 85000
+          { type: "sliding", width_ft: 10 } as never, // deferred
+        ],
+      })
+    );
+    expect(r.breakdown.gates_cents).toBe(175000 + 85000);
+    expect(r.deferred_gate_count).toBe(1);
+  });
+});

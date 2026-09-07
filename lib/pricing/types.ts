@@ -6,7 +6,8 @@
 // display range. Each SKU is its own price point — no tier multiplier.
 // See _pricing/FencePros_Pricing_Model.csv-* for the source of truth.
 
-export type GateType = "W3" | "W4" | "W5" | "D10" | "D12" | "D16";
+export type GateType = "W3" | "W4" | "W5" | "D10" | "D12" | "D16"; // legacy
+export type NewGateType = "single" | "double" | "sliding";
 export type DemoType = "NONE" | "CEDAR" | "CHAIN" | "METAL" | "CONC";
 export type SkuFamily = "CPF" | "HCF" | "CL" | "RR" | "BP";
 export type MarginFlag = "ok" | "warn" | "low";
@@ -17,9 +18,26 @@ export type PostType = "pt" | "cedar" | "steel";
 
 // ─── Inputs ───────────────────────────────────────────────────────────
 
-export interface PricingGate {
+/**
+ * Gates are dual-path so legacy quotes reprice bit-identically (zero delta):
+ *  - LegacyGate: the old {W3…D16, count} shape → priced by GATE_PRICES,
+ *    untouched. Never re-emitted by new code; only read from saved quotes.
+ *  - FenceGate: the new model — single / double (× multiplier) / sliding, by
+ *    per-leaf width_ft. Sliding and widths over the priced max are deferred
+ *    ("priced at your visit"), excluded from the locked total.
+ */
+export interface LegacyGate {
   type: GateType;
   count: number;
+}
+export interface FenceGate {
+  type: NewGateType;
+  width_ft: number;
+}
+export type PricingGate = LegacyGate | FenceGate;
+
+export function isNewGate(g: PricingGate): g is FenceGate {
+  return g.type === "single" || g.type === "double" || g.type === "sliding";
 }
 
 export interface PricingInput {
@@ -92,6 +110,10 @@ export interface PricingResult {
   internal_margin: InternalMargin;
   warnings: string[];                   // e.g. "slope_review_required", "above_market"
   effective_per_lf_cents: number;       // final_price / linear_feet, rounded
+  // Gates the price promise won't guess at (sliding + per-leaf width over the
+  // priced max): NOT in any cents field / the locked total. Surfaced as
+  // "priced at your visit" on the quote page, commitment step, and PDF (G3).
+  deferred_gate_count: number;
 }
 
 // ─── Errors ───────────────────────────────────────────────────────────

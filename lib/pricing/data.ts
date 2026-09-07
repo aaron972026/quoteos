@@ -355,6 +355,24 @@ export const GATE_PRICES: Record<GateType, { price_cents: number; label: string 
   D16: { price_cents: 175000, label: "16' double-leaf drive" },
 };
 
+// ─── New gate model (single / double / sliding, priced by leaf width) ──
+// Dual-path: legacy W3…D16 gates stay on GATE_PRICES above (zero delta on
+// saved quotes). These constants price NEW-model gates only.
+//   single 4'/5'/6' = fixed table; custom 3–6' = $90/ft, $300 floor
+//   (3' → $300, matching the old W3); double = single × 2.0 (two 5' leaves
+//   = $850, matching the old D10); per-leaf width > 6' or sliding = deferred
+//   ("priced at your visit", excluded from the locked total).
+export const GATE_MODEL = {
+  DOUBLE_MULTIPLIER: 2.0,
+  SINGLE_CENTS_BY_WIDTH: { 4: 35000, 5: 42500, 6: 52500 } as Record<
+    number,
+    number
+  >,
+  CUSTOM_PER_FT_CENTS: 9000,
+  CUSTOM_FLOOR_CENTS: 30000,
+  MAX_PRICED_WIDTH_FT: 6,
+} as const;
+
 // ─── Add-ons ──────────────────────────────────────────────────────────
 
 export const ADDONS = {
@@ -456,6 +474,7 @@ export interface PricingConfig {
   slope: typeof SLOPE;
   demoRates: typeof DEMO_RATES;
   gatePrices: typeof GATE_PRICES;
+  gateModel: typeof GATE_MODEL;
   addons: typeof ADDONS;
   permits: typeof PERMITS;
   permitDefaultCents: number;
@@ -472,6 +491,7 @@ export const DEFAULT_PRICING_CONFIG: PricingConfig = {
   slope: SLOPE,
   demoRates: DEMO_RATES,
   gatePrices: GATE_PRICES,
+  gateModel: GATE_MODEL,
   addons: ADDONS,
   permits: PERMITS,
   permitDefaultCents: PERMIT_DEFAULT_CENTS,

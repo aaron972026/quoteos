@@ -43,7 +43,12 @@ export interface HcpJobPayload {
   stain_seal: boolean;
   demo_required: boolean;
   demo_type: string | null;
-  gates: Array<{ type: string; count: number; position?: { lat: number; lng: number } }>;
+  gates: Array<{
+    type: string;
+    count?: number; // legacy
+    width_ft?: number; // new gate model
+    position?: { lat: number; lng: number };
+  }>;
 
   // For the HCP job note — Make.com stringifies and attaches
   geometry: Feature<LineString | Polygon> | LineString | Polygon | null;

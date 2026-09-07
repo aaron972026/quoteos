@@ -1,6 +1,7 @@
 import { DEFAULT_PRICING_CONFIG, type PricingConfig } from "./data";
 import {
   type InternalMargin,
+  isNewGate,
   type MarginFlag,
   type PostType,
   PricingError,
@@ -165,9 +166,44 @@ export function calculatePrice(
     }
   }
 
-  // ─── Gates ─────────────────────────────────────────────────────────
+  // ─── Gates (dual-path) ─────────────────────────────────────────────
+  // Legacy {W3…D16, count} gates price by the untouched GATE_PRICES → zero
+  // delta on saved quotes. New {single|double|sliding, width_ft} gates price
+  // by GATE_MODEL; sliding + per-leaf widths over the priced max are DEFERRED
+  // ("priced at your visit") — never added to any total.
   let gatesCents = 0;
+  let deferredGateCount = 0;
+  const gm = config.gateModel;
   for (const g of input.gates) {
+    if (isNewGate(g)) {
+      if (g.type === "sliding") {
+        deferredGateCount++;
+        continue;
+      }
+      if (!Number.isFinite(g.width_ft) || g.width_ft <= 0) {
+        throw new PricingError(
+          "INVALID_GATE_WIDTH",
+          "gate width_ft must be > 0"
+        );
+      }
+      if (g.width_ft > gm.MAX_PRICED_WIDTH_FT) {
+        deferredGateCount++; // wide leaf — priced at the visit
+        continue;
+      }
+      const table = gm.SINGLE_CENTS_BY_WIDTH[g.width_ft];
+      const single =
+        table ??
+        Math.max(
+          gm.CUSTOM_FLOOR_CENTS,
+          Math.round(g.width_ft * gm.CUSTOM_PER_FT_CENTS)
+        );
+      gatesCents +=
+        g.type === "double"
+          ? Math.round(single * gm.DOUBLE_MULTIPLIER)
+          : single;
+      continue;
+    }
+    // Legacy path — bit-identical to before.
     if (!(g.type in config.gatePrices)) {
       throw new PricingError(
         "INVALID_GATE",
@@ -397,6 +433,7 @@ export function calculatePrice(
       input.linear_feet > 0
         ? Math.round(finalPriceCents / input.linear_feet)
         : 0,
+    deferred_gate_count: deferredGateCount,
   };
 }
 

@@ -148,8 +148,18 @@ export const quotes = pgTable(
     boardOnBoard: boolean("board_on_board").default(false),
 
     // Gates: jsonb array of { type, count, position?: { lat, lng } }
+    // Dual-shape (jsonb, additive — no migration): legacy gates keep
+    // {type: W3…D16, count}; new-model gates are {type: single|double|sliding,
+    // width_ft} attached to a run/segment. The engine prices each by shape.
     gates: jsonb("gates").$type<
-      Array<{ type: string; count: number; position?: { lat: number; lng: number } }>
+      Array<{
+        type: string;
+        count?: number; // legacy
+        width_ft?: number; // new model
+        position?: { lat: number; lng: number };
+        runIndex?: number;
+        segIndex?: number;
+      }>
     >(),
 
     // Phase 1.5 — yard photos uploaded by the user. Stored as a jsonb array
