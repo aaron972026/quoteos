@@ -136,6 +136,22 @@ export interface Dictionary {
     aimDetailsTitle: string;
     aimDetailsDemo: string;
     aimDetailsPhotos: string;
+    // G2 — gates sub-mode
+    aimGatesTitle: string;
+    aimGatesHelper: string;
+    aimGatesType: string;
+    aimGatesWidth: string;
+    aimGateSingle: string;
+    aimGateDouble: string;
+    aimGateSliding: string;
+    aimGatesCustom: string;
+    aimGatesApply: string;
+    aimGatesDeferred: string;
+    aimGatesTooWide: string;
+    aimGatesCount: string; // "{n} gates placed"
+    aimGatesDone: string;
+    aimGatesRemove: string;
+    aimGatesEditTitle: string;
     // Brand v1.0 — Screen 3 redesign
     eyebrow: string; // "Step Three · Trace The Run"
     panelTitle: string; // "Trace The Fence Run"
@@ -486,6 +502,22 @@ const en: Dictionary = {
     aimDetailsTitle: "Project details",
     aimDetailsDemo: "Demo",
     aimDetailsPhotos: "photos",
+    aimGatesTitle: "Add gates",
+    aimGatesHelper: "Tap anywhere on your fence line, then drag to fine-tune.",
+    aimGatesType: "Type",
+    aimGatesWidth: "Width",
+    aimGateSingle: "Single",
+    aimGateDouble: "Double",
+    aimGateSliding: "Sliding",
+    aimGatesCustom: "Custom",
+    aimGatesApply: "Apply",
+    aimGatesDeferred: "Priced at your visit — not included in your locked total",
+    aimGatesTooWide:
+      "That gate is wider than this section — pick a shorter width or another spot",
+    aimGatesCount: "{n} gates placed",
+    aimGatesDone: "Done with gates",
+    aimGatesRemove: "Remove",
+    aimGatesEditTitle: "Edit gate",
     eyebrow: "Step Three · Trace The Run",
     panelTitle: "Trace The Fence Run",
     panelHelp:
@@ -911,6 +943,22 @@ const es: Dictionary = {
     aimDetailsTitle: "Detalles del proyecto",
     aimDetailsDemo: "Demolición",
     aimDetailsPhotos: "fotos",
+    aimGatesTitle: "Agregar puertas",
+    aimGatesHelper: "Toca cualquier punto de tu cerca y arrastra para ajustar.",
+    aimGatesType: "Tipo",
+    aimGatesWidth: "Ancho",
+    aimGateSingle: "Sencilla",
+    aimGateDouble: "Doble",
+    aimGateSliding: "Corrediza",
+    aimGatesCustom: "Personalizado",
+    aimGatesApply: "Aplicar",
+    aimGatesDeferred: "Precio en su visita — no incluido en su total asegurado",
+    aimGatesTooWide:
+      "Esa puerta es más ancha que esta sección — elige un ancho menor u otro lugar",
+    aimGatesCount: "{n} puertas colocadas",
+    aimGatesDone: "Listo con las puertas",
+    aimGatesRemove: "Quitar",
+    aimGatesEditTitle: "Editar puerta",
     eyebrow: "Paso Tres · Traza la línea",
     panelTitle: "Traza el recorrido",
     panelHelp:

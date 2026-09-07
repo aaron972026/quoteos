@@ -19,17 +19,40 @@ import { loadPricingConfig } from "@/lib/pricing/load-config";
 import {
   PricingError,
   type GateType,
+  type NewGateType,
   type DemoType,
   type PostType,
 } from "@/lib/pricing/types";
 import { sendPriceHoldEmail } from "@/lib/email/price-hold";
 import { getDict } from "@/lib/i18n/server";
 
-const GateSchema = z.object({
+// Dual-shape gates (additive, no migration): legacy {W3…D16, count} and the
+// new model {single|double|sliding, width_ft} attached to a run/segment. The
+// engine prices each by shape; legacy gates on saved quotes stay bit-identical.
+const LegacyGateSchema = z.object({
   type: z.enum(["W3", "W4", "W5", "D10", "D12", "D16"]),
   count: z.number().int().min(0).max(20),
   position: z.object({ lat: z.number(), lng: z.number() }).optional(),
 });
+const NewGateSchema = z.object({
+  type: z.enum(["single", "double", "sliding"]),
+  width_ft: z.number().positive().max(60),
+  position: z.object({ lat: z.number(), lng: z.number() }).optional(),
+  runIndex: z.number().int().min(0).max(1000).optional(),
+  segIndex: z.number().int().min(0).max(10000).optional(),
+});
+const GateSchema = z.union([NewGateSchema, LegacyGateSchema]);
+
+// The gates jsonb is read as either shape; this covers both for the merge +
+// engine mapping below (isNewGate picks the path by `type`).
+type StoredGateShape = {
+  type: string;
+  count?: number;
+  width_ft?: number;
+  position?: { lat: number; lng: number };
+  runIndex?: number;
+  segIndex?: number;
+};
 
 const PatchBody = z.object({
   geometry: z.unknown().optional(),
@@ -144,8 +167,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       tear_concrete_posts: d.tear_concrete_posts ?? 0,
       city: d.city ?? existing.city ?? "Tulsa",
       gates:
-        d.gates ??
-        (existing.gates as Array<{ type: GateType; count: number }> | null) ??
+        (d.gates as StoredGateShape[] | undefined) ??
+        (existing.gates as StoredGateShape[] | null) ??
         [],
     };
 
@@ -166,7 +189,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             corner_count: merged.corner_count,
             slope_code: merged.slope_code!,
             demo_type: merged.demo_type as DemoType,
-            gates: merged.gates.map((g) => ({ type: g.type, count: g.count })),
+            gates: merged.gates.map((g) =>
+              g.type === "single" || g.type === "double" || g.type === "sliding"
+                ? { type: g.type as NewGateType, width_ft: Number(g.width_ft) }
+                : { type: g.type as GateType, count: Number(g.count ?? 0) }
+            ),
             stain_seal: merged.stain_seal,
             ironclad: merged.ironclad,
             board_on_board: merged.board_on_board,

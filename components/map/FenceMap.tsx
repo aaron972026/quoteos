@@ -23,13 +23,29 @@ import {
   fenceDrawStyles,
 } from "@/lib/map/draw-config";
 import { cornerCount, geometryLF } from "@/lib/map/linear-feet";
-import { SNAP_RADIUS_PX } from "@/lib/map/draw-state";
+import { SNAP_RADIUS_PX, runLF } from "@/lib/map/draw-state";
+import { offsetToCoord, pointToOffset } from "@/lib/map/gate-geo";
 import type { GateType } from "@/lib/pricing/types";
 
 export interface PlacedGate {
   type: GateType;
   count: number;
   position: { lat: number; lng: number };
+}
+
+/**
+ * A gate rendered in aim mode (G2). Mirrors lib/map/draw-state DrawGate plus a
+ * pre-localized `label` for the on-map badge (i18n lives in the page). Distinct
+ * from the desktop PlacedGate flow, which is untouched.
+ */
+export interface AimGate {
+  id: string;
+  runIndex: number;
+  segIndex: number;
+  type: "single" | "double" | "sliding";
+  width_ft: number;
+  offset_ft: number;
+  label: string;
 }
 
 export interface FenceGeometryStats {
@@ -193,6 +209,24 @@ interface Props {
   onSelect?: (selection: AimSelection | null) => void;
   /** The current selection to highlight (gold ring / thick gold segment). */
   selection?: AimSelection | null;
+  // ─── Gates sub-mode (G2) — aim mode only ──────────────────────────
+  /**
+   * Gates mode: no reticle, posts stay visible; a tap on the gold line places
+   * a gate (onGatePlace), a tap on a gate glyph selects it (onGateSelect), and
+   * a drag on a gate glyph slides it along its segment (onAimGateMove).
+   * Mutually exclusive with adjustMode — the page never sets both.
+   */
+  gatesMode?: boolean;
+  /** Gates to render (pass drawState.gates, pre-labeled). */
+  aimGates?: AimGate[];
+  /** The selected gate id (gold ring on its glyph), or null. */
+  selectedGateId?: string | null;
+  /** Line tap in gates mode → place a gate at this segment + centre offset. */
+  onGatePlace?: (runIndex: number, segIndex: number, offset_ft: number) => void;
+  /** Gate glyph tap → select (id) or empty tap → deselect (null). */
+  onGateSelect?: (id: string | null) => void;
+  /** Gate glyph drag → new centre offset along its segment (unclamped). */
+  onAimGateMove?: (id: string, offset_ft: number) => void;
 }
 
 const GATE_WIDTH_LABEL: Record<GateType, string> = {
@@ -362,6 +396,27 @@ function hitSegment(
   return best;
 }
 
+/** Gate id whose glyph is under `point` within a ≥44px hit box, or null. */
+function hitGate(map: mapboxgl.Map, point: mapboxgl.Point): string | null {
+  const r = 22;
+  try {
+    const feats = map.queryRenderedFeatures(
+      [
+        [point.x - r, point.y - r],
+        [point.x + r, point.y + r],
+      ],
+      { layers: ["qos-aim-gates-glyph"] }
+    );
+    for (const f of feats) {
+      const id = f.properties?.gateId;
+      if (typeof id === "string") return id;
+    }
+  } catch {
+    /* layer may not exist yet */
+  }
+  return null;
+}
+
 export default function FenceMap({
   centerLat,
   centerLng,
@@ -383,6 +438,12 @@ export default function FenceMap({
   onCheckpoint,
   onSelect,
   selection,
+  gatesMode,
+  aimGates,
+  selectedGateId,
+  onGatePlace,
+  onGateSelect,
+  onAimGateMove,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -428,6 +489,27 @@ export default function FenceMap({
   onSelectRef.current = onSelect;
   const selectionRef = useRef<AimSelection | null>(selection ?? null);
   selectionRef.current = selection ?? null;
+  // ─── Gates sub-mode refs (read by the mount-once gesture listeners) ──
+  const gatesModeRef = useRef(!!gatesMode);
+  gatesModeRef.current = !!gatesMode;
+  const aimGatesRef = useRef<AimGate[]>(aimGates ?? []);
+  aimGatesRef.current = aimGates ?? [];
+  const selectedGateIdRef = useRef<string | null>(selectedGateId ?? null);
+  selectedGateIdRef.current = selectedGateId ?? null;
+  const onGatePlaceRef = useRef(onGatePlace);
+  onGatePlaceRef.current = onGatePlace;
+  const onGateSelectRef = useRef(onGateSelect);
+  onGateSelectRef.current = onGateSelect;
+  const onAimGateMoveRef = useRef(onAimGateMove);
+  onAimGateMoveRef.current = onAimGateMove;
+  // Active gates-mode gesture (tap vs 8px drag, mirroring the adjust machine).
+  const gateGestureRef = useRef<{
+    start: mapboxgl.Point;
+    gateId: string | null;
+    moved: boolean;
+    dragging: boolean;
+    lastOffset: number | null;
+  } | null>(null);
   // Latest multi-run geometry fed to setAimGeometry — read by hitSegment (exact
   // vertex projection) and the selection renderer.
   const aimRunsRef = useRef<number[][][]>([]);
@@ -532,6 +614,53 @@ export default function FenceMap({
         : [],
     });
   }
+  // Render gate markers (G2): a noir "gap" over the gold line, a tappable
+  // glyph, and a type+width badge, each positioned by walking offset_ft along
+  // the gate's segment. Reads the latest geometry from aimRunsRef so it tracks
+  // post drags + live gate slides. Selection = a gold ring on the glyph.
+  function renderAimGates() {
+    const map = mapRef.current;
+    const src = map?.getSource("qos-aim-gates") as
+      | mapboxgl.GeoJSONSource
+      | undefined;
+    if (!src) return;
+    const gates = aimGatesRef.current;
+    const runs = aimRunsRef.current;
+    const selId = selectedGateIdRef.current;
+    const features: Feature[] = [];
+    for (const g of gates) {
+      const run = runs[g.runIndex];
+      const a = run?.[g.segIndex];
+      const b = run?.[g.segIndex + 1];
+      if (!a || !b) continue;
+      const center = offsetToCoord(a, b, g.offset_ft);
+      const segLen = runLF([a, b]);
+      const half = Math.min(g.width_ft / 2, segLen / 2);
+      const p1 = offsetToCoord(a, b, g.offset_ft - half);
+      const p2 = offsetToCoord(a, b, g.offset_ft + half);
+      features.push({
+        type: "Feature",
+        properties: { kind: "gap" },
+        geometry: { type: "LineString", coordinates: [p1, p2] },
+      });
+      features.push({
+        type: "Feature",
+        properties: { kind: "glyph", gateId: g.id, selected: g.id === selId },
+        geometry: { type: "Point", coordinates: center },
+      });
+      features.push({
+        type: "Feature",
+        properties: { kind: "label", label: g.label },
+        geometry: { type: "Point", coordinates: center },
+      });
+    }
+    src.setData({ type: "FeatureCollection", features });
+  }
+  useEffect(() => {
+    renderAimGates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aimGates, selectedGateId, aimTick]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!aimMode || !map) {
@@ -788,6 +917,64 @@ export default function FenceMap({
             },
           });
         }
+        // Gate markers (G2): the noir "gap" reads as an opening in the gold
+        // line, the glyph is the tappable/draggable puck, and the label badge
+        // names the gate. All three drive off the qos-aim-gates source.
+        if (!map.getSource("qos-aim-gates")) {
+          map.addSource("qos-aim-gates", {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          });
+          map.addLayer({
+            id: "qos-aim-gates-gap",
+            type: "line",
+            source: "qos-aim-gates",
+            filter: ["==", ["get", "kind"], "gap"],
+            layout: { "line-cap": "round" },
+            paint: { "line-color": "#16120D", "line-width": 6 },
+          });
+          map.addLayer({
+            id: "qos-aim-gates-glyph",
+            type: "circle",
+            source: "qos-aim-gates",
+            filter: ["==", ["get", "kind"], "glyph"],
+            paint: {
+              "circle-radius": 11,
+              "circle-color": "#16120D",
+              "circle-stroke-color": [
+                "case",
+                ["==", ["get", "selected"], true],
+                "#C99A3F",
+                "#FCF9F1",
+              ],
+              "circle-stroke-width": [
+                "case",
+                ["==", ["get", "selected"], true],
+                4,
+                2,
+              ],
+            },
+          });
+          map.addLayer({
+            id: "qos-aim-gates-label",
+            type: "symbol",
+            source: "qos-aim-gates",
+            filter: ["==", ["get", "kind"], "label"],
+            layout: {
+              "text-field": ["get", "label"],
+              "text-font": ["DIN Pro Medium", "Arial Unicode MS Bold"],
+              "text-size": 11,
+              "text-offset": [0, -1.7],
+              "text-anchor": "bottom",
+              "text-allow-overlap": true,
+            },
+            paint: {
+              "text-color": "#FCF9F1",
+              "text-halo-color": "rgba(22,18,13,0.9)",
+              "text-halo-width": 2,
+            },
+          });
+        }
       } catch (err) {
         console.warn("[FenceMap] aim layer init failed:", err);
       }
@@ -798,7 +985,7 @@ export default function FenceMap({
     map.on("move", () => {
       // Live snap-candidate ring: in draw mode, flag the post the reticle would
       // magnetize onto so the drop is predictable.
-      if (aimModeRef.current && !adjustModeRef.current) {
+      if (aimModeRef.current && !adjustModeRef.current && !gatesModeRef.current) {
         const sp = aimScreenPoint(map, bottomPaddingRef.current);
         const snap = snapTarget(map, sp, aimRunsRef.current);
         renderSnapCandidate(snap ? snap.coord : null);
@@ -890,6 +1077,88 @@ export default function FenceMap({
       if (g.dragging && g.post) {
         onPostDragRef.current?.(g.post.r, g.post.i, g.last ?? [0, 0], "end");
       }
+    });
+
+    // Gates mode: same tap-vs-8px-drag machine as adjust, but on gate glyphs.
+    // A tap on a glyph selects it; a tap on the gold line places a gate at the
+    // projected offset; a drag on a glyph slides it along its segment. A finger
+    // that starts on empty map pans normally.
+    const gateOffsetAt = (
+      gateId: string,
+      point: mapboxgl.Point
+    ): number | null => {
+      const gate = aimGatesRef.current.find((x) => x.id === gateId);
+      if (!gate) return null;
+      const run = aimRunsRef.current[gate.runIndex];
+      const a = run?.[gate.segIndex];
+      const b = run?.[gate.segIndex + 1];
+      if (!a || !b) return null;
+      const ll = map.unproject(point);
+      return pointToOffset(a, b, [ll.lng, ll.lat]);
+    };
+    map.on("touchstart", (e) => {
+      if (!gatesModeRef.current) return;
+      const gateId = hitGate(map, e.point);
+      gateGestureRef.current = {
+        start: e.point,
+        gateId,
+        moved: false,
+        dragging: false,
+        lastOffset: null,
+      };
+      if (gateId) {
+        map.dragPan.disable();
+        e.preventDefault();
+      }
+    });
+    map.on("touchmove", (e) => {
+      const g = gateGestureRef.current;
+      if (!gatesModeRef.current || !g) return;
+      const dx = e.point.x - g.start.x;
+      const dy = e.point.y - g.start.y;
+      if (!g.moved && dx * dx + dy * dy >= 64) g.moved = true; // 8px threshold
+      if (g.gateId && g.moved && !g.dragging) {
+        g.dragging = true;
+        onCheckpointRef.current?.(); // one undo step per drag
+      }
+      if (g.dragging && g.gateId) {
+        const off = gateOffsetAt(g.gateId, e.point);
+        if (off != null) {
+          g.lastOffset = off;
+          onAimGateMoveRef.current?.(g.gateId, off);
+        }
+        e.preventDefault();
+      }
+    });
+    const endGateGesture = (e: mapboxgl.MapTouchEvent) => {
+      const g = gateGestureRef.current;
+      gateGestureRef.current = null;
+      if (!g) return;
+      if (g.gateId) map.dragPan.enable();
+      if (g.dragging) return; // slide already applied live
+      if (g.moved) return; // a pan — leave gates untouched
+      const pt = e.point ?? g.start;
+      if (g.gateId) {
+        onGateSelectRef.current?.(g.gateId); // tap on a glyph → select
+        return;
+      }
+      // Tap on the line → place at the projected offset; empty → deselect.
+      const seg = hitSegment(map, pt, aimRunsRef.current);
+      const run = seg ? aimRunsRef.current[seg.r] : undefined;
+      const a = run?.[seg?.segIndex ?? -1];
+      const b = run?.[(seg?.segIndex ?? -1) + 1];
+      if (seg && a && b) {
+        const ll = map.unproject(pt);
+        onGatePlaceRef.current?.(seg.r, seg.segIndex, pointToOffset(a, b, [ll.lng, ll.lat]));
+        return;
+      }
+      onGateSelectRef.current?.(null);
+    };
+    map.on("touchend", endGateGesture);
+    map.on("touchcancel", () => {
+      const g = gateGestureRef.current;
+      gateGestureRef.current = null;
+      if (g?.gateId) map.dragPan.enable();
     });
 
     // ResizeObserver — keep the map sized to its container even if the parent
@@ -2114,6 +2383,7 @@ export default function FenceMap({
       }
       src.setData({ type: "FeatureCollection", features });
       renderAimSelection(); // keep the highlight aligned to shifted geometry
+      renderAimGates(); // reshape gate markers onto the updated geometry
     },
     setBottomPadding(px) {
       bottomPaddingRef.current = Math.max(0, px);
@@ -2170,7 +2440,7 @@ export default function FenceMap({
       {/* Aim reticle — rendered here (not in the overlay) so its DOM position
           IS aimScreenPoint, the same source the preview + Drop unproject from.
           No independent centre math anywhere else. */}
-      {aimMode && !adjustMode && aimReticle && (
+      {aimMode && !adjustMode && !gatesMode && aimReticle && (
         <div
           className="pointer-events-none absolute z-[5]"
           style={{

@@ -40,6 +40,7 @@ import {
   type QuotePhoto,
 } from "@/components/draw/PhotoUpload";
 import type {
+  AimGate,
   AimSelection,
   FenceGeometryStats,
   FenceMapHandle,
@@ -68,6 +69,8 @@ import type { Position } from "geojson";
 import { useT } from "@/lib/i18n/use-locale";
 import { cn } from "@/lib/utils";
 import { AimDrawOverlay } from "@/components/map/AimDrawOverlay";
+import { AimGatesOverlay } from "@/components/map/AimGatesOverlay";
+import { offsetToCoord } from "@/lib/map/gate-geo";
 import {
   drawReducer,
   EMPTY_DRAW_STATE,
@@ -77,6 +80,7 @@ import {
   canFinish,
   canUndo,
   allRunCoords,
+  segmentLengthFt,
 } from "@/lib/map/draw-state";
 
 const FenceMap = dynamic(() => import("@/components/map/FenceMap"), {
@@ -101,6 +105,18 @@ const GATE_SIZES: Array<{ type: GateType; label: string; sublabel: string }> = [
   { type: "D16", label: "16'", sublabel: "Double drive" },
 ];
 
+// The gates jsonb column is dual-shape: legacy {type: W3…D16, count} and
+// new-model {type: single|double|sliding, width_ft, position, runIndex,
+// segIndex}. Read as-is; aim-mode edits only ever touch new-model gates.
+interface StoredGate {
+  type: string;
+  count?: number;
+  width_ft?: number;
+  position?: { lat: number; lng: number };
+  runIndex?: number;
+  segIndex?: number;
+}
+
 interface QuoteShape {
   id: string;
   lat: string | number | null;
@@ -109,6 +125,7 @@ interface QuoteShape {
   zip: string | null;
   photoUrls?: QuotePhoto[] | null;
   photoAudit?: PhotoAudit | null;
+  gates?: StoredGate[] | null;
   parcelBoundary?: ParcelBoundary | null;
   adjacentParcels?: Array<{
     parcelId: string | null;
@@ -139,6 +156,10 @@ function DrawPageInner() {
   const slopeUserOverrodeRef = useRef(false);
   const [demoRequired, setDemoRequired] = useState(false);
   const [gates, setGates] = useState<PlacedGate[]>([]);
+  // Legacy-shaped gates loaded from the quote — passed through untouched on
+  // save (never mapped legacy → new on load). Aim edits only add new-model
+  // gates via drawState.gates.
+  const [loadedGates, setLoadedGates] = useState<StoredGate[]>([]);
   const [gateMode, setGateMode] = useState(false);
   const [pendingGatePoint, setPendingGatePoint] = useState<{ lat: number; lng: number } | null>(null);
   // Unified action history so Undo pops the most recent action regardless of
@@ -191,6 +212,169 @@ function DrawPageInner() {
   const [tracedHelper, setTracedHelper] = useState(false);
   const [aimCenter, setAimCenter] = useState<[number, number] | null>(null);
   const [aimZoom, setAimZoom] = useState<number | null>(null);
+
+  // ─── Gates sub-mode (G2) — aim mode only ─────────────────────────────
+  // One sheet at a time: gatesMode is mutually exclusive with the draw/adjust
+  // overlay and the Details drawer (each overlay gates its `active` on this).
+  const [gatesMode, setGatesMode] = useState(false);
+  const [pendingGateType, setPendingGateType] = useState<
+    "single" | "double" | "sliding"
+  >("single");
+  const [pendingGateWidth, setPendingGateWidth] = useState(4);
+  const [pendingGateCustom, setPendingGateCustom] = useState(false);
+  const [customWidthInput, setCustomWidthInput] = useState(4);
+  const [selectedGateId, setSelectedGateId] = useState<string | null>(null);
+  const [gateTooWide, setGateTooWide] = useState(false);
+  const tooWideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function flashTooWide() {
+    setGateTooWide(true);
+    if (tooWideTimer.current) clearTimeout(tooWideTimer.current);
+    tooWideTimer.current = setTimeout(() => setGateTooWide(false), 3000);
+  }
+
+  const drawGates = useMemo(() => drawState.gates ?? [], [drawState.gates]);
+  const selectedGate = useMemo(
+    () => drawGates.find((g) => g.id === selectedGateId) ?? null,
+    [drawGates, selectedGateId]
+  );
+  // Pre-labeled gates for the on-map badges (i18n lives here, not in FenceMap).
+  const aimGatesForMap = useMemo<AimGate[]>(
+    () =>
+      drawGates.map((g) => ({
+        ...g,
+        label:
+          g.type === "sliding"
+            ? t.draw.aimGateSliding
+            : `${g.type === "double" ? t.draw.aimGateDouble : t.draw.aimGateSingle} ${g.width_ft}'`,
+      })),
+    [drawGates, t]
+  );
+
+  // The active spec shown in the gates sheet: the selected gate when editing,
+  // otherwise the pending spec the next line-tap will place.
+  const effectivePendingWidth = pendingGateCustom
+    ? customWidthInput
+    : pendingGateWidth;
+  const activeType = selectedGate ? selectedGate.type : pendingGateType;
+  const activeWidth = selectedGate ? selectedGate.width_ft : effectivePendingWidth;
+  const gateDeferred = activeType === "sliding" || activeWidth > 6;
+
+  function enterGatesMode() {
+    setSelection(null);
+    setSelectedGateId(null);
+    setGatesMode(true);
+  }
+  function exitGatesMode() {
+    setGatesMode(false);
+    setSelectedGateId(null);
+  }
+  function handleGatePlace(runIndex: number, segIndex: number, offset_ft: number) {
+    const width = effectivePendingWidth;
+    const segLen = segmentLengthFt(drawState.runs, runIndex, segIndex);
+    if (segLen <= 0) return; // no such segment — silent
+    if (width > segLen) {
+      flashTooWide();
+      return;
+    }
+    dispatch({
+      type: "PLACE_GATE",
+      gate: {
+        id:
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `gate-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        runIndex,
+        segIndex,
+        type: pendingGateType,
+        width_ft: width,
+        offset_ft,
+      },
+    });
+  }
+  function handleGateSelect(id: string | null) {
+    setSelectedGateId(id);
+    // Seed the custom editor from the gate so its width shows if custom.
+    if (id) setPendingGateCustom(false);
+  }
+  function handleAimGateMove(id: string, offset_ft: number) {
+    dispatch({ type: "MOVE_GATE", id, offset_ft });
+  }
+  // EDIT_GATE uses the `gateType` field (NOT `type` — that's the action tag).
+  function editSelectedGate(patch: {
+    gateType?: "single" | "double" | "sliding";
+    width_ft?: number;
+  }) {
+    if (!selectedGate) return;
+    if (patch.width_ft != null) {
+      const segLen = segmentLengthFt(
+        drawState.runs,
+        selectedGate.runIndex,
+        selectedGate.segIndex
+      );
+      if (patch.width_ft > segLen) {
+        flashTooWide();
+        return;
+      }
+    }
+    dispatch({
+      type: "EDIT_GATE",
+      id: selectedGate.id,
+      gateType: patch.gateType,
+      width_ft: patch.width_ft,
+    });
+  }
+  function removeSelectedGate() {
+    if (!selectedGate) return;
+    dispatch({ type: "DELETE_GATE", id: selectedGate.id });
+    setSelectedGateId(null);
+  }
+
+  // Gates sheet callbacks route to PLACE spec (no selection) or EDIT the
+  // selected gate — the sheet is presentational and doesn't know which.
+  function onGatePickType(type: "single" | "double" | "sliding") {
+    if (selectedGate) editSelectedGate({ gateType: type });
+    else setPendingGateType(type);
+  }
+  function onGatePickWidth(w: number) {
+    setPendingGateCustom(false);
+    if (selectedGate) editSelectedGate({ width_ft: w });
+    else setPendingGateWidth(w);
+  }
+  function onGatePickCustom() {
+    setPendingGateCustom(true);
+    if (selectedGate) setCustomWidthInput(selectedGate.width_ft);
+  }
+  function onGateApplyCustom() {
+    if (selectedGate) editSelectedGate({ width_ft: customWidthInput });
+    else setPendingGateWidth(customWidthInput);
+  }
+
+  // Build the gates array to persist: legacy gates pass through untouched;
+  // new-model gates write in the {type, width_ft, position, runIndex, segIndex}
+  // shape. Desktop keeps its existing legacy PlacedGate flow byte-for-byte.
+  function buildSaveGates() {
+    if (!aimMode) return gates;
+    const newModel = drawGates.map((g) => {
+      const run = drawState.runs[g.runIndex];
+      const a = run?.posts[g.segIndex];
+      const b = run?.posts[g.segIndex + 1];
+      let position: { lat: number; lng: number } | undefined;
+      if (a && b) {
+        const c = offsetToCoord(a, b, g.offset_ft);
+        position = { lat: c[1], lng: c[0] };
+      }
+      return {
+        type: g.type,
+        width_ft: g.width_ft,
+        position,
+        runIndex: g.runIndex,
+        segIndex: g.segIndex,
+      };
+    });
+    const legacy = loadedGates.filter((g) => typeof g.count === "number");
+    return [...legacy, ...newModel];
+  }
 
   // Touch devices get aim mode; fine pointers keep the desktop draw. Set once.
   useEffect(() => {
@@ -315,6 +499,8 @@ function DrawPageInner() {
     setAimUiMode("draw");
     setTracedHelper(false);
     setSelection(null);
+    setGatesMode(false);
+    setSelectedGateId(null);
   }
   function aimAddPosts() {
     setAimUiMode("draw");
@@ -513,6 +699,7 @@ function DrawPageInner() {
           throw new Error(t.draw.missingCoords);
         }
         setQuote(q);
+        if (Array.isArray(q.gates)) setLoadedGates(q.gates as StoredGate[]);
         if (Array.isArray(q.photoUrls)) setPhotos(q.photoUrls);
         if (q.photoAudit) setInitialAudit(q.photoAudit as PhotoAudit);
         if (q.parcelBoundary) {
@@ -788,7 +975,7 @@ function DrawPageInner() {
             slope_self_reported: slopeUserOverrodeRef.current,
             demo_required: demoRequired,
             demo_type: demoRequired ? "CEDAR" : "NONE",
-            gates,
+            gates: buildSaveGates(),
           }),
         });
         if (!r.ok) {
@@ -984,11 +1171,17 @@ function DrawPageInner() {
                   centerLng={lng}
                   onChange={aimMode ? noopStats : setStats}
                   aimMode={aimMode}
-                  adjustMode={aimMode && aimUiMode === "adjust"}
+                  adjustMode={aimMode && aimUiMode === "adjust" && !gatesMode}
                   onPostDrag={handlePostDrag}
                   onCheckpoint={aimCheckpoint}
                   onSelect={setSelection}
-                  selection={aimUiMode === "adjust" ? selection : null}
+                  selection={aimUiMode === "adjust" && !gatesMode ? selection : null}
+                  gatesMode={aimMode && gatesMode && !detailsOpen}
+                  aimGates={aimMode ? aimGatesForMap : undefined}
+                  selectedGateId={selectedGateId}
+                  onGatePlace={handleGatePlace}
+                  onGateSelect={handleGateSelect}
+                  onAimGateMove={handleAimGateMove}
                   onMapMove={aimMode ? handleMapMove : undefined}
                   gates={gates}
                   gatePlacementMode={gateMode}
@@ -1003,7 +1196,7 @@ function DrawPageInner() {
               </MapErrorBoundary>
 
               <AimDrawOverlay
-                active={aimMode && !detailsOpen}
+                active={aimMode && !detailsOpen && !gatesMode}
                 stage={aimUiMode}
                 aiming={aimAiming}
                 canUndo={canUndo(drawState)}
@@ -1027,11 +1220,34 @@ function DrawPageInner() {
                 onDeleteSection={aimDeleteSection}
                 onClearSelection={() => setSelection(null)}
                 onNewLine={aimNewLine}
+                onAddGates={enterGatesMode}
+              />
+
+              <AimGatesOverlay
+                active={aimMode && !detailsOpen && gatesMode}
+                t={t}
+                count={drawGates.length}
+                type={activeType}
+                width={activeWidth}
+                isCustom={pendingGateCustom}
+                customWidth={customWidthInput}
+                onPickType={onGatePickType}
+                onPickWidth={onGatePickWidth}
+                onPickCustom={onGatePickCustom}
+                onCustomWidthChange={setCustomWidthInput}
+                onApplyCustom={onGateApplyCustom}
+                editing={!!selectedGate}
+                onRemove={removeSelectedGate}
+                onDeselect={() => setSelectedGateId(null)}
+                deferred={gateDeferred}
+                tooWide={gateTooWide}
+                onDone={exitGatesMode}
+                onSheetHeight={handleSheetHeight}
               />
 
               {/* Aim mode: trace pill (top-right, under the address bar) +
                   a small Help chip (bottom-left, by the map controls). */}
-              {aimMode && parcelBoundary && !gateMode && (
+              {aimMode && parcelBoundary && !gateMode && !gatesMode && (
                 <button
                   type="button"
                   data-aim-slot="trace"
