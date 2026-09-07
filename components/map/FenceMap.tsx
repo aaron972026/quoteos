@@ -23,6 +23,7 @@ import {
   fenceDrawStyles,
 } from "@/lib/map/draw-config";
 import { cornerCount, geometryLF } from "@/lib/map/linear-feet";
+import { SNAP_RADIUS_PX } from "@/lib/map/draw-state";
 import type { GateType } from "@/lib/pricing/types";
 
 export interface PlacedGate {
@@ -110,6 +111,12 @@ export interface FenceMapHandle {
    * exactly what lands.
    */
   getReticleCoord(): [number, number] | null;
+  /**
+   * The coord to Drop at: the reticle coord, OR — when a post is within
+   * SNAP_RADIUS_PX of the reticle — that post's EXACT stored coord (`snapped:
+   * true`), forming a junction. Never a nearby value.
+   */
+  getDropCoord(): { coord: [number, number]; snapped: boolean } | null;
   /** Fit the camera to these coords, respecting the bottom padding. */
   fitToCoords(coords: number[][]): void;
 }
@@ -274,6 +281,37 @@ function hitPost(
     /* layer may not exist yet */
   }
   return null;
+}
+
+/**
+ * Nearest existing post whose SCREEN projection is within SNAP_RADIUS_PX of
+ * `point`, or null. Returns the post's EXACT stored coord (bit-identical — the
+ * caller snaps to it verbatim to form a junction). `exclude` skips the post
+ * being dragged.
+ */
+function snapTarget(
+  map: mapboxgl.Map,
+  point: { x: number; y: number },
+  runs: number[][][],
+  exclude?: { r: number; i: number }
+): { coord: [number, number]; r: number; i: number } | null {
+  let best: { coord: [number, number]; r: number; i: number } | null = null;
+  let bestD = SNAP_RADIUS_PX * SNAP_RADIUS_PX;
+  for (let r = 0; r < runs.length; r++) {
+    for (let i = 0; i < runs[r].length; i++) {
+      if (exclude && exclude.r === r && exclude.i === i) continue;
+      const [lng, lat] = runs[r][i];
+      const p = map.project([lng, lat]);
+      const dx = p.x - point.x;
+      const dy = p.y - point.y;
+      const d = dx * dx + dy * dy;
+      if (d <= bestD) {
+        bestD = d;
+        best = { coord: [lng, lat], r, i };
+      }
+    }
+  }
+  return best;
 }
 
 /** Squared distance (px) from point p to segment ab, in screen space. */
@@ -478,6 +516,22 @@ export default function FenceMap({
     renderAimSelection();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection, aimTick]);
+
+  // Gold ring on the post the reticle would snap to (draw mode). Cleared when
+  // nothing's in range.
+  function renderSnapCandidate(coord: [number, number] | null) {
+    const map = mapRef.current;
+    const src = map?.getSource("qos-aim-snap") as
+      | mapboxgl.GeoJSONSource
+      | undefined;
+    if (!src) return;
+    src.setData({
+      type: "FeatureCollection",
+      features: coord
+        ? [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: coord } }]
+        : [],
+    });
+  }
   useEffect(() => {
     const map = mapRef.current;
     if (!aimMode || !map) {
@@ -714,6 +768,26 @@ export default function FenceMap({
             },
           });
         }
+        // Snap candidate — the gold ring that flashes on a post the reticle is
+        // about to magnetize onto (draw mode). Its own source so it never
+        // fights the selection highlight.
+        if (!map.getSource("qos-aim-snap")) {
+          map.addSource("qos-aim-snap", {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          });
+          map.addLayer({
+            id: "qos-aim-snap-ring",
+            type: "circle",
+            source: "qos-aim-snap",
+            paint: {
+              "circle-radius": 16,
+              "circle-color": "rgba(201,154,63,0.15)",
+              "circle-stroke-color": "#C99A3F",
+              "circle-stroke-width": 3,
+            },
+          });
+        }
       } catch (err) {
         console.warn("[FenceMap] aim layer init failed:", err);
       }
@@ -722,6 +796,15 @@ export default function FenceMap({
     // Aim-and-drop: stream the map center to the page so it can move the live
     // preview segment under the reticle. No-op unless onMapMove is provided.
     map.on("move", () => {
+      // Live snap-candidate ring: in draw mode, flag the post the reticle would
+      // magnetize onto so the drop is predictable.
+      if (aimModeRef.current && !adjustModeRef.current) {
+        const sp = aimScreenPoint(map, bottomPaddingRef.current);
+        const snap = snapTarget(map, sp, aimRunsRef.current);
+        renderSnapCandidate(snap ? snap.coord : null);
+      } else {
+        renderSnapCandidate(null);
+      }
       const cb = onMapMoveRef.current;
       if (!cb) return;
       // Same single source as the reticle + Drop — never raw getCenter.
@@ -772,9 +855,13 @@ export default function FenceMap({
       if (!g) return;
       if (g.post) map.dragPan.enable();
       if (g.dragging && g.post) {
-        onPostDragRef.current?.(g.post.r, g.post.i, g.last ?? [0, 0], "end");
+        // Snap the released post onto a nearby post's EXACT coord (heal a
+        // junction); double-tick haptic when it snaps.
+        const snap = snapTarget(map, e.point ?? g.start, aimRunsRef.current, g.post);
+        const finalCoord = snap ? snap.coord : (g.last ?? [0, 0]);
+        onPostDragRef.current?.(g.post.r, g.post.i, finalCoord, "end");
         if (typeof navigator !== "undefined" && navigator.vibrate) {
-          navigator.vibrate(10);
+          navigator.vibrate(snap ? [10, 40, 10] : 10);
         }
         return;
       }
@@ -2036,6 +2123,14 @@ export default function FenceMap({
     getReticleCoord() {
       const map = mapRef.current;
       return map ? aimCoord(map, bottomPaddingRef.current) : null;
+    },
+    getDropCoord() {
+      const map = mapRef.current;
+      if (!map) return null;
+      const sp = aimScreenPoint(map, bottomPaddingRef.current);
+      const snap = snapTarget(map, sp, aimRunsRef.current);
+      if (snap) return { coord: snap.coord, snapped: true };
+      return { coord: aimCoord(map, bottomPaddingRef.current), snapped: false };
     },
     fitToCoords(coords) {
       const map = mapRef.current;

@@ -58,6 +58,10 @@ export type DrawAction =
   | { type: "NEW_LINE" }
   /** Snapshot the present into history without changing it (drag start). */
   | { type: "CHECKPOINT" }
+  /** Merge normalization: collapse posts within MERGE_TOLERANCE_FT — cross-run
+   * unifies to a shared coord (junction), same-run adjacent removes the
+   * degenerate segment. Run on drop / drag-release / finish / save. */
+  | { type: "NORMALIZE" }
   /** Replace the whole state (e.g. hydrate a desktop edit into the model). */
   | { type: "SET"; state: DrawState };
 
@@ -65,6 +69,20 @@ export const EMPTY_DRAW_STATE: DrawState = { runs: [], current: [] };
 
 /** Minimum posts before a run can be Finished (a segment needs two ends). */
 export const MIN_POSTS_TO_FINISH = 2;
+
+/** Screen-space magnet radius for snap-to-post (px). Used by FenceMap. */
+export const SNAP_RADIUS_PX = 18;
+
+/**
+ * Real-world merge tolerance (feet). Posts within this collapse on
+ * drop/drag-release/finish/save — screen px varies with zoom, feet doesn't.
+ */
+export const MERGE_TOLERANCE_FT = 0.5;
+
+/** Feet between two coords (turf geodesic, exact at fence scale). */
+function feetBetween(a: Post, b: Post): number {
+  return runLF([a, b]);
+}
 
 const HISTORY_LIMIT = 60;
 
@@ -192,6 +210,53 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
 
     case "CHECKPOINT":
       return { ...state, past: pushHistory(state) };
+
+    case "NORMALIZE": {
+      // Work on a mutable copy of every run (committed + current, current last).
+      const arr: Post[][] = [
+        ...state.runs.map((r) => [...r.posts]),
+        [...state.current],
+      ];
+      let changed = false;
+
+      // 1) Same-run adjacent collapse — remove a post within tolerance of its
+      //    immediate predecessor (degenerate ~zero segment). Loop-close is
+      //    last-vs-first (not adjacent), so it's never touched here.
+      for (const posts of arr) {
+        for (let k = posts.length - 1; k >= 1; k--) {
+          if (feetBetween(posts[k], posts[k - 1]) < MERGE_TOLERANCE_FT) {
+            posts.splice(k, 1); // collapse to the older (k-1) post
+            changed = true;
+          }
+        }
+      }
+
+      // 2) Cross-run unification — a later post within tolerance of an earlier
+      //    post in another run snaps to that earlier post's EXACT coord (a
+      //    junction). Older = earlier in [...runs, current] order.
+      for (let r1 = 0; r1 < arr.length; r1++) {
+        for (let i1 = 0; i1 < arr[r1].length; i1++) {
+          const a = arr[r1][i1];
+          for (let r2 = r1 + 1; r2 < arr.length; r2++) {
+            for (let i2 = 0; i2 < arr[r2].length; i2++) {
+              const b = arr[r2][i2];
+              if (!sameCoord(a, b) && feetBetween(a, b) < MERGE_TOLERANCE_FT) {
+                arr[r2][i2] = a; // unify to the older coord
+                changed = true;
+              }
+            }
+          }
+        }
+      }
+
+      if (!changed) return state;
+      const current = arr[arr.length - 1];
+      const runs = arr
+        .slice(0, -1)
+        .filter((p) => p.length >= MIN_POSTS_TO_FINISH)
+        .map((p) => ({ posts: p, closed: false }));
+      return { runs, current, past: pushHistory(state) };
+    }
 
     case "START_OVER":
       return EMPTY_DRAW_STATE; // also clears history

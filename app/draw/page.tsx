@@ -257,22 +257,14 @@ function DrawPageInner() {
   }, [aimMode, aimAiming, aimZoomOk, drawState]);
 
   function aimDrop() {
-    // Unproject the reticle point (never raw getCenter) so what's under the
-    // crosshair is exactly what lands.
-    const c = mapRef.current?.getReticleCoord();
-    if (!c || !aimZoomOk) return;
-    if (process.env.NODE_ENV !== "production") {
-      const gc = mapRef.current?.getMapCenter();
-      if (gc && (Math.abs(gc[0] - c[0]) > 1e-6 || Math.abs(gc[1] - c[1]) > 1e-6)) {
-        console.warn("[aim] reticle/center drift — check bottom padding", {
-          reticle: c,
-          paddedCenter: gc,
-        });
-      }
-    }
-    dispatch({ type: "DROP_POST", pos: c });
+    // Drop at the reticle, OR snap to a post within SNAP_RADIUS_PX (its EXACT
+    // coord → junction). Double-tick haptic on a snap; then normalize merges.
+    const drop = mapRef.current?.getDropCoord();
+    if (!drop || !aimZoomOk) return;
+    dispatch({ type: "DROP_POST", pos: drop.coord });
+    dispatch({ type: "NORMALIZE" });
     if (typeof navigator !== "undefined" && navigator.vibrate) {
-      navigator.vibrate(10);
+      navigator.vibrate(drop.snapped ? [10, 40, 10] : 10);
     }
   }
 
@@ -313,6 +305,7 @@ function DrawPageInner() {
   // committed runs and branches can tee off them, then switches to Adjust.
   function aimFinish() {
     if (!canFinish(drawState)) return;
+    dispatch({ type: "NORMALIZE" }); // heal any near-doubles before committing
     dispatch({ type: "NEW_LINE" });
     setAimUiMode("adjust");
     setTracedHelper(false);
@@ -331,9 +324,12 @@ function DrawPageInner() {
   function handlePostDrag(
     runIndex: number,
     postIndex: number,
-    coord: [number, number]
+    coord: [number, number],
+    phase: "move" | "end"
   ) {
     dispatch({ type: "MOVE_POST", runIndex, postIndex, coord });
+    // On release, heal a post dragged onto a corner into a junction.
+    if (phase === "end") dispatch({ type: "NORMALIZE" });
   }
   function aimCheckpoint() {
     dispatch({ type: "CHECKPOINT" });

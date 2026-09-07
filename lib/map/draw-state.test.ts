@@ -285,6 +285,88 @@ describe("branching, delete, split (B1)", () => {
   });
 });
 
+describe("snap merge normalization (NORMALIZE)", () => {
+  const E: Post = [-95.9922, 36.1543];
+  // deg latitude per foot (turf haversine, R=6371.0088km) — for sub-foot offsets
+  const FT = 2.7411e-6;
+  const near = (base: Post, ft: number): Post => [base[0], base[1] + ft * FT];
+  const set = (runs: Post[][], current: Post[] = []): DrawState => ({
+    runs: runs.map((posts) => ({ posts, closed: false })),
+    current,
+  });
+
+  it("collapses a same-run adjacent degenerate segment (keeps the older post)", () => {
+    const s = set([[A, near(A, 0.3), B]]); // A and its near-dup are adjacent
+    const n = drawReducer(s, { type: "NORMALIZE" });
+    expect(n.runs[0].posts).toEqual([A, B]); // near-dup removed, A kept
+  });
+
+  it("unifies a cross-run near-coincidence to the older exact coord (junction)", () => {
+    const cNear = near(C, 0.3);
+    const s = set([
+      [A, B, C],
+      [cNear, D],
+    ]);
+    const n = drawReducer(s, { type: "NORMALIZE" });
+    // run2's first post becomes C's EXACT coord — bit-identical junction.
+    expect(n.runs[1].posts[0]).toEqual(C);
+    expect(n.runs[1].posts[0][0] === C[0] && n.runs[1].posts[0][1] === C[1]).toBe(
+      true
+    );
+  });
+
+  it("the snapped junction then drags as one under MOVE_POST", () => {
+    const s = drawReducer(set([[A, B, C], [near(C, 0.3), D]]), {
+      type: "NORMALIZE",
+    });
+    // Move C (run 0, index 2) — the unified run-1 endpoint moves with it.
+    const moved = drawReducer(s, {
+      type: "MOVE_POST",
+      runIndex: 0,
+      postIndex: 2,
+      coord: E,
+    });
+    expect(moved.runs[0].posts[2]).toEqual(E);
+    expect(moved.runs[1].posts[0]).toEqual(E); // junction carried
+  });
+
+  it("preserves an intentional loop-close (last == first, not adjacent)", () => {
+    const ring = [A, B, C, A];
+    const n = drawReducer(set([ring]), { type: "NORMALIZE" });
+    expect(n.runs[0].posts).toEqual([A, B, C, A]); // untouched
+  });
+
+  it("tolerance boundary: 0.49 ft merges, 0.51 ft does not", () => {
+    const bNear = near(B, 0.49);
+    const bFar = near(B, 0.51);
+    expect(runLF([B, bNear])).toBeLessThan(0.5); // preconditions
+    expect(runLF([B, bFar])).toBeGreaterThan(0.5);
+
+    const merged = drawReducer(set([[A, B], [bNear, D]]), { type: "NORMALIZE" });
+    expect(merged.runs[1].posts[0]).toEqual(B); // unified
+
+    const untouched = drawReducer(set([[A, B], [bFar, D]]), {
+      type: "NORMALIZE",
+    });
+    expect(untouched.runs[1].posts[0]).toEqual(bFar); // left alone
+  });
+
+  it("is a no-op (no history push) when nothing is within tolerance", () => {
+    const s = set([[A, B, C]]);
+    expect(drawReducer(s, { type: "NORMALIZE" })).toEqual(s);
+  });
+
+  it("UNDO restores the pre-merge state", () => {
+    const before = set([[A, B, C], [near(C, 0.3), D]]);
+    const merged = drawReducer(before, { type: "NORMALIZE" });
+    const u = drawReducer(merged, { type: "UNDO" });
+    expect(u.runs.map((r) => r.posts)).toEqual([
+      [A, B, C],
+      [near(C, 0.3), D],
+    ]);
+  });
+});
+
 describe("start over", () => {
   it("clears every run and the active run", () => {
     let s = drop(EMPTY_DRAW_STATE, A, B);
