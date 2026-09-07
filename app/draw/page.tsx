@@ -71,6 +71,7 @@ import { cn } from "@/lib/utils";
 import { AimDrawOverlay } from "@/components/map/AimDrawOverlay";
 import { AimGatesOverlay } from "@/components/map/AimGatesOverlay";
 import { offsetToCoord, pointToOffset } from "@/lib/map/gate-geo";
+import { mapDiag } from "@/lib/map/diag";
 import {
   drawReducer,
   EMPTY_DRAW_STATE,
@@ -191,6 +192,10 @@ function DrawPageInner() {
   const [loadedGates, setLoadedGates] = useState<StoredGate[]>([]);
   const [gateMode, setGateMode] = useState(false);
   const [gateModeError, setGateModeError] = useState(false);
+  // Bumped when the FenceMap instance finishes loading (incl. after a remount)
+  // — a dep of the aim-geometry render effect so geometry is re-pushed onto a
+  // fresh map instance even when it settled while the handle was null.
+  const [mapReadyTick, setMapReadyTick] = useState(0);
   // Gates sheet expand/collapse: full sheet to choose type+width, then auto-
   // collapse to a slim bar so the map is clear for the placement tap.
   const [gatesExpanded, setGatesExpanded] = useState(true);
@@ -330,11 +335,19 @@ function DrawPageInner() {
   function handleGatePlace(runIndex: number, segIndex: number, offset_ft: number) {
     const width = effectivePendingWidth;
     const segLen = segmentLengthFt(drawState.runs, runIndex, segIndex);
-    if (segLen <= 0) return; // no such segment — silent
+    mapDiag(
+      `handleGatePlace r${runIndex}s${segIndex} · width=${width}ft · segLen=${segLen.toFixed(1)}ft · offset=${offset_ft.toFixed(2)}`
+    );
+    if (segLen <= 0) {
+      mapDiag("handleGatePlace REJECT: segLen<=0 (bad segment index)");
+      return; // no such segment — silent
+    }
     if (width > segLen) {
+      mapDiag("handleGatePlace REJECT: width > segLen (too wide)");
       flashTooWide();
       return;
     }
+    mapDiag("handleGatePlace → PLACE_GATE dispatched");
     dispatch({
       type: "PLACE_GATE",
       gate: {
@@ -659,11 +672,14 @@ function DrawPageInner() {
 
   // Render the reducer geometry to the map layer as it changes / as the map
   // pans under the reticle. Multi-run: every run + its posts, plus the preview
-  // from the active run's last post.
+  // from the active run's last post. mapReadyTick is a dep so that when the map
+  // (re)mounts and loads AFTER the geometry has settled, we re-push it onto the
+  // fresh instance — otherwise setAimGeometry no-ops (handle was null) and the
+  // fence + aimRunsRef never populate, so gate taps hit nothing.
   useEffect(() => {
     if (!aimMode) return;
     mapRef.current?.setAimGeometry(aimRunCoords, aimPreviewTo);
-  }, [aimMode, aimRunCoords, aimPreviewTo]);
+  }, [aimMode, aimRunCoords, aimPreviewTo, mapReadyTick]);
 
   // Selection only lives in Adjust — clear it whenever we're not adjusting so
   // no gold ring lingers into the draw sheet.
@@ -1311,6 +1327,7 @@ function DrawPageInner() {
                   onGateSelect={handleGateSelect}
                   onAimGateMove={handleAimGateMove}
                   onMapMove={aimMode ? handleMapMove : undefined}
+                  onReady={() => setMapReadyTick((t) => t + 1)}
                   gates={gates}
                   gatePlacementMode={gatePlacementActive}
                   onGateModeError={setGateModeError}

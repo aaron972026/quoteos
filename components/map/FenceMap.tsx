@@ -25,6 +25,7 @@ import {
 import { cornerCount, geometryLF } from "@/lib/map/linear-feet";
 import { SNAP_RADIUS_PX, runLF } from "@/lib/map/draw-state";
 import { offsetToCoord, pointToOffset } from "@/lib/map/gate-geo";
+import { mapDiag } from "@/lib/map/diag";
 import type { GateType } from "@/lib/pricing/types";
 
 export interface PlacedGate {
@@ -197,6 +198,14 @@ interface Props {
   // Aim-and-drop: fires on every map move with the new center [lng, lat] so
   // the page can update the live preview segment to the reticle.
   onMapMove?: (center: [number, number]) => void;
+  /**
+   * Fires when the map (this instance) finishes loading — including after a
+   * re-mount. The page uses it to (re-)push aim geometry via setAimGeometry:
+   * the geometry can settle while the handle is momentarily null (async load /
+   * StrictMode / reload remount), and without this it would never reach the new
+   * instance — leaving an empty aimRunsRef so gate taps hit nothing.
+   */
+  onReady?: () => void;
   /**
    * Mobile aim mode: suspends the loupe/long-press/tap touch handlers so the
    * map pans freely under the reticle, and parks gl-draw in the inert
@@ -413,6 +422,36 @@ function hitSegment(
   return best;
 }
 
+/**
+ * Nearest segment + its screen-pixel distance, ignoring any threshold — for
+ * diagnostics. If distance comes back in the thousands while the tap is visibly
+ * on the line, the tap point and the projected segment are in different
+ * coordinate spaces (the classic padded/container/client mismatch).
+ */
+function nearestSegInfo(
+  map: mapboxgl.Map,
+  point: { x: number; y: number },
+  runs: number[][][]
+): { r: number; segIndex: number; distPx: number } | null {
+  let best: { r: number; segIndex: number } | null = null;
+  let bestD = Infinity;
+  for (let r = 0; r < runs.length; r++) {
+    const coords = runs[r];
+    if (!coords || coords.length < 2) continue;
+    let prev = map.project(coords[0] as [number, number]);
+    for (let s = 0; s < coords.length - 1; s++) {
+      const cur = map.project(coords[s + 1] as [number, number]);
+      const d = segDistSq(point, prev, cur);
+      if (d < bestD) {
+        bestD = d;
+        best = { r, segIndex: s };
+      }
+      prev = cur;
+    }
+  }
+  return best ? { ...best, distPx: Math.sqrt(bestD) } : null;
+}
+
 /** Gate id whose glyph is under `point` within a ≥44px hit box, or null. */
 function hitGate(map: mapboxgl.Map, point: mapboxgl.Point): string | null {
   const r = 22;
@@ -456,6 +495,7 @@ export default function FenceMap({
   trimHandles,
   onTrimHandleDrag,
   onMapMove,
+  onReady,
   aimMode,
   adjustMode,
   onPostDrag,
@@ -489,6 +529,11 @@ export default function FenceMap({
   onChangeRef.current = onChange;
   const onMapMoveRef = useRef(onMapMove);
   onMapMoveRef.current = onMapMove;
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  // Last run-length signature pushed to setAimGeometry — throttles the diag line
+  // so panning (preview-only updates) doesn't flood the ring buffer.
+  const lastAimSigRef = useRef<string>("");
   const onGatePointPickedRef = useRef(onGatePointPicked);
   onGatePointPickedRef.current = onGatePointPicked;
   const onGateMoveRef = useRef(onGateMove);
@@ -842,6 +887,8 @@ export default function FenceMap({
           /* draw not ready — the modechange listener + purge still cover it */
         }
       }
+      // Map (re)ready → let the page re-push aim geometry onto THIS instance.
+      onReadyRef.current?.();
     });
     map.on("style.load", () => {
       console.info("[FenceMap] style.load fired");
@@ -1172,6 +1219,7 @@ export default function FenceMap({
     map.on("touchstart", (e) => {
       if (!gatesModeRef.current) return;
       const gateId = hitGate(map, e.point);
+      mapDiag(`gate touchstart @${e.point.x | 0},${e.point.y | 0} · gateId=${gateId ?? "none"}`);
       gateGestureRef.current = {
         start: e.point,
         gateId,
@@ -1203,29 +1251,52 @@ export default function FenceMap({
         e.preventDefault();
       }
     });
+    const GATE_TAP_SLOP_PX = 28;
     const endGateGesture = (e: mapboxgl.MapTouchEvent) => {
       const g = gateGestureRef.current;
       gateGestureRef.current = null;
-      if (!g) return;
+      if (!g) {
+        if (gatesModeRef.current) mapDiag("gate touchend: no gesture (missed touchstart?)");
+        return;
+      }
       if (g.gateId) map.dragPan.enable();
-      if (g.dragging) return; // slide already applied live
-      if (g.moved) return; // a pan — leave gates untouched
       const pt = e.point ?? g.start;
+      // (i) touchend received · (ii) gates-active flag · gesture classification
+      mapDiag(
+        `gate touchend @${pt.x | 0},${pt.y | 0} · active=${gatesModeRef.current} · moved=${g.moved} · drag=${g.dragging} · gateId=${g.gateId ?? "none"}`
+      );
+      if (g.dragging) {
+        mapDiag("gate tap outcome: SKIP (was a drag)");
+        return; // slide already applied live
+      }
+      if (g.moved) {
+        mapDiag("gate tap outcome: SKIP (moved > 8px → pan)");
+        return; // a pan — leave gates untouched
+      }
       if (g.gateId) {
+        mapDiag(`gate tap outcome: SELECT ${g.gateId}`);
         onGateSelectRef.current?.(g.gateId); // tap on a glyph → select
         return;
       }
-      // Tap on the line → place at the projected offset; empty → deselect.
-      // Generous 28px slop: placing a gate should forgive an imprecise tap.
-      const seg = hitSegment(map, pt, aimRunsRef.current, 28);
+      // (iii) hit-test: nearest segment distance in px vs the applied slop.
+      const near = nearestSegInfo(map, pt, aimRunsRef.current);
+      mapDiag(
+        `gate hit-test: ${near ? `nearest r${near.r}s${near.segIndex} dist=${near.distPx.toFixed(1)}px` : "no runs"} · slop=${GATE_TAP_SLOP_PX}px`
+      );
+      const seg = hitSegment(map, pt, aimRunsRef.current, GATE_TAP_SLOP_PX);
       const run = seg ? aimRunsRef.current[seg.r] : undefined;
       const a = run?.[seg?.segIndex ?? -1];
       const b = run?.[(seg?.segIndex ?? -1) + 1];
       if (seg && a && b) {
         const ll = map.unproject(pt);
-        onGatePlaceRef.current?.(seg.r, seg.segIndex, pointToOffset(a, b, [ll.lng, ll.lat]));
+        const offset = pointToOffset(a, b, [ll.lng, ll.lat]);
+        // (iv) outcome: PLACE_GATE dispatched {segment, offset}
+        mapDiag(`gate tap outcome: PLACE_GATE r${seg.r}s${seg.segIndex} offset=${offset.toFixed(2)}ft`);
+        onGatePlaceRef.current?.(seg.r, seg.segIndex, offset);
         return;
       }
+      // (iv) outcome: rejection reason
+      mapDiag("gate tap outcome: REJECT (no segment within slop) → deselect");
       onGateSelectRef.current?.(null);
     };
     map.on("touchend", endGateGesture);
@@ -1464,11 +1535,14 @@ export default function FenceMap({
     map.on("draw.update", reconcileGhosts);
     map.on("draw.render", reconcileGhosts);
 
-    // Test seam (non-production only): lets the e2e ghost-injection assert reach
-    // the live draw instance. Never present in the prod bundle.
+    // Test seam (non-production only): lets the e2e ghost-injection + gate-tap
+    // asserts reach the live draw + map instances. Never present in the prod
+    // bundle (guarded by NODE_ENV).
     if (process.env.NODE_ENV !== "production") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).__qosDraw = draw;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__qosMap = map;
     }
 
     // CRIT-1 auto-recovery: mapbox-gl-draw silently exits draw_line_string
@@ -2543,6 +2617,13 @@ export default function FenceMap({
     setAimGeometry(runs, previewTo) {
       const map = mapRef.current;
       aimRunsRef.current = runs;
+      // Log only on structural change — this fires on every pan frame while
+      // aiming, and we don't want the diag ring buffer flooded by preview moves.
+      const sig = runs.map((r) => r.length).join(",");
+      if (sig !== lastAimSigRef.current) {
+        lastAimSigRef.current = sig;
+        mapDiag(`setAimGeometry: ${runs.length} run(s), lens=[${sig}]`);
+      }
       const src = map?.getSource("qos-aim") as
         | mapboxgl.GeoJSONSource
         | undefined;

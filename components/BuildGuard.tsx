@@ -17,6 +17,24 @@ import { useEffect, useState } from "react";
  */
 export function BuildGuard() {
   const [debug, setDebug] = useState(false);
+  const [diag, setDiag] = useState<string[]>([]);
+
+  // Poll the diag ring buffer so the overlay shows the live gate-tap trace on a
+  // phone (same lines the headless e2e reads from the console).
+  useEffect(() => {
+    if (!debug) return;
+    const tick = () => {
+      try {
+        const w = window as unknown as { __qosDiag?: string[] };
+        setDiag(w.__qosDiag ? [...w.__qosDiag] : []);
+      } catch {
+        /* ignore */
+      }
+    };
+    tick();
+    const iv = setInterval(tick, 400);
+    return () => clearInterval(iv);
+  }, [debug]);
 
   useEffect(() => {
     // Kill any legacy service worker + its caches (one-time, best-effort).
@@ -51,19 +69,29 @@ export function BuildGuard() {
         position: "fixed",
         bottom: "calc(env(safe-area-inset-bottom) + 8px)",
         left: 8,
+        right: 8,
         zIndex: 9999,
         pointerEvents: "none",
         fontFamily: "var(--font-mono), monospace",
-        fontSize: 11,
-        lineHeight: 1,
-        padding: "5px 8px",
+        fontSize: 10,
+        lineHeight: 1.35,
+        padding: "6px 8px",
         borderRadius: 6,
         background: "rgba(22,18,13,0.9)",
         color: "#FCF9F1",
-        letterSpacing: "0.04em",
+        letterSpacing: "0.02em",
+        maxHeight: "40vh",
+        overflowY: "auto",
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
       }}
     >
-      build {sha}
+      <div style={{ fontWeight: 700, marginBottom: diag.length ? 4 : 0 }}>
+        build {sha}
+      </div>
+      {diag.map((line, i) => (
+        <div key={i}>{line}</div>
+      ))}
     </div>
   );
 }

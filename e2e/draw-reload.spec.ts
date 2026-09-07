@@ -312,3 +312,55 @@ test("aim reconciles away a ghost gl-draw feature; Start Over empties the store"
     .poll(() => page.evaluate(() => (window as any).__qosDraw.getAll().features.length))
     .toBe(0);
 });
+
+// THE placement test the suite was missing: a tap ON the rendered line must
+// actually place a gate. Reproduces Aaron's "tap → nothing" headlessly.
+test("aim: a tap on the fence line places a gate", async ({ page }) => {
+  const lines: string[] = [];
+  page.on("console", (m) => {
+    const t = m.text();
+    if (t.includes("[map-diag]")) lines.push(t);
+  });
+  const diag = watchMapDiag(page);
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("qos-draw-onboarded-v1", "1");
+    } catch {
+      /* private mode */
+    }
+  });
+  const id = await seedQuote(page);
+
+  await page.goto(`/draw?q=${id}`);
+  await expectMapUp(page, diag, 1);
+
+  // Enter gates via the tab, then pick a width so the sheet minimizes and the
+  // fence line is clear for the tap.
+  const tab = page.getByRole("button", { name: "Add Gate", exact: true });
+  await expect(tab).toBeEnabled();
+  await tab.click();
+  await page.getByRole("button", { name: "6'", exact: true }).click();
+  await expect.poll(() => diag.gateModes.length).toBeGreaterThanOrEqual(1);
+
+  // Wait for the map instance, then project the MIDPOINT of the first seeded
+  // segment ([-95.9797,36.1266]→[-95.9793,36.1266]) to a screen tap. Project
+  // after minimize so the bottom-padding recenter is already applied.
+  await expect.poll(() => page.evaluate(() => !!(window as any).__qosMap)).toBe(true);
+  await page.waitForTimeout(400);
+  const tapPt = await page.evaluate(() => {
+    const map = (window as any).__qosMap;
+    const p = map.project([-95.9795, 36.1266]); // container px
+    const rect = map.getCanvas().getBoundingClientRect();
+    return { x: rect.left + p.x, y: rect.top + p.y };
+  });
+
+  await page.touchscreen.tap(tapPt.x, tapPt.y);
+
+  // The reducer must receive the placement, and the gate count must reach 1.
+  await expect
+    .poll(() => lines.some((l) => l.includes("handleGatePlace → PLACE_GATE dispatched")), {
+      message: "PLACE_GATE reached the reducer",
+    })
+    .toBe(true);
+  await expect(page.getByText(/1 gates placed/i)).toBeVisible();
+});
