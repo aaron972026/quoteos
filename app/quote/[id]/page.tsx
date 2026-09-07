@@ -25,6 +25,7 @@ import { useT, useLocale } from "@/lib/i18n/use-locale";
 import { formatInstallWeek } from "@/lib/scheduling/install-week";
 import { BUSINESS, PHONE_HREF } from "@/lib/business";
 import { formatCents } from "@/lib/utils";
+import { countDeferredGates } from "@/lib/pricing/gates";
 
 interface QuoteShape {
   id: string;
@@ -50,7 +51,7 @@ interface QuoteShape {
   priceHoldExpiresAt: string | null;
   reservedWeekStart: string | null; // 'YYYY-MM-DD'
   holdEmailSentAt: string | null;
-  gates?: Array<{ type: string; count: number }> | null;
+  gates?: Array<{ type: string; count?: number; width_ft?: number }> | null;
 }
 
 interface PricingBreakdown {
@@ -415,6 +416,7 @@ export default function QuotePage({ params }: { params: { id: string } }) {
                     ? pricing.deposit_cents
                     : 0
                 }
+                deferredGateCount={countDeferredGates(quote.gates)}
               />
 
               {/* Schedule preview */}
@@ -771,6 +773,12 @@ function CommitmentStep({
 
       <p className="mt-4 text-center font-body text-[13px] leading-[1.5] text-steel">
         {c.reassurance}
+        {countDeferredGates(quote.gates) > 0 && (
+          <>
+            {" "}
+            <span className="text-char">{c.deferredClause}</span>
+          </>
+        )}
       </p>
     </div>
   );
@@ -785,6 +793,8 @@ interface InvoiceCardProps {
   finalPrice: number;
   /** $ applied after an install-week reservation (0 otherwise). */
   reservationCreditCents: number;
+  /** Gates excluded from the locked total (sliding / oversized). */
+  deferredGateCount: number;
 }
 
 function InvoiceCard({
@@ -795,6 +805,7 @@ function InvoiceCard({
   rawSubtotal,
   finalPrice,
   reservationCreditCents,
+  deferredGateCount,
 }: InvoiceCardProps) {
   const ratePerLf = lf > 0 ? breakdown.base_fence_cents / lf : 0;
   // Guards (margin floor + min profit) are INTERNAL pricing protections.
@@ -817,7 +828,12 @@ function InvoiceCard({
   // standalone charges when the bundle is active, so they fall out of the
   // filter below (no double-charge). They're re-surfaced as "included"
   // sub-lines under the Ironclad upgrade so the customer sees the value.
-  const lines: Array<{ label: string; cents: number; included?: string[] }> = [
+  const lines: Array<{
+    label: string;
+    cents: number;
+    included?: string[];
+    deferred?: boolean;
+  }> = [
     { label: baseFenceLabel, cents: adjustedBaseFence },
     {
       label: "Ivory Standard upgrade",
@@ -840,7 +856,24 @@ function InvoiceCard({
     { label: t.quote.invoiceLineStain, cents: breakdown.stain_cents },
     { label: "Rock drilling", cents: breakdown.rock_drilling_cents },
     { label: "Concrete-post removal", cents: breakdown.tear_concrete_cents },
-  ].filter((l) => l.cents > 0);
+    // Deferred gates: shown with an em-dash amount (never $0 — a zero reads as
+    // "free"), excluded from the locked total.
+    ...(deferredGateCount > 0
+      ? [
+          {
+            label:
+              deferredGateCount === 1
+                ? t.quote.gateDeferredSingle
+                : t.quote.gateDeferredPlural.replace(
+                    "{n}",
+                    String(deferredGateCount)
+                  ),
+            cents: 0,
+            deferred: true,
+          },
+        ]
+      : []),
+  ].filter((l) => l.cents > 0 || l.deferred);
 
   // Permits + buried line inspection — both are baked into the total, but
   // shown to the customer as "incl." so the $75 permit doesn't trigger
@@ -877,7 +910,7 @@ function InvoiceCard({
               >
                 <span className="text-char">{line.label}</span>
                 <span className="font-mono text-[13px] tabular-nums text-navy">
-                  {formatCents(line.cents)}
+                  {line.deferred ? "—" : formatCents(line.cents)}
                 </span>
               </li>,
             ];

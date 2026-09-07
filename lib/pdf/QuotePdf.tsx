@@ -134,6 +134,10 @@ export interface QuotePdfData {
   stainSeal: boolean;
   postType?: PostType;
   steelPostUpgrade?: boolean;
+  /** Pre-localized "N gates — priced at your visit" line, or null/undefined
+   * when there are no deferred gates. Rendered with an em-dash amount (never
+   * $0 — a zero would read as "free"). */
+  deferredGateLabel?: string | null;
   finalPriceCents: number;
   displayRangeLowCents: number;
   displayRangeHighCents: number;
@@ -308,6 +312,12 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
                 <Text style={styles.bdValue}>{fmt(cents)}</Text>
               </View>
             ))}
+            {data.deferredGateLabel ? (
+              <View style={styles.bdRow}>
+                <Text style={styles.bdLabel}>{data.deferredGateLabel}</Text>
+                <Text style={styles.bdValue}>—</Text>
+              </View>
+            ) : null}
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>{fmt(data.finalPriceCents)}</Text>

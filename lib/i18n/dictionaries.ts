@@ -266,6 +266,8 @@ export interface Dictionary {
     invoiceLineDemo: string;
     invoiceLineCorners: string;
     invoiceLineGates: string;
+    gateDeferredSingle: string; // "Sliding gate — priced at your visit"
+    gateDeferredPlural: string; // "{n} gates — priced at your visit"
     invoiceLinePermit: string;
     invoiceLineLineLocate: string;
     invoiceLineLineLocateValue: string;
@@ -303,6 +305,7 @@ export interface Dictionary {
     holdBody: string;
     holdButton: string;
     reassurance: string;
+    deferredClause: string; // appended under the cards when deferred gates exist
     reservedConfirm: string; // uses {date}
     creditLineLabel: string;
     heldConfirm: string; // uses {date}
@@ -666,6 +669,8 @@ const en: Dictionary = {
     invoiceLineDemo: "Tear-Out & Haul",
     invoiceLineCorners: "Corner Premium",
     invoiceLineGates: "Gates",
+    gateDeferredSingle: "Sliding gate — priced at your visit",
+    gateDeferredPlural: "{n} gates — priced at your visit",
     invoiceLinePermit: "Permits",
     invoiceLineLineLocate: "Buried Line Inspection (OK811)",
     invoiceLineLineLocateValue: "incl.",
@@ -736,6 +741,8 @@ const en: Dictionary = {
     holdButton: "Hold my price",
     reassurance:
       "Either way, nothing else is due until you approve the final plan.",
+    deferredClause:
+      "Your locked price covers everything itemized above; gates marked “priced at your visit” are quoted when we’re on site.",
     reservedConfirm:
       "You're on the calendar for the week of {date}. Your $99 is applied to your project total.",
     creditLineLabel: "Install week reservation — applied to your project",
@@ -1107,6 +1114,8 @@ const es: Dictionary = {
     invoiceLineDemo: "Retiro y acarreo",
     invoiceLineCorners: "Recargo por esquinas",
     invoiceLineGates: "Puertas",
+    gateDeferredSingle: "Puerta corrediza — precio en su visita",
+    gateDeferredPlural: "{n} puertas — precio en su visita",
     invoiceLinePermit: "Permisos",
     invoiceLineLineLocate: "Inspección de líneas (OK811)",
     invoiceLineLineLocateValue: "incl.",
@@ -1177,6 +1186,8 @@ const es: Dictionary = {
     holdButton: "Mantener mi precio",
     reassurance:
       "De cualquier forma, no se debe nada más hasta que apruebe el plan final.",
+    deferredClause:
+      "Su precio asegurado cubre todo lo detallado arriba; las puertas marcadas “precio en su visita” se cotizan cuando estemos en sitio.",
     reservedConfirm:
       "Está en el calendario para la semana del {date}. Sus $99 se aplican al total de su proyecto.",
     creditLineLabel: "Reserva de semana de instalación — aplicada a su proyecto",

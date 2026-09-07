@@ -19,6 +19,20 @@ import { loadPricingConfig } from "@/lib/pricing/load-config";
 import { PricingError, type GateType } from "@/lib/pricing/types";
 import { renderQuotePdf } from "@/lib/pdf/render-quote-pdf";
 import { fromAddress, getResend } from "@/lib/integrations/resend";
+import { countDeferredGates } from "@/lib/pricing/gates";
+import { getDict } from "@/lib/i18n/server";
+
+/** Localized "N gates — priced at your visit" line, or null when none. */
+function deferredGateLabel(
+  gates: Array<{ type?: string; width_ft?: number }> | null | undefined
+): string | null {
+  const n = countDeferredGates(gates);
+  if (n === 0) return null;
+  const { dict } = getDict();
+  return n === 1
+    ? dict.quote.gateDeferredSingle
+    : dict.quote.gateDeferredPlural.replace("{n}", String(n));
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -108,6 +122,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       displayRangeLowCents: priced.display_range_low_cents,
       displayRangeHighCents: priced.display_range_high_cents,
       breakdown: priced.breakdown,
+      deferredGateLabel: deferredGateLabel(
+        row.gates as Array<{ type?: string; width_ft?: number }> | null
+      ),
       validUntil: priced.valid_until,
     });
   } catch (err) {

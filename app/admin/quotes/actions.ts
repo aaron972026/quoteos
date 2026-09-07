@@ -10,6 +10,8 @@ import { PricingError, type GateType } from "@/lib/pricing/types";
 import { renderQuotePdf } from "@/lib/pdf/render-quote-pdf";
 import { fromAddress, getResend } from "@/lib/integrations/resend";
 import { getStripe } from "@/lib/integrations/stripe";
+import { countDeferredGates } from "@/lib/pricing/gates";
+import { getDict } from "@/lib/i18n/server";
 
 // These actions run behind the /admin Basic Auth middleware. They write
 // to quotes DIRECTLY (not through the public PATCH API) because the API
@@ -187,6 +189,16 @@ export async function resendQuoteEmail(
       displayRangeLowCents: displayLow,
       displayRangeHighCents: displayHigh,
       breakdown: priced.breakdown,
+      deferredGateLabel: (() => {
+        const n = countDeferredGates(
+          row.gates as Array<{ type?: string; width_ft?: number }> | null
+        );
+        if (n === 0) return null;
+        const { dict } = getDict();
+        return n === 1
+          ? dict.quote.gateDeferredSingle
+          : dict.quote.gateDeferredPlural.replace("{n}", String(n));
+      })(),
       // Delta between the stored (possibly admin-adjusted) total and the
       // engine derivation — rendered as its own line so the itemized
       // breakdown always sums to the printed Total.
