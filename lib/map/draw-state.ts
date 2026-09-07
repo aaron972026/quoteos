@@ -20,15 +20,37 @@ export interface DrawRun {
   closed: boolean;
 }
 
+/**
+ * A gate placed on one segment of a committed run (ADJUST mode). Gates never
+ * live on the active `current` run, so `runIndex` indexes `state.runs`
+ * directly (NOT the [...runs, current] virtual list the draw actions use).
+ * Selectors / toFeature / LF ignore gates entirely — they read posts only.
+ */
+export interface DrawGate {
+  /** Stable id supplied by the caller (UI); the reducer never mints ids. */
+  id: string;
+  /** Index into state.runs. */
+  runIndex: number;
+  /** Segment between posts[segIndex] and posts[segIndex + 1]. */
+  segIndex: number;
+  type: "single" | "double" | "sliding";
+  width_ft: number;
+  /** Gate CENTRE offset from the segment's start post, in feet. */
+  offset_ft: number;
+}
+
 export interface DrawState {
   /** Committed runs (each already Finished). */
   runs: DrawRun[];
   /** The active, still-being-drawn run. */
   current: Post[];
+  /** Gates placed on committed runs. Undefined = none. */
+  gates?: DrawGate[];
   /**
-   * Undo history — snapshots of {runs, current} pushed by each structural
-   * action (drop / delete / split / branch / new-line) and by CHECKPOINT
-   * (drag start). Selectors ignore it. UNDO pops it, so it spans runs.
+   * Undo history — snapshots of {runs, current, gates} pushed by each
+   * structural action (drop / delete / split / branch / new-line / gate) and
+   * by CHECKPOINT (drag start). Selectors ignore it. UNDO pops it, so it
+   * spans runs and gates.
    */
   past?: DrawState[];
 }
@@ -63,7 +85,18 @@ export type DrawAction =
    * degenerate segment. Run on drop / drag-release / finish / save. */
   | { type: "NORMALIZE" }
   /** Replace the whole state (e.g. hydrate a desktop edit into the model). */
-  | { type: "SET"; state: DrawState };
+  | { type: "SET"; state: DrawState }
+  /** Place a gate on a committed run's segment. No-op if the segment is
+   * missing or the gate is wider than the segment; offset is clamped. */
+  | { type: "PLACE_GATE"; gate: DrawGate }
+  /** Slide a gate along its segment (drag). Clamps offset; no history push
+   * (the UI dispatches CHECKPOINT at drag start, mirroring MOVE_POST). */
+  | { type: "MOVE_GATE"; id: string; offset_ft: number }
+  /** Edit a gate's type/width. No-op if the new width exceeds the segment;
+   * re-clamps offset for the new width. */
+  | { type: "EDIT_GATE"; id: string; gateType?: DrawGate["type"]; width_ft?: number }
+  /** Remove a gate. */
+  | { type: "DELETE_GATE"; id: string };
 
 export const EMPTY_DRAW_STATE: DrawState = { runs: [], current: [] };
 
@@ -87,7 +120,7 @@ function feetBetween(a: Post, b: Post): number {
 const HISTORY_LIMIT = 60;
 
 function snapshot(s: DrawState): DrawState {
-  return { runs: s.runs, current: s.current }; // strip past — no nesting
+  return { runs: s.runs, current: s.current, gates: s.gates }; // strip past
 }
 
 /** Present pushed onto history, capped. */
@@ -99,6 +132,58 @@ function pushHistory(s: DrawState): DrawState[] {
 }
 
 const sameCoord = (a: Post, b: Post) => a[0] === b[0] && a[1] === b[1];
+
+// ─── Gate geometry helpers ────────────────────────────────────────────
+
+/** Feet of the segment posts[segIndex]→posts[segIndex+1], or 0 if out of range. */
+export function segmentLengthFt(
+  runs: DrawRun[],
+  runIndex: number,
+  segIndex: number
+): number {
+  const run = runs[runIndex];
+  if (!run) return 0;
+  const a = run.posts[segIndex];
+  const b = run.posts[segIndex + 1];
+  if (!a || !b) return 0;
+  return runLF([a, b]);
+}
+
+/**
+ * Clamp a gate centre offset so the whole gate stays inside its segment:
+ * offset ∈ [width/2, max(width/2, segLen - width/2)]. When segLen < width the
+ * bounds collapse to width/2 (best-effort centre — the gate can't fit).
+ */
+export function clampGateOffset(
+  offset_ft: number,
+  width_ft: number,
+  segLen: number
+): number {
+  const half = width_ft / 2;
+  const max = Math.max(half, segLen - half);
+  return Math.min(Math.max(offset_ft, half), max);
+}
+
+/** A gate fits a segment iff it is no wider than the segment. */
+function gateFits(width_ft: number, segLen: number): boolean {
+  return width_ft <= segLen;
+}
+
+/** Re-clamp every gate's offset to its current segment length (post moves). */
+function reclampGates(
+  runs: DrawRun[],
+  gates: DrawGate[] | undefined
+): DrawGate[] | undefined {
+  if (!gates) return gates;
+  return gates.map((g) => ({
+    ...g,
+    offset_ft: clampGateOffset(
+      g.offset_ft,
+      g.width_ft,
+      segmentLengthFt(runs, g.runIndex, g.segIndex)
+    ),
+  }));
+}
 
 export function drawReducer(state: DrawState, action: DrawAction): DrawState {
   switch (action.type) {
@@ -115,7 +200,12 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
       const past = state.past ?? [];
       if (past.length === 0) return state;
       const prev = past[past.length - 1];
-      return { runs: prev.runs, current: prev.current, past: past.slice(0, -1) };
+      return {
+        runs: prev.runs,
+        current: prev.current,
+        gates: prev.gates,
+        past: past.slice(0, -1),
+      };
     }
 
     case "FINISH_LINE": {
@@ -123,6 +213,7 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
       return {
         runs: [...state.runs, { posts: state.current, closed: !!action.closed }],
         current: [],
+        gates: state.gates, // appended run is last; existing gate indices hold
         past: pushHistory(state),
       };
     }
@@ -135,7 +226,7 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
         state.current.length >= MIN_POSTS_TO_FINISH
           ? [...state.runs, { posts: state.current, closed: false }]
           : state.runs;
-      return { runs, current: [], past: pushHistory(state) };
+      return { runs, current: [], gates: state.gates, past: pushHistory(state) };
     }
 
     case "START_RUN_FROM": {
@@ -145,7 +236,12 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
         state.current.length >= MIN_POSTS_TO_FINISH
           ? [...state.runs, { posts: state.current, closed: false }]
           : state.runs;
-      return { runs, current: [action.anchor], past: pushHistory(state) };
+      return {
+        runs,
+        current: [action.anchor],
+        gates: state.gates,
+        past: pushHistory(state),
+      };
     }
 
     case "MOVE_POST": {
@@ -163,13 +259,19 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
         posts.some((p) => sameCoord(p, old))
           ? posts.map((p) => (sameCoord(p, old) ? coord : p))
           : posts;
+      const nextRuns = state.runs.map((r) => {
+        const m = move(r.posts);
+        return m === r.posts ? r : { ...r, posts: m };
+      });
+      // A moved post reshapes its two adjacent segments; junction integrity
+      // means the same coord can touch segments in several runs. Simplest
+      // correct rule: re-clamp every gate to its (possibly new) segment length
+      // so none overflows a post or orphans. Drag → no history push.
       return {
         ...state,
-        runs: state.runs.map((r) => {
-          const m = move(r.posts);
-          return m === r.posts ? r : { ...r, posts: m };
-        }),
+        runs: nextRuns,
         current: move(state.current),
+        gates: reclampGates(nextRuns, state.gates),
       };
     }
 
@@ -182,12 +284,41 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
       if (postIndex < 0 || postIndex >= posts.length) return state;
       const next = [...posts.slice(0, postIndex), ...posts.slice(postIndex + 1)];
       const runs = state.runs.slice();
-      if (next.length >= MIN_POSTS_TO_FINISH) {
+      const runRemoved = next.length < MIN_POSTS_TO_FINISH;
+      if (!runRemoved) {
         runs[runIndex] = { ...runs[runIndex], posts: next };
       } else {
         runs.splice(runIndex, 1); // drop a degenerate <2-post run
       }
-      return { ...state, runs, past: pushHistory(state) };
+      // Gate cascade: removing a post reindexes this run's segments (the two
+      // segments touching the post merge into one). Transfer gates onto the
+      // merged/shifted segment (clamped), never silently misalign; drop gates
+      // on a removed run and shift runIndex of gates on later runs.
+      let gates = state.gates;
+      if (gates) {
+        if (runRemoved) {
+          gates = gates
+            .filter((g) => g.runIndex !== runIndex)
+            .map((g) =>
+              g.runIndex > runIndex ? { ...g, runIndex: g.runIndex - 1 } : g
+            );
+        } else {
+          const p = postIndex;
+          gates = gates
+            .map((g): DrawGate | null => {
+              if (g.runIndex !== runIndex) return g;
+              // old segs before p keep their index (old p-1 is the merge target);
+              // old seg p merges into p-1; segs after p shift down one.
+              const newSeg =
+                g.segIndex < p ? g.segIndex : g.segIndex === p ? p - 1 : g.segIndex - 1;
+              if (newSeg < 0 || newSeg >= next.length - 1) return null;
+              return { ...g, segIndex: newSeg };
+            })
+            .filter((g): g is DrawGate => g !== null);
+          gates = reclampGates(runs, gates);
+        }
+      }
+      return { ...state, runs, gates, past: pushHistory(state) };
     }
 
     case "DELETE_SEGMENT": {
@@ -197,15 +328,46 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
       if (runIndex < 0 || runIndex >= state.runs.length) return state;
       const posts = state.runs[runIndex].posts;
       if (segIndex < 0 || segIndex >= posts.length - 1) return state;
-      const subs = [posts.slice(0, segIndex + 1), posts.slice(segIndex + 1)]
-        .filter((p) => p.length >= MIN_POSTS_TO_FINISH)
-        .map((p) => ({ posts: p, closed: false }));
+      const firstPosts = posts.slice(0, segIndex + 1);
+      const secondPosts = posts.slice(segIndex + 1);
+      const firstOk = firstPosts.length >= MIN_POSTS_TO_FINISH;
+      const secondOk = secondPosts.length >= MIN_POSTS_TO_FINISH;
+      const subs: DrawRun[] = [];
+      if (firstOk) subs.push({ posts: firstPosts, closed: false });
+      if (secondOk) subs.push({ posts: secondPosts, closed: false });
       const runs = [
         ...state.runs.slice(0, runIndex),
         ...subs,
         ...state.runs.slice(runIndex + 1),
       ];
-      return { ...state, runs, past: pushHistory(state) };
+      // Gate cascade: drop the cut segment's gate; remap survivors across the
+      // split (first sub-run keeps segIndex; second sub-run shifts by the cut)
+      // and shift gates on LATER runs by the net run-count delta (subs.length-1).
+      let gates = state.gates;
+      if (gates) {
+        const secondRunIndex = runIndex + (firstOk ? 1 : 0);
+        gates = gates
+          .map((g): DrawGate | null => {
+            if (g.runIndex < runIndex) return g; // before the split — untouched
+            if (g.runIndex > runIndex) {
+              return { ...g, runIndex: g.runIndex + subs.length - 1 };
+            }
+            // On the split run itself.
+            if (g.segIndex === segIndex) return null; // the deleted segment
+            if (g.segIndex < segIndex) {
+              return firstOk ? g : null; // first sub-run, same (runIndex, segIndex)
+            }
+            // After the cut → second sub-run, reindexed onto it.
+            if (!secondOk) return null;
+            return {
+              ...g,
+              runIndex: secondRunIndex,
+              segIndex: g.segIndex - (segIndex + 1),
+            };
+          })
+          .filter((g): g is DrawGate => g !== null);
+      }
+      return { ...state, runs, gates, past: pushHistory(state) };
     }
 
     case "CHECKPOINT":
@@ -217,15 +379,23 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
         ...state.runs.map((r) => [...r.posts]),
         [...state.current],
       ];
+      // Per-array-row: original post indices removed by same-run collapse. A
+      // gate on original segment s shifts down by |{removed k : k <= s}|, which
+      // maps BOTH the degenerate segment (k-1) and the following segment (k)
+      // onto the surviving merged segment (k-1) — a transfer, never a drop.
+      const removed: number[][] = arr.map(() => []);
       let changed = false;
 
       // 1) Same-run adjacent collapse — remove a post within tolerance of its
       //    immediate predecessor (degenerate ~zero segment). Loop-close is
-      //    last-vs-first (not adjacent), so it's never touched here.
-      for (const posts of arr) {
+      //    last-vs-first (not adjacent), so it's never touched here. Descending
+      //    k means the loop index equals the ORIGINAL post index at removal.
+      for (let ri = 0; ri < arr.length; ri++) {
+        const posts = arr[ri];
         for (let k = posts.length - 1; k >= 1; k--) {
           if (feetBetween(posts[k], posts[k - 1]) < MERGE_TOLERANCE_FT) {
             posts.splice(k, 1); // collapse to the older (k-1) post
+            removed[ri].push(k);
             changed = true;
           }
         }
@@ -251,11 +421,43 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
 
       if (!changed) return state;
       const current = arr[arr.length - 1];
-      const runs = arr
-        .slice(0, -1)
-        .filter((p) => p.length >= MIN_POSTS_TO_FINISH)
-        .map((p) => ({ posts: p, closed: false }));
-      return { runs, current, past: pushHistory(state) };
+      const committedCount = state.runs.length;
+      // Build final runs, tracking old committed-row → new run index (a row that
+      // collapses below 2 posts is dropped, shifting later runs' indices).
+      const committedArr = arr.slice(0, committedCount);
+      const runRemap: number[] = new Array(committedCount).fill(-1);
+      const runs: DrawRun[] = [];
+      for (let ri = 0; ri < committedArr.length; ri++) {
+        if (committedArr[ri].length >= MIN_POSTS_TO_FINISH) {
+          runRemap[ri] = runs.length;
+          runs.push({ posts: committedArr[ri], closed: false });
+        }
+      }
+      // Remap gates: shift segIndex by removals at/below it, remap runIndex,
+      // re-clamp to the final segment, and drop any that no longer resolve to a
+      // valid segment. Cross-run unification only changed coords → the clamp
+      // absorbs the new lengths.
+      let gates = state.gates;
+      if (gates) {
+        gates = gates
+          .map((g): DrawGate | null => {
+            if (g.runIndex < 0 || g.runIndex >= committedCount) return null;
+            const newRunIndex = runRemap[g.runIndex];
+            if (newRunIndex < 0) return null; // run collapsed away
+            const shift = removed[g.runIndex].filter((k) => k <= g.segIndex).length;
+            const newSeg = g.segIndex - shift;
+            const segLen = segmentLengthFt(runs, newRunIndex, newSeg);
+            if (newSeg < 0 || segLen <= 0) return null; // segment gone
+            return {
+              ...g,
+              runIndex: newRunIndex,
+              segIndex: newSeg,
+              offset_ft: clampGateOffset(g.offset_ft, g.width_ft, segLen),
+            };
+          })
+          .filter((g): g is DrawGate => g !== null);
+      }
+      return { runs, current, gates, past: pushHistory(state) };
     }
 
     case "START_OVER":
@@ -263,6 +465,64 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
 
     case "SET":
       return action.state;
+
+    case "PLACE_GATE": {
+      const { gate } = action;
+      const segLen = segmentLengthFt(state.runs, gate.runIndex, gate.segIndex);
+      // Reject a missing segment or a gate wider than it (segLen 0 = missing).
+      if (segLen <= 0 || !gateFits(gate.width_ft, segLen)) return state;
+      const placed: DrawGate = {
+        ...gate,
+        offset_ft: clampGateOffset(gate.offset_ft, gate.width_ft, segLen),
+      };
+      return {
+        ...state,
+        gates: [...(state.gates ?? []), placed],
+        past: pushHistory(state),
+      };
+    }
+
+    case "MOVE_GATE": {
+      const gates = state.gates ?? [];
+      const idx = gates.findIndex((g) => g.id === action.id);
+      if (idx < 0) return state; // unknown id — no-op
+      const g = gates[idx];
+      const segLen = segmentLengthFt(state.runs, g.runIndex, g.segIndex);
+      const next = gates.slice();
+      next[idx] = {
+        ...g,
+        offset_ft: clampGateOffset(action.offset_ft, g.width_ft, segLen),
+      };
+      return { ...state, gates: next }; // drag → no history push
+    }
+
+    case "EDIT_GATE": {
+      const gates = state.gates ?? [];
+      const idx = gates.findIndex((g) => g.id === action.id);
+      if (idx < 0) return state; // unknown id — no-op
+      const g = gates[idx];
+      const segLen = segmentLengthFt(state.runs, g.runIndex, g.segIndex);
+      const width = action.width_ft ?? g.width_ft;
+      if (!gateFits(width, segLen)) return state; // new width won't fit — no-op
+      const next = gates.slice();
+      next[idx] = {
+        ...g,
+        type: action.gateType ?? g.type,
+        width_ft: width,
+        offset_ft: clampGateOffset(g.offset_ft, width, segLen),
+      };
+      return { ...state, gates: next, past: pushHistory(state) };
+    }
+
+    case "DELETE_GATE": {
+      const gates = state.gates ?? [];
+      if (!gates.some((g) => g.id === action.id)) return state; // no-op
+      return {
+        ...state,
+        gates: gates.filter((g) => g.id !== action.id),
+        past: pushHistory(state),
+      };
+    }
 
     default:
       return state;

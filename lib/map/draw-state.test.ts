@@ -3,15 +3,18 @@ import {
   EMPTY_DRAW_STATE,
   canFinish,
   canUndo,
+  clampGateOffset,
   drawPhase,
   drawReducer,
   hasFinishedLine,
   previewSegmentLF,
   previewTotalLF,
   runLF,
+  segmentLengthFt,
   toFeature,
   totalLF,
   totalPosts,
+  type DrawGate,
   type DrawState,
   type Post,
 } from "./draw-state";
@@ -426,5 +429,263 @@ describe("toFeature — save-format bridge", () => {
       [A, B],
       [C, D],
     ]);
+  });
+});
+
+describe("gates (G2)", () => {
+  // deg latitude per foot (matches the NORMALIZE block above); moving along
+  // latitude keeps segment length independent of longitude/cos(lat) scaling.
+  const FT = 2.7411e-6;
+  const G0: Post = [-95.99, 36.15];
+  const G1: Post = [-95.99, 36.15 + 40 * FT]; // ~40 ft north of G0
+  const G1short: Post = [-95.99, 36.15 + 30 * FT]; // ~30 ft north of G0
+
+  // A single committed run of the given posts, no active run, no gates.
+  const runState = (posts: Post[]): DrawState => ({
+    runs: [{ posts, closed: false }],
+    current: [],
+  });
+
+  const gate = (over: Partial<DrawGate> = {}): DrawGate => ({
+    id: "g1",
+    runIndex: 0,
+    segIndex: 0,
+    type: "single",
+    width_ft: 4,
+    offset_ft: 5,
+    ...over,
+  });
+
+  it("clampGateOffset keeps the whole gate inside the segment", () => {
+    expect(clampGateOffset(50, 4, 40)).toBe(38); // past far end → segLen - w/2
+    expect(clampGateOffset(0, 4, 40)).toBe(2); // past near end → w/2
+    expect(clampGateOffset(20, 4, 40)).toBe(20); // already inside → unchanged
+    expect(clampGateOffset(10, 40, 30)).toBe(20); // wider than seg → w/2 centre
+  });
+
+  it("PLACE_GATE adds the gate and clamps its offset", () => {
+    const seg = runLF([G0, G1]);
+    expect(seg).toBeGreaterThan(39); // precondition: ~40 ft segment
+    const s = drawReducer(runState([G0, G1]), {
+      type: "PLACE_GATE",
+      gate: gate({ width_ft: 4, offset_ft: 1000 }),
+    });
+    expect(s.gates).toHaveLength(1);
+    expect(s.gates![0].offset_ft).toBeCloseTo(seg - 2, 5); // clamped to far edge
+  });
+
+  it("PLACE_GATE accepts width == segLen but rejects width just over", () => {
+    const seg = runLF([G0, G1]);
+    const fits = drawReducer(runState([G0, G1]), {
+      type: "PLACE_GATE",
+      gate: gate({ width_ft: seg }), // exactly the segment length → fits
+    });
+    expect(fits.gates).toHaveLength(1);
+
+    const over = drawReducer(runState([G0, G1]), {
+      type: "PLACE_GATE",
+      gate: gate({ width_ft: seg + 0.01 }), // just over → rejected, no-op
+    });
+    expect(over.gates).toBeUndefined();
+    expect(over.past).toBeUndefined(); // no history pushed on a rejected place
+  });
+
+  it("PLACE_GATE is a no-op on a missing segment", () => {
+    const s = runState([G0, G1]);
+    expect(
+      drawReducer(s, { type: "PLACE_GATE", gate: gate({ segIndex: 5 }) })
+    ).toBe(s);
+  });
+
+  it("MOVE_GATE clamps the offset into the segment; unknown id is a no-op", () => {
+    const seg = runLF([G0, G1]);
+    let s = drawReducer(runState([G0, G1]), {
+      type: "PLACE_GATE",
+      gate: gate({ width_ft: 4, offset_ft: 10 }),
+    });
+    s = drawReducer(s, { type: "MOVE_GATE", id: "g1", offset_ft: 1000 });
+    expect(s.gates![0].offset_ft).toBeCloseTo(seg - 2, 5); // clamped to far edge
+
+    const noop = drawReducer(s, { type: "MOVE_GATE", id: "nope", offset_ft: 1 });
+    expect(noop).toBe(s);
+  });
+
+  it("EDIT_GATE rejects a width that exceeds the segment", () => {
+    const s = drawReducer(runState([G0, G1]), {
+      type: "PLACE_GATE",
+      gate: gate({ width_ft: 4, offset_ft: 20 }),
+    });
+    const edited = drawReducer(s, { type: "EDIT_GATE", id: "g1", width_ft: 1000 });
+    expect(edited).toBe(s); // no-op — width won't fit
+  });
+
+  it("EDIT_GATE re-clamps the offset when the width grows", () => {
+    const seg = runLF([G0, G1]); // ~40 ft
+    let s = drawReducer(runState([G0, G1]), {
+      type: "PLACE_GATE",
+      gate: gate({ width_ft: 4, offset_ft: 38 }), // near far end (span [36,40])
+    });
+    expect(s.gates![0].offset_ft).toBeCloseTo(38, 1);
+    s = drawReducer(s, {
+      type: "EDIT_GATE",
+      id: "g1",
+      gateType: "double",
+      width_ft: 20,
+    });
+    expect(s.gates![0].type).toBe("double");
+    expect(s.gates![0].width_ft).toBe(20);
+    expect(s.gates![0].offset_ft).toBeCloseTo(seg - 10, 5); // re-clamped for w=20
+  });
+
+  it("DELETE_GATE removes the gate; UNDO restores it", () => {
+    const placed = drawReducer(runState([G0, G1]), {
+      type: "PLACE_GATE",
+      gate: gate(),
+    });
+    const deleted = drawReducer(placed, { type: "DELETE_GATE", id: "g1" });
+    expect(deleted.gates).toEqual([]);
+    const restored = drawReducer(deleted, { type: "UNDO" });
+    expect(restored.gates).toHaveLength(1);
+    expect(restored.gates![0].id).toBe("g1");
+  });
+
+  it("MOVE_POST clamps a gate on a shortened adjacent segment (38'→30')", () => {
+    let s = drawReducer(runState([G0, G1]), {
+      type: "PLACE_GATE",
+      gate: gate({ width_ft: 4, offset_ft: 38 }), // at the far end of ~40 ft seg
+    });
+    expect(s.gates![0].offset_ft).toBeCloseTo(38, 1);
+    // Move the far post inward so the segment shrinks to ~30 ft.
+    s = drawReducer(s, {
+      type: "MOVE_POST",
+      runIndex: 0,
+      postIndex: 1,
+      coord: G1short,
+    });
+    const shortLen = runLF([G0, G1short]);
+    expect(shortLen).toBeLessThan(31);
+    expect(s.gates![0].offset_ft).toBeLessThan(38); // clamped inward
+    expect(s.gates![0].offset_ft).toBeCloseTo(shortLen - 2, 5); // fits the 30 ft
+  });
+
+  it("NORMALIZE transfers a gate off a collapsed same-run segment (not deleted)", () => {
+    const FT_LAT = 2.7411e-6;
+    const nearA: Post = [A[0], A[1] + 0.3 * FT_LAT]; // 0.3 ft from A → collapses
+    // Gate on segment 1 (nearA → B), the real segment after the degenerate one.
+    const s = drawReducer(runState([A, nearA, B]), {
+      type: "PLACE_GATE",
+      gate: gate({ segIndex: 1, width_ft: 4, offset_ft: 10 }),
+    });
+    expect(s.gates![0].segIndex).toBe(1);
+    const n = drawReducer(s, { type: "NORMALIZE" });
+    expect(n.runs[0].posts).toEqual([A, B]); // nearA collapsed into A
+    expect(n.gates).toHaveLength(1); // transferred, NOT dropped
+    expect(n.gates![0].runIndex).toBe(0);
+    expect(n.gates![0].segIndex).toBe(0); // now on the surviving (A,B) segment
+    expect(segmentLengthFt(n.runs, 0, 0)).toBeGreaterThan(0); // valid segment
+  });
+
+  it("DELETE_SEGMENT drops the cut segment's gate and reindexes survivors", () => {
+    // Run A-B-C-D: gate on seg 1 (B→C, the cut) and seg 2 (C→D, survives).
+    let s = runState([A, B, C, D]);
+    s = drawReducer(s, {
+      type: "PLACE_GATE",
+      gate: gate({ id: "cut", segIndex: 1, width_ft: 4, offset_ft: 10 }),
+    });
+    s = drawReducer(s, {
+      type: "PLACE_GATE",
+      gate: gate({ id: "keep", segIndex: 2, width_ft: 4, offset_ft: 10 }),
+    });
+    const d = drawReducer(s, { type: "DELETE_SEGMENT", runIndex: 0, segIndex: 1 });
+    expect(d.runs).toHaveLength(2); // [A,B] | [C,D]
+    expect(d.gates).toHaveLength(1); // "cut" gone
+    const kept = d.gates![0];
+    expect(kept.id).toBe("keep");
+    expect(kept.runIndex).toBe(1); // moved to the second sub-run
+    expect(kept.segIndex).toBe(0); // C→D is seg 0 there — same physical segment
+    expect(d.runs[kept.runIndex].posts).toEqual([C, D]);
+  });
+
+  it("UNDO restores a DELETE_SEGMENT split with its segment and gates", () => {
+    let s = runState([A, B, C, D]);
+    s = drawReducer(s, {
+      type: "PLACE_GATE",
+      gate: gate({ id: "cut", segIndex: 1 }),
+    });
+    s = drawReducer(s, {
+      type: "PLACE_GATE",
+      gate: gate({ id: "keep", segIndex: 2 }),
+    });
+    const d = drawReducer(s, { type: "DELETE_SEGMENT", runIndex: 0, segIndex: 1 });
+    const u = drawReducer(d, { type: "UNDO" });
+    expect(u.runs).toHaveLength(1);
+    expect(u.runs[0].posts).toEqual([A, B, C, D]); // segment restored
+    expect(u.gates?.map((g) => g.id).sort()).toEqual(["cut", "keep"]); // gates back
+  });
+
+  it("DELETE_SEGMENT shifts runIndex of gates on later runs", () => {
+    // Two committed runs; splitting run 0 adds a run, so run 1's gate shifts +1.
+    let s: DrawState = {
+      runs: [
+        { posts: [A, B, C, D], closed: false },
+        { posts: [C, D], closed: false },
+      ],
+      current: [],
+    };
+    s = drawReducer(s, {
+      type: "PLACE_GATE",
+      gate: gate({ id: "later", runIndex: 1, segIndex: 0 }),
+    });
+    const d = drawReducer(s, { type: "DELETE_SEGMENT", runIndex: 0, segIndex: 1 });
+    expect(d.runs).toHaveLength(3); // [A,B] | [C,D] | [C,D]
+    const later = d.gates!.find((g) => g.id === "later")!;
+    expect(later.runIndex).toBe(2); // shifted from 1 by the +1 net run delta
+    expect(d.runs[later.runIndex].posts).toEqual([C, D]);
+  });
+});
+
+describe("gates — DELETE_POST cascade (reindex, don't misalign)", () => {
+  const gate = (segIndex: number, id: string): DrawGate => ({
+    id,
+    runIndex: 0,
+    segIndex,
+    type: "single",
+    width_ft: 4,
+    offset_ft: 5,
+  });
+  const setup = (): DrawState => {
+    const s = drop(EMPTY_DRAW_STATE, A, B, C, D);
+    return drawReducer(s, { type: "NEW_LINE" }); // runs=[{[A,B,C,D]}], 3 segments
+  };
+
+  it("reindexes a gate on a later segment when an earlier post is deleted", () => {
+    let s = drawReducer(setup(), { type: "PLACE_GATE", gate: gate(2, "g1") }); // C→D
+    s = drawReducer(s, { type: "DELETE_POST", runIndex: 0, postIndex: 1 }); // remove B
+    const g = s.gates!.find((x) => x.id === "g1")!;
+    expect(g.segIndex).toBe(1); // C→D is segment 1 in [A,C,D]
+  });
+
+  it("transfers a gate on a merged segment instead of deleting it", () => {
+    let s = drawReducer(setup(), { type: "PLACE_GATE", gate: gate(1, "g2") }); // B→C
+    s = drawReducer(s, { type: "DELETE_POST", runIndex: 0, postIndex: 1 }); // remove B
+    const g = s.gates!.find((x) => x.id === "g2");
+    expect(g).toBeDefined(); // not silently dropped
+    expect(g!.segIndex).toBe(0); // merged into A→C
+  });
+
+  it("drops gates when the post deletion removes the run", () => {
+    let s = drop(EMPTY_DRAW_STATE, A, B);
+    s = drawReducer(s, { type: "NEW_LINE" });
+    s = drawReducer(s, { type: "PLACE_GATE", gate: gate(0, "g3") });
+    s = drawReducer(s, { type: "DELETE_POST", runIndex: 0, postIndex: 0 });
+    expect(s.gates ?? []).toHaveLength(0);
+  });
+
+  it("UNDO restores a gate after a post deletion", () => {
+    let s = drawReducer(setup(), { type: "PLACE_GATE", gate: gate(2, "g4") });
+    const before = s.gates;
+    s = drawReducer(s, { type: "DELETE_POST", runIndex: 0, postIndex: 1 });
+    const u = drawReducer(s, { type: "UNDO" });
+    expect(u.gates).toEqual(before);
   });
 });
