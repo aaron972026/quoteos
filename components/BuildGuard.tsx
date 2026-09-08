@@ -5,15 +5,20 @@ import { useEffect, useState } from "react";
 /**
  * Two jobs, both about "which build is this device actually running":
  *
- * 1. STALE-BUILD INSURANCE. This app ships no service worker. But a SW
- *    registered by an earlier (pre-PWA-kill) build can pin a phone to a cached
- *    bundle indefinitely — the most likely reason a device tests an old build
- *    after a deploy. On load we unregister any surviving SW and drop its caches,
- *    once. Harmless when there is none.
+ * 1. STALE-BUILD INSURANCE. This app ships no service worker, but a SW from an
+ *    earlier (pre-PWA-kill) build can pin a phone to a cached bundle. We
+ *    UNREGISTER any survivor so it stops controlling future loads. We do NOT
+ *    delete the Cache Storage out from under the running page — doing that pulls
+ *    chunks the current (SW-served, stale) HTML still references and triggers a
+ *    ChunkLoadError → "Application error". Instead, if a SW was actually
+ *    controlling THIS load, we do a single guarded reload to land on a clean
+ *    network build.
  *
- * 2. BUILD BADGE. With ?debug=1 in the URL, a tiny fixed chip shows the deployed
- *    commit sha (NEXT_PUBLIC_BUILD_SHA) so a device pass never has to guess
- *    whether a fix is live.
+ * 2. BUILD BADGE. With ?debug=1, a fixed chip shows NEXT_PUBLIC_BUILD_SHA and the
+ *    live [map-diag] trace so a device pass never has to guess the build.
+ *
+ * A cleanup helper must NEVER crash the app: every path here is wrapped and
+ * degrades to a no-op.
  */
 export function BuildGuard() {
   const [debug, setDebug] = useState(false);
@@ -23,34 +28,59 @@ export function BuildGuard() {
   // phone (same lines the headless e2e reads from the console).
   useEffect(() => {
     if (!debug) return;
-    const tick = () => {
-      try {
-        const w = window as unknown as { __qosDiag?: string[] };
-        setDiag(w.__qosDiag ? [...w.__qosDiag] : []);
-      } catch {
-        /* ignore */
-      }
+    let iv: ReturnType<typeof setInterval> | undefined;
+    try {
+      const tick = () => {
+        try {
+          const w = window as unknown as { __qosDiag?: string[] };
+          setDiag(w.__qosDiag ? [...w.__qosDiag] : []);
+        } catch {
+          /* ignore */
+        }
+      };
+      tick();
+      iv = setInterval(tick, 400);
+    } catch {
+      /* ignore */
+    }
+    return () => {
+      if (iv) clearInterval(iv);
     };
-    tick();
-    const iv = setInterval(tick, 400);
-    return () => clearInterval(iv);
   }, [debug]);
 
   useEffect(() => {
-    // Kill any legacy service worker + its caches (one-time, best-effort).
+    // Everything in here is best-effort. A throw or rejection must not surface.
     try {
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.getRegistrations?.().then((regs) => {
-          for (const reg of regs) reg.unregister();
-        });
-      }
-      if (typeof caches !== "undefined" && caches.keys) {
-        caches.keys().then((keys) => {
-          for (const k of keys) caches.delete(k);
-        });
+      if (
+        typeof navigator !== "undefined" &&
+        "serviceWorker" in navigator &&
+        navigator.serviceWorker?.getRegistrations
+      ) {
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((regs) => {
+            if (!regs || regs.length === 0) return;
+            const wasControlled = !!navigator.serviceWorker.controller;
+            return Promise.all(regs.map((r) => r.unregister().catch(() => false)))
+              .then(() => {
+                // Only reload if a SW was actually serving this page, and only
+                // once per tab, so a stale cached bundle can't strand the user
+                // and we can never loop.
+                try {
+                  if (wasControlled && !sessionStorage.getItem("qos-sw-reset")) {
+                    sessionStorage.setItem("qos-sw-reset", "1");
+                    window.location.reload();
+                  }
+                } catch {
+                  /* sessionStorage unavailable — skip the reload, no loop */
+                }
+              })
+              .catch(() => {});
+          })
+          .catch(() => {});
       }
     } catch {
-      // Private mode / unsupported — nothing to clean.
+      /* serviceWorker access threw — nothing to clean */
     }
 
     try {
@@ -62,7 +92,12 @@ export function BuildGuard() {
 
   if (!debug) return null;
 
-  const sha = process.env.NEXT_PUBLIC_BUILD_SHA ?? "dev";
+  let sha = "dev";
+  try {
+    sha = process.env.NEXT_PUBLIC_BUILD_SHA ?? "dev";
+  } catch {
+    /* env access — keep default */
+  }
   return (
     <div
       style={{
