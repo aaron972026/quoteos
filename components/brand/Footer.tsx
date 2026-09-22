@@ -14,7 +14,6 @@ const SECTIONS: Array<{ heading: string; lines: FooterLine[] }> = [
       { label: "Cedar Privacy" },
       { label: "Horizontal Cedar" },
       { label: "Chain Link" },
-      { label: "Ranch Rail" },
       { label: "Budget Pine" },
       { label: "Storm Response" },
     ],

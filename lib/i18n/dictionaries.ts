@@ -363,7 +363,7 @@ const en: Dictionary = {
     whyTitle: "Why Ivory Fence Co.?",
     reasons: [
       "Tulsa-based crews — installed 200+ fences locally",
-      "Cedar privacy, horizontal cedar, KDAT pine, chain link, ranch rail",
+      "Cedar privacy, horizontal cedar, KDAT pine, chain link",
       "Wisetack financing — soft pull, no credit hit",
       "Free 14-day price hold, or reserve your week for $99 — applied to your project",
       "Most installs within two weeks of final plan approval",
@@ -818,7 +818,7 @@ const es: Dictionary = {
     whyTitle: "¿Por qué Ivory Fence Co.?",
     reasons: [
       "Equipos de Tulsa — más de 200 cercas instaladas localmente",
-      "Cedro privacidad, cedro horizontal, pino KDAT, malla ciclónica, riel ranchero",
+      "Cedro privacidad, cedro horizontal, pino KDAT, malla ciclónica",
       "Financiamiento Wisetack — sin afectar tu crédito",
       "Mantén tu precio gratis 14 días, o reserva tu semana por $99 — aplicado a tu proyecto",
       "La mayoría de las instalaciones dentro de dos semanas de la aprobación del plan final",
