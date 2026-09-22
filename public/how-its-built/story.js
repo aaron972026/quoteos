@@ -137,6 +137,24 @@ function renderStage(entry, progress){
   ctx.drawImage(img, dx, dy, dsw, dsh, 0, 0, cw, ch);
 }
 
+function updateCopyTransform(entry, progress){
+  if (reduceMotion) {
+    entry.copy.style.opacity = 1;
+    entry.copy.style.transform = 'none';
+    return;
+  }
+  const p = Math.min(1, Math.max(0, progress));
+  const eased = 1 - Math.pow(1 - p, 2);
+  const maxScale = 1.55;
+  const scale = 1 + (maxScale - 1) * eased;
+  const narrow = window.innerWidth < 640;
+  const moveX = -(narrow ? 8 : 22) * eased;
+  const moveY = 46 * eased;
+  const opacity = Math.min(1, p / 0.08);
+  entry.copy.style.opacity = opacity;
+  entry.copy.style.transform = `translate(${moveX}vw, ${moveY}vh) scale(${scale})`;
+}
+
 function updateAll(){
   const vh = window.innerHeight;
   const scrollY = window.scrollY || window.pageYOffset;
@@ -153,26 +171,24 @@ function updateAll(){
     if (scrollY < wrapTopAbs) {
       phase = 'before'; progress = 0;
     } else if (scrollY <= wrapTopAbs + scrubRange) {
-      phase = 'pinned'; progress = (scrollY - wrapTopAbs) / scrubRange;
+      phase = 'current'; progress = (scrollY - wrapTopAbs) / scrubRange;
     } else {
       phase = 'after'; progress = 1;
     }
     progress = Math.min(1, Math.max(0, progress));
 
-    sticky.classList.toggle('pin-fixed', phase === 'pinned');
+    sticky.classList.toggle('pin-fixed', phase === 'current');
     sticky.classList.toggle('pin-bottom', phase === 'after');
 
     const isNear = rect.top < vh && rect.bottom > 0;
-    if (isNear || phase === 'pinned') {
+    if (isNear || phase === 'current') {
       if (entry.canvas.width === 0) resizeCanvas(entry);
       renderStage(entry, reduceMotion ? 1 : progress);
+      updateCopyTransform(entry, progress);
     }
 
-    const showCopy = progress > 0.03 && progress < 0.97;
-    entry.copy.classList.toggle('in-view', showCopy || reduceMotion);
-
-    entry.dot.classList.toggle('active', phase === 'pinned');
-    if (phase === 'pinned') anyActive = true;
+    entry.dot.classList.toggle('active', phase === 'current');
+    if (phase === 'current') anyActive = true;
   });
 
   railRoot.classList.toggle('visible', anyActive || stageEls.some(e => {
