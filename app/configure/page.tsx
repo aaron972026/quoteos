@@ -21,6 +21,7 @@ import { Progress } from "@/components/brand/Progress";
 import { Eyebrow } from "@/components/brand/Eyebrow";
 import { AddonRow } from "@/components/configure/AddonRow";
 import { FenceSketch } from "@/components/configure/FenceSketch";
+import { BuildBanner } from "@/components/marketing/BuildBanner";
 import { cn, formatCents } from "@/lib/utils";
 import { useT } from "@/lib/i18n/use-locale";
 import type { PostType } from "@/lib/pricing/types";
@@ -764,6 +765,10 @@ function ConfigurePageInner() {
                       </button>
                     )}
                   </div>
+
+                  {/* Build-story banner (Snippet 2) — directly under the tier
+                      comparison, where the homeowner is choosing a tier. */}
+                  <BuildBanner />
                 </>
               )}
 
