@@ -401,7 +401,7 @@ if ($pid) { Stop-Process -Id $pid -Force }
 - Cream-deep card between FAQ and Final CTA
 - Brick-shield icon · "Storm Damage · Insurance Claim" eyebrow
 - "Fence Hit By A Storm? We Handle The Claim." headline
-- Xactimate-certified messaging + adjuster coordination
+- Xactimate estimating messaging ("we write your claim in Xactimate — the same software your adjuster uses"; never "certified") + adjuster coordination
 - CTAs: Call Storm Line (brick button) + mailto with pre-filled "Insurance Claim — FencePros Tulsa" subject for lead routing
 
 ---

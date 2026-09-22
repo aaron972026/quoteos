@@ -151,7 +151,7 @@ export default function LandingPage() {
                     Fence Hit By A Storm? <span className="text-brick">We Handle The Claim.</span>
                   </h2>
                   <p className="mt-4 max-w-[58ch] font-body text-[14.5px] leading-[1.55] text-char sm:text-[15px]">
-                    Our team is <strong>Xactimate certified</strong> — the
+                    We write your claim in <strong>Xactimate</strong> — the
                     same estimating software your insurance adjuster uses. We
                     document the damage, write the scope, and work directly
                     with your carrier. You stay in your house; we stay on the
