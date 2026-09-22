@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, MapPin, Mail, PenTool, Phone, Receipt, ShieldAlert } from "lucide-react";
 import { SessionInit } from "@/components/SessionInit";
+import { BuildHero } from "@/components/marketing/BuildHero";
 import { Header } from "@/components/brand/Header";
 import { Eyebrow } from "@/components/brand/Eyebrow";
 import { TrustBar } from "@/components/brand/TrustBar";
@@ -25,64 +26,13 @@ export default function LandingPage() {
       <div className="flex min-h-dvh flex-col bg-paper">
         <Header dark />
 
-        {/* ─── Hero ─────────────────────────────────────────────── */}
-        {/* Noir surface per brand spec (heroes / quote header / footer are
-            the dark brand surfaces). Cream-on-noir reads softer than the
-            near-black-on-ivory it replaced, and the subtle top-to-bottom
-            gradient keeps it from looking like a flat slab. */}
-        <section className="relative overflow-hidden bg-gradient-to-b from-navy-soft via-navy to-navy">
-          {/* Decorative pickets, top-right */}
-          <div
-            className="pickets absolute right-10 top-10 hidden opacity-40 md:flex"
-            aria-hidden="true"
-          >
-            {Array.from({ length: 7 }).map((_, i) => (
-              <span key={i} />
-            ))}
-          </div>
-
-          <div className="mx-auto max-w-[1280px] px-5 pb-20 pt-14 md:px-10 md:pb-28 md:pt-24">
-            <div className="mx-auto max-w-[820px] text-center">
-              <Eyebrow>Built Right · Stands Strong</Eyebrow>
-
-              <h1
-                className={cn(
-                  "mt-7 font-display font-bold uppercase text-paper",
-                  "text-[44px] leading-[0.95] tracking-tightest md:text-[88px]"
-                )}
-              >
-                {t.title_pre}{" "}
-                {/* Gold-on-dark for the highlight — forest green on noir is
-                    too low-contrast to carry emphasis. */}
-                <span className="text-brass-soft">{t.title_highlight}</span>
-                {t.title_post}
-                <br />
-                {t.title_sub}
-              </h1>
-
-              <p className="mx-auto mt-7 max-w-[58ch] font-body text-[18px] leading-[1.5] text-cream/75 md:text-[21px]">
-                {t.subtitle}
-              </p>
-
-              <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-                <Link
-                  href="/address"
-                  prefetch
-                  className={cn(
-                    "flex h-16 items-center justify-center gap-2.5 rounded-sm bg-brick px-10",
-                    "font-display text-[15px] font-semibold uppercase tracking-eyebrow text-cream",
-                    "shadow-cta transition-colors hover:bg-brick-deep"
-                  )}
-                >
-                  {t.cta}
-                  <ArrowRight size={16} strokeWidth={2.5} />
-                </Link>
-              </div>
-
-              <div className="mx-auto mt-16 max-w-[920px]">
-                <TrustBar dark />
-              </div>
-            </div>
+        {/* ─── Hero — video build-loop (Snippet 1) ────────────────── */}
+        <BuildHero />
+        {/* Trust signals kept on a slim noir strip below the video hero (the
+            page's only trust bar — preserved when the hero was replaced). */}
+        <section className="bg-navy">
+          <div className="mx-auto max-w-[920px] px-5 py-6 md:px-10">
+            <TrustBar dark />
           </div>
         </section>
 
