@@ -21,7 +21,7 @@ export default function HowItsBuiltPage() {
     <div className="ivory-story">
       <section className="hero">
         <div className="eyebrow">IVORY STANDARD</div>
-        <h1>Watch the fence get built.</h1>
+        <h1>See the Difference</h1>
         <p>
           Scroll through six stages of a real Ivory Standard install — steel post
           to finished stain — exactly how it goes into the ground behind your
