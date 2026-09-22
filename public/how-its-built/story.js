@@ -145,10 +145,10 @@ function updateCopyTransform(entry, progress){
   }
   const p = Math.min(1, Math.max(0, progress));
   const eased = 1 - Math.pow(1 - p, 2);
-  const maxScale = 1.55;
-  const scale = 1 + (maxScale - 1) * eased;
   const narrow = window.innerWidth < 640;
-  const moveX = -(narrow ? 8 : 22) * eased;
+  const maxScale = narrow ? 1.22 : 1.55;
+  const scale = 1 + (maxScale - 1) * eased;
+  const moveX = -(narrow ? 3 : 22) * eased;
   const moveY = 46 * eased;
   const opacity = Math.min(1, p / 0.08);
   entry.copy.style.opacity = opacity;

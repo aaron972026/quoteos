@@ -82,7 +82,7 @@
   .stage-copy{
     position:absolute; z-index:5;
     right:6vw; top:calc(9vh + env(safe-area-inset-top,0px));
-    width:calc(100% - 12vw); max-width:640px;
+    width:min(74vw, 640px);
     transform-origin: right top;
     opacity:0;
     will-change: transform, opacity;
