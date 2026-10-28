@@ -343,7 +343,7 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
 
         <Text style={styles.footer}>
           Issued {issuedAt} · Price valid through {validDate} ·{" "}
-          {BUSINESS.legalName} · Licensed & insured ·{" "}
+          {BUSINESS.legalName} · Insured ·{" "}
           {PHONE_ENABLED ? `${BUSINESS.phone} · ` : ""}
           {BUSINESS.domain} ·{" "}
           {data.quoteNumber ?? "(quote draft)"}

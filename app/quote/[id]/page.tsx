@@ -9,7 +9,6 @@ import {
   Loader2,
   Mail,
   Phone,
-  Star,
   TriangleAlert,
 } from "lucide-react";
 import { Header } from "@/components/brand/Header";
@@ -530,24 +529,6 @@ export default function QuotePage({ params }: { params: { id: string } }) {
                 </div>
               </div>
 
-              <div className="rounded-sm border border-navy/15 bg-cream-deep px-6 py-5">
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-0.5 text-brass">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} size={14} fill="currentColor" strokeWidth={0} />
-                    ))}
-                  </div>
-                  <span className="font-mono text-[10px] uppercase tracking-spec text-steel">
-                    {t.quote.reviewBadge}
-                  </span>
-                </div>
-                <p className="mt-3 font-body text-[14px] italic leading-[1.55] text-char">
-                  &ldquo;{t.quote.reviewQuote}&rdquo;
-                </p>
-                <p className="mt-3 font-display text-[12px] font-semibold uppercase tracking-eyebrow text-navy">
-                  {t.quote.reviewAttribution}
-                </p>
-              </div>
             </aside>
           </div>
         </div>

@@ -16,7 +16,7 @@ interface Props {
 
 const DEFAULT_ITEMS: Item[] = [
   { label: "Insurance Claims", detail: "We estimate in Xactimate" },
-  { label: "Bonded", detail: "& Insured" },
+  { label: "Insured", detail: "Ivory Exteriors LLC" },
   { label: "Warranty", detail: "Posts warranted up to lifetime · 2-yr workmanship, transferable" },
   { label: "Locally Owned", detail: "& Operated · Tulsa, OK" },
 ];

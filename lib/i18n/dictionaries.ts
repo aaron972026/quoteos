@@ -366,7 +366,7 @@ const en: Dictionary = {
       "Confirm your price, then hold it free for 14 days — or reserve your install week for $99, applied straight to your project.",
     whyTitle: "Why Ivory Fence Co.?",
     reasons: [
-      "Tulsa-based crews — installed 200+ fences locally",
+      "Locally owned — founded by a Tulsa remodeling contractor",
       "Cedar privacy, horizontal cedar, KDAT pine, chain link",
       "Wisetack financing — soft pull, no credit hit",
       "Free 14-day price hold, or reserve your week for $99 — applied to your project",
@@ -825,7 +825,7 @@ const es: Dictionary = {
       "Confirma tu precio, luego mantenlo gratis por 14 días — o reserva tu semana de instalación por $99, aplicado directo a tu proyecto.",
     whyTitle: "¿Por qué Ivory Fence Co.?",
     reasons: [
-      "Equipos de Tulsa — más de 200 cercas instaladas localmente",
+      "De propiedad local — fundada por un contratista de remodelación de Tulsa",
       "Cedro privacidad, cedro horizontal, pino KDAT, malla ciclónica",
       "Financiamiento Wisetack — sin afectar tu crédito",
       "Mantén tu precio gratis 14 días, o reserva tu semana por $99 — aplicado a tu proyecto",

@@ -416,8 +416,8 @@ export default function WarrantyPage() {
           {/* Footer disclaimer */}
           <div className="mt-16 border-t border-navy/15 pt-6 text-center">
             <p className="font-body text-[13px] italic leading-[1.55] text-steel">
-              Ivory Fence Co. — {BUSINESS.city}, {BUSINESS.state}. Licensed, bonded,
-              and insured. This warranty applies to residential fence
+              Ivory Fence Co. — {BUSINESS.city}, {BUSINESS.state}. Fully insured.
+              This warranty applies to residential fence
               installations completed by Ivory Fence Co. within our service area.
             </p>
           </div>

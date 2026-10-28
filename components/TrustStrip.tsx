@@ -1,10 +1,9 @@
-import { Star, Shield, Hammer, Banknote } from "lucide-react";
+import { Shield, Hammer, Banknote } from "lucide-react";
 
 export function TrustStrip({ compact = false }: { compact?: boolean }) {
   const items = [
-    { icon: Star, label: "4.9★ Google", className: "text-accent fill-accent" },
-    { icon: Hammer, label: "200+ Tulsa fences" },
-    { icon: Shield, label: "Licensed & insured" },
+    { icon: Hammer, label: "Locally owned · Tulsa" },
+    { icon: Shield, label: "Insured" },
     { icon: Banknote, label: "Wisetack financing" },
   ];
 
@@ -16,9 +15,9 @@ export function TrustStrip({ compact = false }: { compact?: boolean }) {
           : "flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm text-navy/70"
       }
     >
-      {items.map(({ icon: Icon, label, className }) => (
+      {items.map(({ icon: Icon, label }) => (
         <span key={label} className="flex items-center gap-1.5">
-          <Icon className={className ?? "text-navy/50"} size={compact ? 14 : 16} />
+          <Icon className="text-navy/50" size={compact ? 14 : 16} />
           {label}
         </span>
       ))}

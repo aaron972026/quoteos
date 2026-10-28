@@ -102,7 +102,7 @@ export function Footer() {
             ))}
           </div>
           <div className="font-mono text-[11px] uppercase tracking-spec text-cream/60">
-            OK Contractor #FP-22-4810
+            {BUSINESS.legalName} · Insured
           </div>
         </div>
       </div>
