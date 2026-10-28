@@ -24,7 +24,7 @@ export interface PricingAssumptions {
 
 export const ASSUMPTIONS: PricingAssumptions = {
   target_margin_pct: 0.45,
-  margin_floor_pct: 0.38,
+  margin_floor_pct: 0.30,
   min_job_profit_cents: 80000,
   material_waste_pct: 0.05,
   overhead_per_lf_cents: 300,
