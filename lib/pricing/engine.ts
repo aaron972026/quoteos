@@ -7,6 +7,7 @@ import {
   PricingError,
   type PricingInput,
   type PricingResult,
+  type SkuFamily,
 } from "./types";
 
 /**
@@ -264,8 +265,25 @@ export function calculatePrice(
   const city = input.city ?? "Tulsa";
   const permitCents = config.permits[city] ?? config.permitDefaultCents;
 
+  // ─── Founding-customer promo ───────────────────────────────────────
+  // Discounts the per-LF rate down to the promo rate (Essential, or Ivory
+  // Standard when the bundle is active). Slope/access surcharges, add-ons,
+  // gates and permit stay at full price.
+  const promo = config.foundingPromo;
+  const regularPerLfCents =
+    sku.base_price_per_lf_cents +
+    (ironcladActive ? addons.IRONCLAD_PER_LF_CENTS : 0);
+  const foundingPerLfCents = ironcladActive
+    ? promo.IVORY_STANDARD_PER_LF_CENTS
+    : promo.ESSENTIAL_PER_LF_CENTS;
+  const foundingApplies =
+    isFoundingSku(sku, config) && regularPerLfCents > foundingPerLfCents;
+  const foundingDiscountCents = foundingApplies
+    ? Math.round((regularPerLfCents - foundingPerLfCents) * input.linear_feet)
+    : 0;
+
   // ─── Raw subtotal (pre-guards) ─────────────────────────────────────
-  const rawSubtotal =
+  const regularSubtotal =
     baseFenceCents +
     ironcladCents +
     steelUpgradeCents +
@@ -279,6 +297,7 @@ export function calculatePrice(
     rockDrillingCents +
     tearConcreteCents +
     permitCents;
+  const rawSubtotal = regularSubtotal - foundingDiscountCents;
 
   // ─── Internal cost estimate ────────────────────────────────────────
   // Fence cost = (material + waste + labor + overhead) × LF — this is the
@@ -335,29 +354,19 @@ export function calculatePrice(
     permitCost;
 
   // ─── Margin guards (raise price only, never lower) ─────────────────
-  let postGuardPrice = rawSubtotal;
-  const guards: string[] = [];
-
-  // Margin floor: price ≥ cost / (1 - margin_floor_pct)
-  const floorMin = Math.round(
-    totalCostCents / (1 - assumptions.margin_floor_pct)
-  );
-  if (postGuardPrice < floorMin) {
-    postGuardPrice = floorMin;
-    guards.push("margin_floor");
-  }
-
-  // Min profit: price ≥ cost + min_job_profit
-  const profitMin = totalCostCents + assumptions.min_job_profit_cents;
-  if (postGuardPrice < profitMin) {
-    postGuardPrice = profitMin;
-    if (!guards.includes("min_profit")) guards.push("min_profit");
-  }
-
-  // ─── Round to nearest $50 ──────────────────────────────────────────
-  const finalPriceCents =
-    Math.round(postGuardPrice / assumptions.round_to_cents) *
-    assumptions.round_to_cents;
+  // The founding promo deliberately prices below the 38% floor, so the
+  // floor is waived for it; the $800 min-profit guard still holds.
+  const priced = applyGuards(rawSubtotal, totalCostCents, assumptions, {
+    marginFloor: !foundingApplies,
+  });
+  const guards = priced.guards;
+  if (foundingApplies) guards.push("founding_promo");
+  const finalPriceCents = priced.priceCents;
+  const regularPriceCents = foundingApplies
+    ? applyGuards(regularSubtotal, totalCostCents, assumptions, {
+        marginFloor: true,
+      }).priceCents
+    : finalPriceCents;
 
   // ─── Display range (swing scales with job size) ────────────────────
   const swingRaw = Math.round(
@@ -424,6 +433,7 @@ export function calculatePrice(
       rock_drilling_cents: rockDrillingCents,
       tear_concrete_cents: tearConcreteCents,
       permit_cents: permitCents,
+      founding_discount_cents: foundingDiscountCents,
     },
     raw_subtotal_cents: rawSubtotal,
     guards_applied: guards,
@@ -434,7 +444,71 @@ export function calculatePrice(
         ? Math.round(finalPriceCents / input.linear_feet)
         : 0,
     deferred_gate_count: deferredGateCount,
+    ...(foundingApplies && regularPriceCents > finalPriceCents
+      ? {
+          founding: {
+            regular_price_cents: regularPriceCents,
+            regular_per_lf_cents: regularPerLfCents,
+            founding_per_lf_cents: foundingPerLfCents,
+          },
+        }
+      : {}),
   };
+}
+
+/**
+ * Margin-floor + min-profit guards, then $50 rounding. Raises price only.
+ */
+function applyGuards(
+  subtotalCents: number,
+  totalCostCents: number,
+  assumptions: PricingConfig["assumptions"],
+  opts: { marginFloor: boolean }
+): { priceCents: number; guards: string[] } {
+  let price = subtotalCents;
+  const guards: string[] = [];
+
+  if (opts.marginFloor) {
+    const floorMin = Math.round(
+      totalCostCents / (1 - assumptions.margin_floor_pct)
+    );
+    if (price < floorMin) {
+      price = floorMin;
+      guards.push("margin_floor");
+    }
+  }
+
+  const profitMin = totalCostCents + assumptions.min_job_profit_cents;
+  if (price < profitMin) {
+    price = profitMin;
+    guards.push("min_profit");
+  }
+
+  return {
+    priceCents:
+      Math.round(price / assumptions.round_to_cents) *
+      assumptions.round_to_cents,
+    guards,
+  };
+}
+
+/**
+ * Founding promo eligibility: promo active, family eligible, and the SKU is
+ * the family's lowest-priced variant (the "Essential" card) — so premium
+ * variants like Cedar Estate never get discounted below cost.
+ */
+export function isFoundingSku(
+  sku: { code: string; family: SkuFamily; base_price_per_lf_cents: number },
+  config: PricingConfig = DEFAULT_PRICING_CONFIG
+): boolean {
+  const promo = config.foundingPromo;
+  if (!promo.ACTIVE || !promo.FAMILIES.has(sku.family)) return false;
+  return Object.values(config.skuByCode).every(
+    (other) =>
+      other.family !== sku.family ||
+      other.code === sku.code ||
+      other.base_price_per_lf_cents > sku.base_price_per_lf_cents
+  );
 }
 
 /**

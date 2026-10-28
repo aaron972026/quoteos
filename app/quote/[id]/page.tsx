@@ -23,8 +23,9 @@ import { EmailSheet } from "@/components/quote/EmailSheet";
 import { WisetackWidget } from "@/components/quote/WisetackWidget";
 import { useT, useLocale } from "@/lib/i18n/use-locale";
 import { formatInstallWeek } from "@/lib/scheduling/install-week";
-import { BUSINESS, PHONE_HREF } from "@/lib/business";
-import { formatCents } from "@/lib/utils";
+import { BUSINESS, PHONE_ENABLED, PHONE_HREF } from "@/lib/business";
+import { cn, formatCents } from "@/lib/utils";
+import { FOUNDING_PROMO } from "@/lib/pricing/data";
 import { countDeferredGates } from "@/lib/pricing/gates";
 
 interface QuoteShape {
@@ -70,6 +71,7 @@ interface PricingBreakdown {
   rock_drilling_cents: number;
   tear_concrete_cents: number;
   permit_cents: number;
+  founding_discount_cents?: number;
 }
 
 interface PricingResponse {
@@ -83,6 +85,11 @@ interface PricingResponse {
   valid_until: string;
   breakdown: PricingBreakdown;
   warnings: string[];
+  founding?: {
+    regular_price_cents: number;
+    regular_per_lf_cents: number;
+    founding_per_lf_cents: number;
+  };
 }
 
 interface SkuRow {
@@ -287,7 +294,7 @@ export default function QuotePage({ params }: { params: { id: string } }) {
   const concreteRow = {
     title: "Concrete-Set Posts, Plumb",
     body:
-      "Posts set 32–36″ deep · 160–240 lbs of 3,000-psi concrete per post (Ivory Standard sets deepest, with the most concrete). Plumb and square, checked twice with a 4-foot level.",
+      "Posts set in 3,000-psi concrete: 32″ deep with 160 lbs per post on Essential, 36″ deep with 240+ lbs on Ivory Standard. Plumb and square, checked twice with a 4-foot level.",
   };
 
   const inclusionsRendered = [
@@ -341,6 +348,23 @@ export default function QuotePage({ params }: { params: { id: string } }) {
                     )}
                   </div>
 
+                  {pricing.founding && (
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <span className="inline-block rounded-pill border border-brick/40 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-spec text-brick">
+                        {t.quote.foundingTag.replace(
+                          "{n}",
+                          String(FOUNDING_PROMO.SPOTS)
+                        )}
+                      </span>
+                      <span className="font-mono text-[12px] uppercase tracking-spec text-steel">
+                        {t.quote.foundingRegular}{" "}
+                        <span className="line-through">
+                          {formatCents(pricing.founding.regular_price_cents)}
+                        </span>
+                      </span>
+                    </div>
+                  )}
+
                   <div className="mt-3 flex flex-wrap items-baseline gap-3">
                     <span className="font-display text-[56px] font-bold leading-none tabular-nums text-brick md:text-[72px]">
                       {formatCents(low)}
@@ -384,13 +408,15 @@ export default function QuotePage({ params }: { params: { id: string } }) {
                   <Mail size={14} strokeWidth={2.5} />
                   {t.quote.emailCta}
                 </button>
-                <a
-                  href={PHONE_HREF}
-                  className="flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-steel hover:text-navy"
-                >
-                  <Phone size={14} strokeWidth={2.5} />
-                  {t.quote.callPrefix} {BUSINESS.phone}
-                </a>
+                {PHONE_ENABLED && (
+                  <a
+                    href={PHONE_HREF}
+                    className="flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-steel hover:text-navy"
+                  >
+                    <Phone size={14} strokeWidth={2.5} />
+                    {t.quote.callPrefix} {BUSINESS.phone}
+                  </a>
+                )}
               </div>
 
               <div className="mt-5">
@@ -833,6 +859,7 @@ function InvoiceCard({
     cents: number;
     included?: string[];
     deferred?: boolean;
+    discount?: boolean;
   }> = [
     { label: baseFenceLabel, cents: adjustedBaseFence },
     {
@@ -856,6 +883,17 @@ function InvoiceCard({
     { label: t.quote.invoiceLineStain, cents: breakdown.stain_cents },
     { label: "Rock drilling", cents: breakdown.rock_drilling_cents },
     { label: "Concrete-post removal", cents: breakdown.tear_concrete_cents },
+    // Founding promo: shown as its own credit line so the regular rate above
+    // stays honest and the discount is explicit.
+    ...((breakdown.founding_discount_cents ?? 0) > 0
+      ? [
+          {
+            label: t.quote.foundingDiscountLine,
+            cents: -(breakdown.founding_discount_cents ?? 0),
+            discount: true,
+          },
+        ]
+      : []),
     // Deferred gates: shown with an em-dash amount (never $0 — a zero reads as
     // "free"), excluded from the locked total.
     ...(deferredGateCount > 0
@@ -873,7 +911,7 @@ function InvoiceCard({
           },
         ]
       : []),
-  ].filter((l) => l.cents > 0 || l.deferred);
+  ].filter((l) => l.cents > 0 || l.deferred || l.discount);
 
   // Permits + buried line inspection — both are baked into the total, but
   // shown to the customer as "incl." so the $75 permit doesn't trigger
@@ -908,9 +946,20 @@ function InvoiceCard({
                 key={line.label}
                 className="flex items-baseline justify-between gap-4 font-body text-[13.5px]"
               >
-                <span className="text-char">{line.label}</span>
-                <span className="font-mono text-[13px] tabular-nums text-navy">
-                  {line.deferred ? "—" : formatCents(line.cents)}
+                <span className={line.discount ? "text-forest-600" : "text-char"}>
+                  {line.label}
+                </span>
+                <span
+                  className={cn(
+                    "font-mono text-[13px] tabular-nums",
+                    line.discount ? "text-forest-600" : "text-navy"
+                  )}
+                >
+                  {line.deferred
+                    ? "—"
+                    : line.discount
+                      ? `−${formatCents(-line.cents)}`
+                      : formatCents(line.cents)}
                 </span>
               </li>,
             ];

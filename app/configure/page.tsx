@@ -24,7 +24,8 @@ import { FenceSketch } from "@/components/configure/FenceSketch";
 import { BuildBanner } from "@/components/marketing/BuildBanner";
 import { cn, formatCents } from "@/lib/utils";
 import { useT } from "@/lib/i18n/use-locale";
-import type { PostType } from "@/lib/pricing/types";
+import { FOUNDING_PROMO } from "@/lib/pricing/data";
+import type { PostType, SkuFamily } from "@/lib/pricing/types";
 import { postWarrantyLine } from "@/lib/warranty";
 
 interface SkuApiRow {
@@ -90,6 +91,16 @@ interface PricingResponse {
 // Wood-post families that can take the PostMaster+ steel-post upgrade.
 // Mirrors STEEL_UPGRADE_FAMILIES in lib/pricing/data.ts.
 const STEEL_UPGRADE_FAMILIES = new Set(["CPF", "HCF", "BP"]);
+
+// Founding promo reads the engine's own constant so the cards can never
+// advertise a rate the engine won't charge.
+function isFoundingFamily(code: string | undefined): boolean {
+  return (
+    FOUNDING_PROMO.ACTIVE &&
+    !!code &&
+    FOUNDING_PROMO.FAMILIES.has(code as SkuFamily)
+  );
+}
 
 // Wood-picket families that can take the cap-rail + decorative trim upgrade.
 const CAP_RAIL_FAMILIES = new Set(["CPF", "HCF", "BP"]);
@@ -389,6 +400,19 @@ function ConfigurePageInner() {
   const ironcladAnchor = baseVariant;
   // Budget-pine family: the Ivory Standard card must not read "Premium Cedar".
   const ivoryIsPine = ironcladAnchor?.family === "BP";
+  const essentialFounding =
+    !!baseVariant &&
+    isFoundingFamily(baseVariant.family) &&
+    baseVariant.basePricePerLfCents > FOUNDING_PROMO.ESSENTIAL_PER_LF_CENTS;
+  const ivoryFounding =
+    !!ironcladAnchor &&
+    isFoundingFamily(ironcladAnchor.family) &&
+    ironcladAnchor.basePricePerLfCents + 1300 >
+      FOUNDING_PROMO.IVORY_STANDARD_PER_LF_CENTS;
+  const foundingTagLabel = t.configure.foundingTag.replace(
+    "{n}",
+    String(FOUNDING_PROMO.SPOTS)
+  );
   const displayVariants =
     ironcladEligible && baseVariant
       ? [baseVariant]
@@ -485,7 +509,14 @@ function ConfigurePageInner() {
                           FROM
                         </span>
                         <span className="font-display text-[18px] font-bold tabular-nums text-brick">
-                          {formatCents(cheapest)}
+                          {formatCents(
+                            isFoundingFamily(f.code)
+                              ? Math.min(
+                                  cheapest,
+                                  FOUNDING_PROMO.ESSENTIAL_PER_LF_CENTS
+                                )
+                              : cheapest
+                          )}
                         </span>
                         <span className="font-mono text-[10px] uppercase tracking-spec text-steel">
                           {t.configure.perLF}
@@ -585,14 +616,30 @@ function ConfigurePageInner() {
                             {v.description}
                           </p>
 
+                          {essentialFounding && v.code === baseVariant?.code && (
+                            <FoundingTag
+                              label={foundingTagLabel}
+                              dark={selected}
+                            />
+                          )}
                           <div className="mt-4 flex items-baseline gap-1.5">
+                            {essentialFounding && v.code === baseVariant?.code && (
+                              <FoundingStrike
+                                cents={v.basePricePerLfCents}
+                                dark={selected}
+                              />
+                            )}
                             <span
                               className={cn(
                                 "font-display text-[24px] font-bold tabular-nums",
                                 selected ? "text-cream" : "text-navy"
                               )}
                             >
-                              {formatCents(v.basePricePerLfCents)}
+                              {formatCents(
+                                essentialFounding && v.code === baseVariant?.code
+                                  ? FOUNDING_PROMO.ESSENTIAL_PER_LF_CENTS
+                                  : v.basePricePerLfCents
+                              )}
                             </span>
                             <span
                               className={cn(
@@ -696,7 +743,19 @@ function ConfigurePageInner() {
                           {t.configure.careSchedule}
                         </p>
 
+                        {ivoryFounding && (
+                          <FoundingTag
+                            label={foundingTagLabel}
+                            dark={ironclad}
+                          />
+                        )}
                         <div className="mt-4 flex items-baseline gap-1.5">
+                          {ivoryFounding && (
+                            <FoundingStrike
+                              cents={ironcladAnchor.basePricePerLfCents + 1300}
+                              dark={ironclad}
+                            />
+                          )}
                           <span
                             className={cn(
                               "font-display text-[24px] font-bold tabular-nums",
@@ -704,7 +763,9 @@ function ConfigurePageInner() {
                             )}
                           >
                             {formatCents(
-                              ironcladAnchor.basePricePerLfCents + 1300
+                              ivoryFounding
+                                ? FOUNDING_PROMO.IVORY_STANDARD_PER_LF_CENTS
+                                : ironcladAnchor.basePricePerLfCents + 1300
                             )}
                           </span>
                           <span
@@ -1015,6 +1076,32 @@ function ConfigurePageInner() {
       </div>
       )}
     </div>
+  );
+}
+
+function FoundingTag({ label, dark }: { label: string; dark: boolean }) {
+  return (
+    <div
+      className={cn(
+        "mt-3 inline-block rounded-pill border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-spec",
+        dark ? "border-brass/60 text-brass" : "border-brick/40 text-brick"
+      )}
+    >
+      {label}
+    </div>
+  );
+}
+
+function FoundingStrike({ cents, dark }: { cents: number; dark: boolean }) {
+  return (
+    <span
+      className={cn(
+        "font-mono text-[14px] tabular-nums line-through",
+        dark ? "text-cream/50" : "text-steel"
+      )}
+    >
+      {formatCents(cents)}
+    </span>
   );
 }
 

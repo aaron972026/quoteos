@@ -85,6 +85,9 @@ export interface PricingBreakdown {
   rock_drilling_cents: number;
   tear_concrete_cents: number;
   permit_cents: number;
+  // Founding-customer discount, SUBTRACTED from the subtotal. Optional so
+  // quotes saved before the promo read as 0.
+  founding_discount_cents?: number;
 }
 
 export interface InternalMargin {
@@ -106,7 +109,7 @@ export interface PricingResult {
   valid_until: string;                  // ISO 8601
   breakdown: PricingBreakdown;
   raw_subtotal_cents: number;           // pre-guards, pre-rounding (sum of breakdown lines)
-  guards_applied: string[];             // [] or subset of ["margin_floor", "min_profit"]
+  guards_applied: string[];             // [] or subset of ["margin_floor", "min_profit", "founding_promo"]
   internal_margin: InternalMargin;
   warnings: string[];                   // e.g. "slope_review_required", "above_market"
   effective_per_lf_cents: number;       // final_price / linear_feet, rounded
@@ -114,6 +117,14 @@ export interface PricingResult {
   // priced max): NOT in any cents field / the locked total. Surfaced as
   // "priced at your visit" on the quote page, commitment step, and PDF (G3).
   deferred_gate_count: number;
+  // Present only when the founding-customer promo priced this quote.
+  founding?: FoundingPricing;
+}
+
+export interface FoundingPricing {
+  regular_price_cents: number;      // what the quote would cost without the promo
+  regular_per_lf_cents: number;     // strikethrough rate (base, + Ivory Standard if active)
+  founding_per_lf_cents: number;    // promo rate ($36 Essential / $53 Ivory Standard)
 }
 
 // ─── Errors ───────────────────────────────────────────────────────────

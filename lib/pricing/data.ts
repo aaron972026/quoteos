@@ -117,7 +117,7 @@ const SKU_SEEDS: SkuSeed[] = [
     spec_bullets: [
       "6' tall · dog-ear pickets · 3-rail framing",
       "KDAT premium pine, hand-selected",
-      "Posts set 32″ deep · 160–200 lbs concrete each",
+      "Posts set 32″ deep · 160 lbs concrete each",
       "12-Month no-warp guarantee",
       STD_WARRANTY_BULLET,
     ],
@@ -140,7 +140,7 @@ const SKU_SEEDS: SkuSeed[] = [
     spec_bullets: [
       "6' tall · dog-ear pickets · 3-rail framing",
       "#1 grade Western Red Cedar",
-      "Posts set 32″ deep · 160–200 lbs concrete each",
+      "Posts set 32″ deep · 160 lbs concrete each",
       STD_WARRANTY_BULLET,
     ],
     sort_order: 12,
@@ -160,7 +160,7 @@ const SKU_SEEDS: SkuSeed[] = [
     spec_bullets: [
       "6' tall · dog-ear pickets · 3-rail framing",
       "#1/BTR select-grade cedar",
-      "Posts set 32″ deep · 160–200 lbs concrete each",
+      "Posts set 32″ deep · 160 lbs concrete each",
       STD_WARRANTY_BULLET,
     ],
     sort_order: 13,
@@ -181,7 +181,7 @@ const SKU_SEEDS: SkuSeed[] = [
     market_flag: "ok",
     spec_bullets: [
       "6' tall · 1×6 cedar horizontal slats",
-      "Posts set 32″ deep · 160–200 lbs concrete each",
+      "Posts set 32″ deep · 160 lbs concrete each",
       STD_WARRANTY_BULLET,
     ],
     sort_order: 20,
@@ -201,7 +201,7 @@ const SKU_SEEDS: SkuSeed[] = [
     spec_bullets: [
       "6' tall · 1×6 #1 cedar, mitered corners",
       "Hidden fasteners",
-      "Posts set 32″ deep · 160–200 lbs concrete each",
+      "Posts set 32″ deep · 160 lbs concrete each",
       STD_WARRANTY_BULLET,
     ],
     sort_order: 21,
@@ -400,6 +400,29 @@ export const ADDONS = {
 // Tulsa confirmed at $75. BA/Bixby/Jenks TBD — default to $75 (Tulsa parity)
 // until your city contacts confirm. Owasso confirmed at $0.
 
+// Founding-customer promotion. Temporary launch pricing on the Essential
+// (cheapest) variant of eligible families: Essential at $36/LF and Ivory
+// Standard at $53/LF, vs. the cost-up prices. Applied by the engine as a
+// discount line so the regular price stays visible (strikethrough) and the
+// SKU costs/margins stay untouched. Flip ACTIVE to false to end it.
+// The 38% margin floor is waived for founding jobs; the $800 min-profit
+// guard still applies.
+export interface FoundingPromo {
+  ACTIVE: boolean;
+  FAMILIES: Set<SkuFamily>;
+  ESSENTIAL_PER_LF_CENTS: number;
+  IVORY_STANDARD_PER_LF_CENTS: number;
+  SPOTS: number;
+}
+
+export const FOUNDING_PROMO: FoundingPromo = {
+  ACTIVE: true,
+  FAMILIES: new Set<SkuFamily>(["CPF"]),
+  ESSENTIAL_PER_LF_CENTS: 3600,
+  IVORY_STANDARD_PER_LF_CENTS: 5300,
+  SPOTS: 5,
+};
+
 export const PERMITS: Record<string, number> = {
   Tulsa: 7500,
   "Broken Arrow": 7500,
@@ -483,6 +506,7 @@ export interface PricingConfig {
   marginThresholds: typeof MARGIN_THRESHOLDS;
   steelUpgradeFamilies: Set<SkuFamily>;
   capRailFamilies: Set<SkuFamily>;
+  foundingPromo: FoundingPromo;
 }
 
 export const DEFAULT_PRICING_CONFIG: PricingConfig = {
@@ -500,6 +524,7 @@ export const DEFAULT_PRICING_CONFIG: PricingConfig = {
   marginThresholds: MARGIN_THRESHOLDS,
   steelUpgradeFamilies: STEEL_UPGRADE_FAMILIES,
   capRailFamilies: CAP_RAIL_FAMILIES,
+  foundingPromo: FOUNDING_PROMO,
 };
 
 // Re-export MarginFlag for callers importing from data

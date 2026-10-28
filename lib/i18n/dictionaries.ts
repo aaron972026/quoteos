@@ -199,6 +199,7 @@ export interface Dictionary {
     sectionLabelTier: string; // "02"
     sectionLabelAddons: string; // "03"
     perLF: string; // "/LF"
+    foundingTag: string; // "Founding customer pricing · first {n} fences"
     fromLabel: string; // "FROM"
     tierGood: string;
     tierBetter: string;
@@ -285,6 +286,9 @@ export interface Dictionary {
     invoiceLineTier: string; // "{tier} tier upgrade ({pct})"
     invoiceSubtotal: string;
     invoiceTotal: string;
+    foundingTag: string;
+    foundingRegular: string; // "Regular price"
+    foundingDiscountLine: string;
     invoiceFooter: string;
     scheduleEyebrow: string;
     scheduleCards: Array<{ n: string; eyebrow: string; title: string }>;
@@ -602,6 +606,7 @@ const en: Dictionary = {
     sectionLabelTier: "02",
     sectionLabelAddons: "03",
     perLF: "/LF",
+    foundingTag: "Founding customer pricing · first {n} fences",
     fromLabel: "FROM",
     tierGood: "Good",
     tierBetter: "Better",
@@ -698,6 +703,9 @@ const en: Dictionary = {
     invoiceLineTier: "{tier} Tier Upgrade ({pct})",
     invoiceSubtotal: "Subtotal",
     invoiceTotal: "Total",
+    foundingTag: "Founding customer pricing · first {n} fences",
+    foundingRegular: "Regular price",
+    foundingDiscountLine: "Founding customer discount",
     invoiceFooter: "Final price held at or below this total after the on-site verification.",
     scheduleEyebrow: "Your Timeline",
     scheduleCards: [
@@ -1057,6 +1065,7 @@ const es: Dictionary = {
     sectionLabelTier: "02",
     sectionLabelAddons: "03",
     perLF: "/pie",
+    foundingTag: "Precio de cliente fundador · primeras {n} cercas",
     fromLabel: "DESDE",
     tierGood: "Bueno",
     tierBetter: "Mejor",
@@ -1153,6 +1162,9 @@ const es: Dictionary = {
     invoiceLineTier: "Nivel {tier} ({pct})",
     invoiceSubtotal: "Subtotal",
     invoiceTotal: "Total",
+    foundingTag: "Precio de cliente fundador · primeras {n} cercas",
+    foundingRegular: "Precio regular",
+    foundingDiscountLine: "Descuento de cliente fundador",
     invoiceFooter: "Precio final igual o menor a este total tras la verificación en sitio.",
     scheduleEyebrow: "Tu cronograma",
     scheduleCards: [

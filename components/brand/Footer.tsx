@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
-import { BUSINESS } from "@/lib/business";
+import { BUSINESS, PHONE_ENABLED } from "@/lib/business";
 
 interface FooterLine {
   label: string;
@@ -35,7 +35,7 @@ const SECTIONS: Array<{ heading: string; lines: FooterLine[] }> = [
  */
 export function Footer() {
   const contactLines = [
-    BUSINESS.phone,
+    ...(PHONE_ENABLED ? [BUSINESS.phone] : []),
     BUSINESS.email,
     `${BUSINESS.city}, ${BUSINESS.state}`,
     "Mon–Sat · 7:30–6",

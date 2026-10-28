@@ -1,7 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { calculatePrice, pmtCents, stripInternal } from "./engine";
-import { ASSUMPTIONS, SKU_BY_CODE, SLOPE, GATE_PRICES } from "./data";
+import {
+  calculatePrice as engineCalculatePrice,
+  isFoundingSku,
+  pmtCents,
+  stripInternal,
+} from "./engine";
+import {
+  ASSUMPTIONS,
+  DEFAULT_PRICING_CONFIG,
+  FOUNDING_PROMO,
+  SKU_BY_CODE,
+  SLOPE,
+  GATE_PRICES,
+  type PricingConfig,
+} from "./data";
 import type { PricingInput } from "./types";
+
+// The cost-up suites below lock regular pricing, so they run with the
+// founding promo switched off; the promo has its own suite at the bottom.
+const NO_PROMO: PricingConfig = {
+  ...DEFAULT_PRICING_CONFIG,
+  foundingPromo: { ...FOUNDING_PROMO, ACTIVE: false },
+};
+function calculatePrice(i: PricingInput, config: PricingConfig = NO_PROMO) {
+  return engineCalculatePrice(i, config);
+}
 
 // Baseline input — overrideable per test
 function input(overrides: Partial<PricingInput> = {}): PricingInput {
@@ -688,5 +711,71 @@ describe("gates — dual-path", () => {
     );
     expect(r.breakdown.gates_cents).toBe(175000 + 85000);
     expect(r.deferred_gate_count).toBe(1);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// Founding-customer promo — Essential $36/LF, Ivory Standard $53/LF
+// ════════════════════════════════════════════════════════════════════
+describe("founding promo", () => {
+  const PROMO = DEFAULT_PRICING_CONFIG;
+  const promoInput = (overrides: Partial<PricingInput> = {}) =>
+    input({ linear_feet: 160, ...overrides });
+
+  it("prices Essential cedar at $36/LF plus permit", () => {
+    const r = calculatePrice(promoInput(), PROMO);
+    // 3600 × 160 = 576,000 + 7,500 permit = 583,500 → rounds to 585,000
+    expect(r.raw_subtotal_cents).toBe(583500);
+    expect(r.final_price_cents).toBe(585000);
+    expect(r.breakdown.founding_discount_cents).toBe((4482 - 3600) * 160);
+    expect(r.guards_applied).toEqual(["founding_promo"]);
+  });
+
+  it("prices Ivory Standard at $53/LF", () => {
+    const r = calculatePrice(promoInput({ ironclad: true }), PROMO);
+    expect(r.raw_subtotal_cents).toBe(5300 * 160 + 7500);
+    expect(r.founding?.founding_per_lf_cents).toBe(5300);
+    expect(r.founding?.regular_per_lf_cents).toBe(4482 + 1300);
+  });
+
+  it("reports the regular price for the strikethrough", () => {
+    const promo = calculatePrice(promoInput(), PROMO);
+    const regular = calculatePrice(promoInput());
+    expect(promo.founding?.regular_price_cents).toBe(regular.final_price_cents);
+    expect(promo.final_price_cents).toBeLessThan(regular.final_price_cents);
+  });
+
+  it("waives the margin floor but keeps the $800 min-profit guard", () => {
+    // 30 LF: cost 24.65 × 30 = $739.50 + $75 permit; promo subtotal $1,155
+    // is under cost + $800, so min_profit raises it.
+    const r = calculatePrice(promoInput({ linear_feet: 30 }), PROMO);
+    expect(r.guards_applied).toContain("min_profit");
+    expect(r.guards_applied).not.toContain("margin_floor");
+    // $50 nearest-rounding runs after the guard, so allow up to $25 under.
+    expect(r.internal_margin.gross_profit_cents).toBeGreaterThanOrEqual(77500);
+  });
+
+  it("leaves add-ons at full price", () => {
+    const r = calculatePrice(
+      promoInput({ gates: [{ type: "single", width_ft: 4 }], demo_type: "CEDAR" }),
+      PROMO
+    );
+    expect(r.breakdown.gates_cents).toBe(35000);
+    expect(r.breakdown.demo_cents).toBe(300 * 160);
+  });
+
+  it("does not apply to premium cedar variants or other families", () => {
+    expect(isFoundingSku(SKU_BY_CODE["CPF-PRM"], PROMO)).toBe(true);
+    expect(isFoundingSku(SKU_BY_CODE["CPF-EST"], PROMO)).toBe(false);
+    expect(isFoundingSku(SKU_BY_CODE["HCF-STD"], PROMO)).toBe(false);
+    const r = calculatePrice(promoInput({ sku_code: "CPF-EST" }), PROMO);
+    expect(r.founding).toBeUndefined();
+    expect(r.breakdown.founding_discount_cents).toBe(0);
+  });
+
+  it("is a no-op when switched off", () => {
+    const r = calculatePrice(promoInput());
+    expect(r.founding).toBeUndefined();
+    expect(r.guards_applied).not.toContain("founding_promo");
   });
 });

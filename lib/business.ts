@@ -29,5 +29,12 @@ export const BUSINESS = {
   state: "OK",
 } as const;
 
+/**
+ * The 918-345-7246 line isn't reachable yet, so every phone CTA is hidden
+ * until a working Ivory line is set up. Update `phone`/`phoneE164` above,
+ * then flip this to true.
+ */
+export const PHONE_ENABLED = false;
+
 /** Format the phone as a clickable href value. */
 export const PHONE_HREF = `tel:${BUSINESS.phoneE164}`;

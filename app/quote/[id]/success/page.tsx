@@ -7,7 +7,7 @@ import { getCurrentSessionId } from "@/lib/api/session-helper";
 import { getDict } from "@/lib/i18n/server";
 import { formatInstallWeek } from "@/lib/scheduling/install-week";
 import { TrustStrip } from "@/components/TrustStrip";
-import { BUSINESS } from "@/lib/business";
+import { BUSINESS, PHONE_ENABLED } from "@/lib/business";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +94,9 @@ export default async function QuoteSuccessPage({
         >
           {locale === "es" ? "Volver a su cotización" : "Back to your quote"}
         </Link>{" "}
-        {locale === "es" ? "o llame al" : "or call"} {BUSINESS.phone}.
+        {PHONE_ENABLED
+          ? `${locale === "es" ? "o llame al" : "or call"} ${BUSINESS.phone}.`
+          : `${locale === "es" ? "o escriba a" : "or email"} ${BUSINESS.email}.`}
       </div>
 
       <div className="mt-10">

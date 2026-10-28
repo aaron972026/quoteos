@@ -6,7 +6,7 @@ import {
   View,
   StyleSheet,
 } from "@react-pdf/renderer";
-import { BUSINESS } from "@/lib/business";
+import { BUSINESS, PHONE_ENABLED } from "@/lib/business";
 import { getBrandLogoBuffer } from "./brand-logo";
 import type { PostType } from "@/lib/pricing/types";
 
@@ -158,7 +158,10 @@ export interface QuotePdfData {
     rock_drilling_cents: number;
     tear_concrete_cents: number;
     permit_cents: number;
+    founding_discount_cents?: number;
   };
+  // Founding promo: the regular (pre-discount) total, printed struck-through.
+  foundingRegularCents?: number;
   // Admin price override delta (persisted total − engine-derived total).
   // Rendered as its own breakdown line so the itemization always sums to
   // the printed Total, even after a manual adjustment or for options the
@@ -193,6 +196,10 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
       ["Rock drilling", data.breakdown.rock_drilling_cents],
       ["Concrete-post removal", data.breakdown.tear_concrete_cents],
       ["Permit", data.breakdown.permit_cents],
+      [
+        "Founding customer discount",
+        -(data.breakdown.founding_discount_cents ?? 0),
+      ],
     ] as Array<[string, number]>
   )
     .concat(
@@ -238,6 +245,14 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
 
         <View style={styles.priceCard}>
           <Text style={styles.priceRangeLabel}>Your range</Text>
+          {data.foundingRegularCents != null && (
+            <Text style={styles.priceHelper}>
+              Founding customer pricing · Regular price{" "}
+              <Text style={{ textDecoration: "line-through" }}>
+                {fmt(data.foundingRegularCents)}
+              </Text>
+            </Text>
+          )}
           <View style={styles.priceRangeRow}>
             <Text style={styles.priceLow}>{fmt(data.displayRangeLowCents)}</Text>
             <Text style={styles.priceDash}>–</Text>
@@ -328,7 +343,8 @@ export function QuotePdf({ data }: { data: QuotePdfData }) {
         <Text style={styles.footer}>
           Issued {issuedAt} · Price valid through {validDate} ·{" "}
           {BUSINESS.legalName} · Licensed & insured ·{" "}
-          {BUSINESS.phone} · {BUSINESS.domain} ·{" "}
+          {PHONE_ENABLED ? `${BUSINESS.phone} · ` : ""}
+          {BUSINESS.domain} ·{" "}
           {data.quoteNumber ?? "(quote draft)"}
         </Text>
       </Page>

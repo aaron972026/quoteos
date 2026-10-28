@@ -76,7 +76,7 @@ const SECTIONS: MaterialSection[] = [
       "Every post bedded in concrete 32–36 inches deep. Plumb and square, checked twice with a 4-foot level. The line doesn't move because the posts don't move.",
     specs: [
       { label: "Mix", value: "Quikrete or equivalent 3,000-psi fast-set" },
-      { label: "Volume per post", value: "160–200 lbs standard (≈3 × 60 lb bags) · 240+ lbs on the Ivory Standard set · adjusted for soil" },
+      { label: "Volume per post", value: "160 lbs on the Essential set · 240+ lbs on the Ivory Standard set" },
       { label: "Cure window", value: "24-48 hr before panels go on the rails" },
       { label: "Drainage", value: "Crowned tops, gravel base in heavy-clay yards" },
     ],

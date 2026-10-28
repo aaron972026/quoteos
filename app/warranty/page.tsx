@@ -3,7 +3,7 @@ import { ArrowRight, Check } from "lucide-react";
 import { Header } from "@/components/brand/Header";
 import { Eyebrow } from "@/components/brand/Eyebrow";
 import { Footer } from "@/components/brand/Footer";
-import { BUSINESS, PHONE_HREF } from "@/lib/business";
+import { BUSINESS, PHONE_ENABLED, PHONE_HREF } from "@/lib/business";
 import { cn } from "@/lib/utils";
 
 interface Section {
@@ -432,19 +432,19 @@ export default function WarrantyPage() {
             Talk To A Human.
           </h2>
           <p className="mx-auto mt-5 max-w-[58ch] font-body text-[15px] leading-[1.55] text-cream/80">
-            Call us. We&apos;ll walk through what your fence is warranted for
+            {PHONE_ENABLED ? "Call" : "Email"} us. We&apos;ll walk through what your fence is warranted for
             and what it isn&apos;t. No hold music.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <a
-              href={PHONE_HREF}
+              href={PHONE_ENABLED ? PHONE_HREF : `mailto:${BUSINESS.email}`}
               className={cn(
                 "flex h-16 items-center justify-center gap-2.5 rounded-sm bg-brick px-10",
                 "font-display text-[15px] font-semibold uppercase tracking-eyebrow text-cream",
                 "shadow-cta transition-colors hover:bg-brick-deep"
               )}
             >
-              {BUSINESS.phone}
+              {PHONE_ENABLED ? BUSINESS.phone : BUSINESS.email}
             </a>
             <Link
               href="/address"

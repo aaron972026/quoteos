@@ -192,6 +192,7 @@ export async function resendQuoteEmail(
       displayRangeLowCents: displayLow,
       displayRangeHighCents: displayHigh,
       breakdown: priced.breakdown,
+      foundingRegularCents: priced.founding?.regular_price_cents,
       deferredGateLabel: (() => {
         const n = countDeferredGates(
           row.gates as Array<{ type?: string; width_ft?: number }> | null

@@ -7,7 +7,7 @@ import { Eyebrow } from "@/components/brand/Eyebrow";
 import { TrustBar } from "@/components/brand/TrustBar";
 import { Footer } from "@/components/brand/Footer";
 import { getDict } from "@/lib/i18n/server";
-import { BUSINESS, PHONE_HREF } from "@/lib/business";
+import { BUSINESS, PHONE_ENABLED, PHONE_HREF } from "@/lib/business";
 import { cn } from "@/lib/utils";
 
 export default function LandingPage() {
@@ -159,6 +159,7 @@ export default function LandingPage() {
                   </p>
                 </div>
                 <div className="flex flex-col gap-3 md:items-end">
+                  {PHONE_ENABLED && (
                   <a
                     href={`${PHONE_HREF}`}
                     className={cn(
@@ -173,6 +174,7 @@ export default function LandingPage() {
                       <span className="hidden md:inline">Call Storm Line · {BUSINESS.phone}</span>
                     </span>
                   </a>
+                  )}
                   <a
                     href={`mailto:${BUSINESS.email}?subject=Insurance%20Claim%20%E2%80%94%20Ivory%20Fence%20Co.&body=Hi%20Ivory%20Fence%20Co.%2C%0A%0AMy%20fence%20was%20damaged%20and%20I%27m%20filing%20an%20insurance%20claim.%20Here%27s%20what%20I%20know%3A%0A%0A-%20Address%3A%20%0A-%20Date%20of%20loss%3A%20%0A-%20Insurance%20carrier%3A%20%0A-%20Claim%20number%20(if%20you%20have%20one)%3A%20%0A%0AThanks%21`}
                     className="flex h-12 w-full items-center justify-center gap-2 rounded-sm border border-navy/30 px-4 font-display text-[13px] font-semibold uppercase tracking-eyebrow text-navy transition-colors hover:border-navy hover:bg-navy/5 md:w-auto md:px-5"

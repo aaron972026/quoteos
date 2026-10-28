@@ -124,6 +124,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       displayRangeLowCents: priced.display_range_low_cents,
       displayRangeHighCents: priced.display_range_high_cents,
       breakdown: priced.breakdown,
+      foundingRegularCents: priced.founding?.regular_price_cents,
       deferredGateLabel: deferredGateLabel(
         row.gates as Array<{ type?: string; width_ft?: number }> | null
       ),
