@@ -10,6 +10,7 @@ import { QuoteDetailMap } from "@/components/admin/QuoteDetailMap";
 import { MarginPanel } from "@/components/admin/MarginPanel";
 import { ScopeList } from "@/components/admin/ScopeList";
 import { formatCents } from "@/lib/utils";
+import { quoteRef } from "@/lib/quote-ref";
 
 export const dynamic = "force-dynamic";
 
@@ -172,7 +173,7 @@ export default async function AdminQuoteDetailPage({
       <div className="mt-3 flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h1 className="font-mono text-xl font-bold text-navy">
-            {q.quoteNumber ?? q.id.slice(0, 8)}
+            {quoteRef(q)}
           </h1>
           <p className="text-sm text-navy/60">{q.addressLine ?? "(no address yet)"}</p>
         </div>

@@ -27,6 +27,7 @@ import { useT } from "@/lib/i18n/use-locale";
 import { FOUNDING_PROMO } from "@/lib/pricing/data";
 import type { PostType, SkuFamily } from "@/lib/pricing/types";
 import { postWarrantyLine } from "@/lib/warranty";
+import { quoteRef } from "@/lib/quote-ref";
 
 interface SkuApiRow {
   code: string;
@@ -448,7 +449,7 @@ function ConfigurePageInner() {
           <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
             {quoteId && (
               <div className="order-first font-mono text-[11px] uppercase tracking-spec text-brick md:order-last">
-                QUOTE-IN-PROGRESS · {quoteId.slice(0, 8).toUpperCase()}
+                QUOTE-IN-PROGRESS · {quoteRef({ id: quoteId })}
               </div>
             )}
             <div className="min-w-0 flex-1">

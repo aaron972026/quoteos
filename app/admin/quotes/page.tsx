@@ -4,6 +4,7 @@ import { db } from "@/lib/db/client";
 import { quotes } from "@/lib/db/schema";
 import { QuotesTable, type QuoteRow } from "@/components/admin/QuotesTable";
 import { formatCents } from "@/lib/utils";
+import { refToIdPrefix } from "@/lib/quote-ref";
 
 export const dynamic = "force-dynamic";
 
@@ -243,8 +244,11 @@ export default async function AdminQuotesPage({
     where.push(gte(quotes.createdAt, new Date(Date.now() - RANGES[range]!)));
   }
   if (q) {
+    // "IV-3BC1F0FE" (or the bare 8 hex chars) matches the quote's UUID prefix.
+    const idPrefix = refToIdPrefix(q);
     where.push(
       or(
+        ...(idPrefix ? [sql`${quotes.id}::text like ${idPrefix + "%"}`] : []),
         ilike(quotes.addressLine, `%${q}%`),
         ilike(quotes.customerEmail, `%${q}%`),
         ilike(quotes.customerPhone, `%${q}%`),

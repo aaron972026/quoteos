@@ -21,6 +21,7 @@ import { renderQuotePdf } from "@/lib/pdf/render-quote-pdf";
 import { fromAddress, getResend, replyToAddress } from "@/lib/integrations/resend";
 import { countDeferredGates, toPricingGates } from "@/lib/pricing/gates";
 import { getDict } from "@/lib/i18n/server";
+import { quoteRef } from "@/lib/quote-ref";
 
 /** Localized "N gates — priced at your visit" line, or null when none. */
 function deferredGateLabel(
@@ -106,7 +107,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   let pdfBuffer: Buffer;
   try {
     pdfBuffer = await renderQuotePdf({
-      quoteNumber: row.quoteNumber,
+      quoteNumber: quoteRef(row),
       addressLine: row.addressLine,
       city: row.city,
       state: row.state,
@@ -154,7 +155,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   try {
-    const subject = `Your Ivory Fence Co. quote — ${familyName} (${row.skuCode})`;
+    const subject = `Your Ivory Fence Co. quote ${quoteRef(row)} — ${familyName}`;
     // Resend's emails.send returns { data, error } and does NOT always throw
     // on API rejection (unverified sender, blocked recipient, etc). Treat a
     // non-null `error` as failure so the route doesn't say "sent" for a
@@ -168,13 +169,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         `Thanks for the time you spent on the quote tool.`,
         ``,
         `Attached is a PDF of your ${familyName} quote.`,
+        `Your quote reference is ${quoteRef(row)} — mention it if you reply or call.`,
         `Reserve your install week for $99 — applied straight to your project — or hold your price free for 14 days.`,
         ``,
         `— Ivory Fence Co.`,
       ].join("\n"),
       attachments: [
         {
-          filename: `Ivory-Quote-${row.quoteNumber ?? row.id.slice(0, 8)}.pdf`,
+          filename: `Ivory-Quote-${quoteRef(row)}.pdf`,
           content: pdfBuffer,
         },
       ],

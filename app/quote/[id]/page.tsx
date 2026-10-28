@@ -27,6 +27,7 @@ import { BUSINESS, PHONE_ENABLED, PHONE_HREF } from "@/lib/business";
 import { cn, formatCents } from "@/lib/utils";
 import { FOUNDING_PROMO } from "@/lib/pricing/data";
 import { countDeferredGates } from "@/lib/pricing/gates";
+import { quoteRef } from "@/lib/quote-ref";
 
 interface QuoteShape {
   id: string;
@@ -269,7 +270,7 @@ export default function QuotePage({ params }: { params: { id: string } }) {
   const heightLabel = skuMeta?.heightInches
     ? `${Math.round(skuMeta.heightInches / 12)} FT`
     : null;
-  const quoteRef = `FP-${quote.id.slice(0, 8).toUpperCase()}`;
+  const quoteRefLabel = quoteRef(quote);
 
   // Family-aware override for the "Materials" trust-card row so we don't
   // promise "Western Red Cedar" to a Budget Pine or Chain Link customer.
@@ -317,7 +318,7 @@ export default function QuotePage({ params }: { params: { id: string } }) {
         <div className="mx-auto max-w-[1280px] px-5 py-8 md:px-10 md:py-12">
           {/* Spec line */}
           <div className="font-mono text-[11px] uppercase tracking-spec text-brick">
-            QUOTE #{quoteRef} · {lf.toFixed(0)} LF · {familyName}
+            QUOTE #{quoteRefLabel} · {lf.toFixed(0)} LF · {familyName}
             {heightLabel ? ` · ${heightLabel}` : ""}
             {quote.skuCode ? ` · ${quote.skuCode}` : ""}
           </div>

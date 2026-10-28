@@ -12,6 +12,7 @@ import { fromAddress, getResend, replyToAddress } from "@/lib/integrations/resen
 import { getStripe } from "@/lib/integrations/stripe";
 import { countDeferredGates, toPricingGates } from "@/lib/pricing/gates";
 import { getDict } from "@/lib/i18n/server";
+import { quoteRef } from "@/lib/quote-ref";
 
 // These actions run behind the /admin Basic Auth middleware. They write
 // to quotes DIRECTLY (not through the public PATCH API) because the API
@@ -174,7 +175,7 @@ export async function resendQuoteEmail(
   let pdfBuffer: Buffer;
   try {
     pdfBuffer = await renderQuotePdf({
-      quoteNumber: row.quoteNumber,
+      quoteNumber: quoteRef(row),
       addressLine: row.addressLine,
       city: row.city,
       state: row.state,
@@ -224,18 +225,19 @@ export async function resendQuoteEmail(
       from: fromAddress(),
       replyTo: replyToAddress(),
       to,
-      subject: `Your Ivory Fence Co. quote — ${familyName} (${row.skuCode})`,
+      subject: `Your Ivory Fence Co. quote ${quoteRef(row)} — ${familyName}`,
       text: [
         `Thanks for the time you spent on the quote tool.`,
         ``,
         `Attached is an updated PDF of your ${familyName} quote.`,
+        `Your quote reference is ${quoteRef(row)} — mention it if you reply or call.`,
         `Reserve your install week for $99 — applied straight to your project — or hold your price free for 14 days.`,
         ``,
         `— Ivory Fence Co.`,
       ].join("\n"),
       attachments: [
         {
-          filename: `Ivory-Quote-${row.quoteNumber ?? row.id.slice(0, 8)}.pdf`,
+          filename: `Ivory-Quote-${quoteRef(row)}.pdf`,
           content: pdfBuffer,
         },
       ],

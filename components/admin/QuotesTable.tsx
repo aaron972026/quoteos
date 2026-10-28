@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { formatCents } from "@/lib/utils";
+import { quoteRef } from "@/lib/quote-ref";
 
 type MarginFlag = "ok" | "warn" | "low" | null;
 
@@ -86,7 +87,7 @@ export function QuotesTable({ rows }: Props) {
                       href={`/admin/quotes/${r.id}`}
                       className="hover:text-accent hover:underline"
                     >
-                      {r.quoteNumber ?? r.id.slice(0, 8)}
+                      {quoteRef(r)}
                     </Link>
                     {r.customerEmail && (
                       <div className="mt-0.5 truncate text-[10px] text-navy/40">
