@@ -419,7 +419,7 @@ export const FOUNDING_PROMO: FoundingPromo = {
   ACTIVE: true,
   FAMILIES: new Set<SkuFamily>(["CPF"]),
   ESSENTIAL_PER_LF_CENTS: 3600,
-  IVORY_STANDARD_PER_LF_CENTS: 5300,
+  IVORY_STANDARD_PER_LF_CENTS: 4900,
   SPOTS: 5,
 };
 

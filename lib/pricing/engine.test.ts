@@ -715,7 +715,7 @@ describe("gates — dual-path", () => {
 });
 
 // ════════════════════════════════════════════════════════════════════
-// Founding-customer promo — Essential $36/LF, Ivory Standard $53/LF
+// Founding-customer promo — Essential $36/LF, Ivory Standard $49/LF
 // ════════════════════════════════════════════════════════════════════
 describe("founding promo", () => {
   const PROMO = DEFAULT_PRICING_CONFIG;
@@ -731,10 +731,10 @@ describe("founding promo", () => {
     expect(r.guards_applied).toEqual(["founding_promo"]);
   });
 
-  it("prices Ivory Standard at $53/LF", () => {
+  it("prices Ivory Standard at $49/LF", () => {
     const r = calculatePrice(promoInput({ ironclad: true }), PROMO);
-    expect(r.raw_subtotal_cents).toBe(5300 * 160 + 7500);
-    expect(r.founding?.founding_per_lf_cents).toBe(5300);
+    expect(r.raw_subtotal_cents).toBe(4900 * 160 + 7500);
+    expect(r.founding?.founding_per_lf_cents).toBe(4900);
     expect(r.founding?.regular_per_lf_cents).toBe(4482 + 1300);
   });
 
