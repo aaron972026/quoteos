@@ -24,7 +24,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     gap: 6,
   },
-  brandLogo: { height: 28, width: "auto" },
+  brandLogo: { height: 40, width: "auto" },
   brandBadge: {
     backgroundColor: NAVY,
     color: BRASS,
@@ -115,6 +115,7 @@ function fmt(cents: number): string {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(cents / 100);
 }
 
