@@ -7,23 +7,18 @@
 export const BUSINESS = {
   /** Friendly brand name. */
   name: "Ivory Fence Co.",
-  /**
-   * Legal LLC name — used in quote PDF footer and ToS.
-   * DELIBERATELY NOT REBRANDED: this names the legal entity that carries the
-   * warranty and contract obligations. Only change once the registered entity
-   * (or the correct d/b/a phrasing) is confirmed.
-   */
-  legalName: "FencePros Tulsa LLC",
+  /** Legal LLC name — the entity behind the warranty and contract. Used in the quote PDF footer and ToS. */
+  legalName: "Ivory Exteriors LLC",
   /** Display phone (national format). */
   phone: "918-345-7246",
   /** E.164 for `tel:` links and Twilio routing. */
   phoneE164: "+19183457246",
-  /** Customer-facing email — must match a verified Resend sender once DNS lands. */
-  email: "quotes@fenceprostulsa.com",
+  /** Customer-facing contact inbox; also the reply-to on outbound email. */
+  email: "ivoryfencetulsa@gmail.com",
   /** Bare-host domain. No protocol. */
-  domain: "fenceprostulsa.com",
+  domain: "ivoryfence.com",
   /** Canonical site URL with protocol; no trailing slash. */
-  url: "https://fenceprostulsa.com",
+  url: "https://ivoryfence.com",
   /** City / region for SEO + footers. */
   city: "Tulsa",
   state: "OK",

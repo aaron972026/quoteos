@@ -8,7 +8,7 @@ import { calculatePrice } from "@/lib/pricing/engine";
 import { loadPricingConfig } from "@/lib/pricing/load-config";
 import { PricingError } from "@/lib/pricing/types";
 import { renderQuotePdf } from "@/lib/pdf/render-quote-pdf";
-import { fromAddress, getResend } from "@/lib/integrations/resend";
+import { fromAddress, getResend, replyToAddress } from "@/lib/integrations/resend";
 import { getStripe } from "@/lib/integrations/stripe";
 import { countDeferredGates, toPricingGates } from "@/lib/pricing/gates";
 import { getDict } from "@/lib/i18n/server";
@@ -222,6 +222,7 @@ export async function resendQuoteEmail(
   try {
     const result = await getResend().emails.send({
       from: fromAddress(),
+      replyTo: replyToAddress(),
       to,
       subject: `Your Ivory Fence Co. quote — ${familyName} (${row.skuCode})`,
       text: [

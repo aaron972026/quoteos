@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { BUSINESS } from "@/lib/business";
 
 let _client: Resend | null = null;
 
@@ -16,6 +17,11 @@ export function getResend(): Resend {
 /** From-address; defaults to the verified production sender. */
 export function fromAddress(): string {
   return (
-    process.env.RESEND_FROM_EMAIL ?? "Ivory Fence Co. <quotes@fenceprostulsa.com>"
+    process.env.RESEND_FROM_EMAIL ?? "Ivory Fence Co. <quotes@ivoryfence.com>"
   );
+}
+
+/** Reply-to: the sending address has no inbox, so replies go to the business inbox. */
+export function replyToAddress(): string {
+  return process.env.RESEND_REPLY_TO ?? BUSINESS.email;
 }

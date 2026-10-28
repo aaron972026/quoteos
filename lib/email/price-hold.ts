@@ -1,4 +1,4 @@
-import { getResend, fromAddress } from "@/lib/integrations/resend";
+import { getResend, fromAddress, replyToAddress } from "@/lib/integrations/resend";
 import { formatCents } from "@/lib/utils";
 
 /**
@@ -109,6 +109,7 @@ export async function sendPriceHoldEmail(o: HoldEmailOpts): Promise<boolean> {
   try {
     const result = await getResend().emails.send({
       from: fromAddress(),
+      replyTo: replyToAddress(),
       to: o.to,
       subject: c.subject,
       html: renderHtml(o),

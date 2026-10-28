@@ -18,7 +18,7 @@ import { calculatePrice } from "@/lib/pricing/engine";
 import { loadPricingConfig } from "@/lib/pricing/load-config";
 import { PricingError } from "@/lib/pricing/types";
 import { renderQuotePdf } from "@/lib/pdf/render-quote-pdf";
-import { fromAddress, getResend } from "@/lib/integrations/resend";
+import { fromAddress, getResend, replyToAddress } from "@/lib/integrations/resend";
 import { countDeferredGates, toPricingGates } from "@/lib/pricing/gates";
 import { getDict } from "@/lib/i18n/server";
 
@@ -161,6 +161,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // message that never left Resend.
     const result = await getResend().emails.send({
       from: fromAddress(),
+      replyTo: replyToAddress(),
       to: email,
       subject,
       text: [
